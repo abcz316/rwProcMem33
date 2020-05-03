@@ -535,6 +535,6 @@ module_init(rwProcMem_dev_init);
 module_exit(rwProcMem_dev_exit);
 
 MODULE_AUTHOR("abcz316");
-MODULE_DESCRIPTION("Linux read & write process memory module. Coded by abcz316 QQ3168248856 2020-03-20");
+MODULE_DESCRIPTION("Linux read & write process memory module. Coded by abcz316 2020-03-20");
 MODULE_LICENSE("GPL");
 
