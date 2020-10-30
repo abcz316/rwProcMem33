@@ -7,9 +7,15 @@
 5.  驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、只显示在物理内存中的内存）
 6.  驱动_获取进程占用物理内存大小: GetProcessRSS
 7.  驱动_获取进程命令行: GetProcessCmdline
-以上所有功能不注入、不附加进程，不打开进程任何文件，所有操作均为硬件操作
 
 
-为了避免不法分子将此驱动用在非法的用途， 在此给出侦测建议：
-1.检查是否有/dev/rwProcMem33此文件。
-2.检查SELinux是否被关闭。从安卓5.0启用SELinux后，APP想要与驱动进行通讯，必须得关闭SELinux，如果发现SELinux是关闭状态，并且是高版本的安卓系统，那么此安卓使用者必有问题。检测SELinux的方法很多，如open打开某个文件、iotcl等等，如果SELinux是打开状态，那么这些都会直接返回EACCES (Permission denied)，提示拒绝访问。另外，在高版本的安卓系统中，如安卓10，如果SELinux是打开的状态，那么lsmod查看驱动列表，也会直接返回Permission denied拒绝访问，如果lsmod能直接显示驱动列表，那么此使用者的SELinux也是有问题的，有可能被关闭了的。
+本驱动名称: Linux ARM64 硬件断点进程调试驱动1
+本驱动接口列表：
+1.  驱动_打开进程: OpenProcess
+2.  驱动_获取CPU支持硬件执行断点的数量: GetNumBRPS
+3.  驱动_获取CPU支持硬件访问断点的数量: GetNumWRPS
+4.  驱动_设置进程硬件断点: AddProcessHwBp
+5.  驱动_删除进程硬件断点: DelProcessHwBp
+6.  驱动_读取硬件断点命中信息: ReadHwBpInfo
+7.  驱动_清空硬件断点命中信息: CleanHwBpInfo
+8.  驱动_关闭进程: CloseHandle
