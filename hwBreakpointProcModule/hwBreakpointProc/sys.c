@@ -398,58 +398,6 @@ static long hwBreakpointProc_ioctl(
 #ifdef CONFIG_VERIFY
 	case IOCTL_KEY: //验证KEY
 	{
-		/*
-		驱动通信协议：
-
-			输入：
-			0-7字节：KEY
-
-			输出：
-			当输入的KEY为0时，会输出：0-127字节的Question
-		*/
-
-		//获取KEY
-		char buf[8];
-
-		printk_debug(KERN_INFO "IOCTL_KEY\n");
-
-		memset(&buf, 0, sizeof(buf));
-		//用户空间->内核空间
-		if (copy_from_user((void*)buf, (void*)arg, 8))
-		{
-			return -EINVAL;
-		}
-
-		size_t key = *(size_t*)(&buf[0]);
-		printk_debug(KERN_INFO "key:%ld\n", key);
-
-		if (key == 0)
-		{
-			//初始化KEY验证系统
-			char identityBuf128[sizeof(g_rwProcMemVerifyQuestion)] = { 0 };
-			init_verify();
-			memcpy(identityBuf128, g_rwProcMemVerifyQuestion, sizeof(identityBuf128));
-			//内核空间->用户空间交换数据
-			if (copy_to_user((void*)arg, (void*)identityBuf128, sizeof(identityBuf128)))
-			{
-				return -EINVAL;
-			}
-
-		}
-		else
-		{
-			//验证KEY
-			key = set_verify_key(key);
-
-			memcpy(&buf, &key, 8);
-			//内核空间->用户空间交换数据
-			if (copy_to_user((void*)arg, (void*)buf, 8))
-			{
-				return -EINVAL;
-			}
-
-		}
-		return 0;
 		break;
 	}
 #endif
@@ -654,46 +602,6 @@ static long hwBreakpointProc_ioctl(
 		printk_debug(KERN_INFO "hwBreakpoint_type:%d\n", hwBreakpoint_type);
 
 
-
-
-#ifdef CONFIG_VERIFY
-		if (g_rwProcMemVerifyHiddenProtect == 0)
-		{
-			if (task_pid_nr_ns(current, NULL) != get_proc_pid(proc_pid_struct)) //验证KEY系统启用的情况下，只允许读取自身进程
-			{
-				if (g_rwProcMemVerifyKey != my_crc64(&g_rwProcMemVerifyQuestion, sizeof(g_rwProcMemVerifyQuestion)))
-				{
-					//黑客破解入侵，死机蓝屏不解释
-					char *p = NULL;
-					*p = 1;
-				}
-				else
-				{
-					//统计00字节个数
-					int zeroCount = 0;
-					int z = 0;
-					for (; z < sizeof(g_rwProcMemVerifyQuestion); z++)
-					{
-						if (g_rwProcMemVerifyQuestion[z] == '\x00')
-						{
-							zeroCount++;
-						}
-					}
-					if (zeroCount > sizeof(g_rwProcMemVerifyQuestion) / 2)
-					{
-						//太多00
-
-						//黑客破解入侵，死机蓝屏不解释
-						char *p = NULL;
-						*p = 1;
-					}
-
-					g_rwProcMemVerifyHiddenProtect++;
-				}
-
-			}
-		}
-#endif
 
 
 		task = get_pid_task(proc_pid_struct, PIDTYPE_PID);
