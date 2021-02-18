@@ -11,7 +11,6 @@ else
 
 all:
 	make -C $(KDIR) ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- M=$(PWD) modules
-	aarch64-linux-android-strip --strip-unneeded $(MODULE_NAME).ko
 clean:    
 	rm -f *.ko *.o *.mod.o *.mod.c *.symvers    
 endif    

@@ -21,19 +21,12 @@
 #include <linux/device.h> //device_create创建设备文件（/dev/xxxxxxxx）
 //////////////////////////////////////////////////////////////////
 #include "cvector.h"
-#include "remote_proc.h"
-#include "version_control.h"
-
-#ifdef CONFIG_VERIFY
-#include "verify.h"
-#endif
+#include "proc.h"
+#include "ver_control.h"
 
 //////////////////////////////////////////////////////////////////
 
 #define MAJOR_NUM 100
-#ifdef CONFIG_VERIFY
-#define IOCTL_KEY														_IOR(MAJOR_NUM, 0, char*) //验证KEY
-#endif
 #define IOCTL_OPEN_PROCESS 							_IOR(MAJOR_NUM, 1, char*) //打开进程
 #define IOCTL_CLOSE_HANDLE 							_IOR(MAJOR_NUM, 2, char*) //关闭进程
 #define IOCTL_GET_NUM_BRPS 							_IOR(MAJOR_NUM, 3, char*) //获取CPU支持硬件执行断点的数量
@@ -395,12 +388,6 @@ static long hwBreakpointProc_ioctl(
 	
 	switch (cmd)
 	{
-#ifdef CONFIG_VERIFY
-	case IOCTL_KEY: //验证KEY
-	{
-		break;
-	}
-#endif
 	case IOCTL_OPEN_PROCESS: //打开进程
 	{
 		/*
@@ -430,16 +417,6 @@ static long hwBreakpointProc_ioctl(
 		memcpy(&pid, buf, sizeof(pid));
 		printk_debug(KERN_INFO "pid:%ld\n", pid);
 
-#ifdef CONFIG_VERIFY
-		if (!is_verify_passed())
-		{
-			if (task_pid_nr_ns(current, NULL) != pid) //验证KEY系统启用的情况下，只允许读取自身进程
-			{
-				printk_debug(KERN_INFO "task_pid_nr_ns(current,NULL):%d,pid:%d\n", task_pid_nr_ns(current, NULL), pid);
-				return -EINVAL;
-			}
-		}
-#endif
 
 		//输出进程句柄
 		proc_pid_struct = get_proc_pid_struct(pid);
@@ -767,7 +744,7 @@ static const struct file_operations hwBreakpointProc_fops =
 #endif
 };
 
-static int hwBreakpointProc_dev_init(void)
+static int __init hwBreakpointProc_dev_init(void)
 {
 	int result;
 	int err;
@@ -830,10 +807,6 @@ static int hwBreakpointProc_dev_init(void)
 	printk(KERN_EMERG "Hello, %s\n", DEV_FILENAME);
 #endif
 
-#ifdef CONFIG_VERIFY
-	//启动定时验证时钟
-	start_verify_timer();
-#endif
 
 	return 0;
 
@@ -842,7 +815,7 @@ _fail:
 	return result;
 }
 
-static void hwBreakpointProc_dev_exit(void)
+static void __exit hwBreakpointProc_dev_exit(void)
 {
 	//删除剩余的硬件断点
 	citerator iter;
@@ -861,7 +834,6 @@ static void hwBreakpointProc_dev_exit(void)
 	cvector_destroy(g_vHwBpInfo);
 
 
-
 	device_destroy(g_Class_devp, g_hwBreakpointProc_devno); //删除设备文件（位置在/dev/xxxxx）
 	class_destroy(g_Class_devp); //删除设备类
 
@@ -870,18 +842,15 @@ static void hwBreakpointProc_dev_exit(void)
 	unregister_chrdev_region(g_hwBreakpointProc_devno, 1); //释放设备号
 
 
-#ifdef CONFIG_VERIFY
-//关闭定时验证时钟
-	close_verify_timer();
-#endif
 	printk(KERN_EMERG "Goodbye, %s\n", DEV_FILENAME);
 
 }
 
 
-
+#ifdef CONFIG_MODULE_GUIDE_ENTRY
 module_init(hwBreakpointProc_dev_init);
 module_exit(hwBreakpointProc_dev_exit);
+#endif
 
 MODULE_AUTHOR("Linux");
 MODULE_DESCRIPTION("Linux default module");

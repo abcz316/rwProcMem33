@@ -240,9 +240,9 @@ int cvector_rm_at(const cvector cv, size_t index)
 
 void cv_info(const cvector cv)  
 {  
-	printf("\n\ntot :%s : %d\n", __func__, cv->cv_tot_len);  
-	printf("len :%s : %d\n",     __func__, cv->cv_len);  
-	printf("size:%s : %d\n\n",   __func__, cv->cv_size);  
+	printf("\n\ntot :%s : %zu\n", __func__, cv->cv_tot_len);  
+	printf("len :%s : %zu\n",     __func__, cv->cv_len);  
+	printf("size:%s : %zu\n\n",   __func__, cv->cv_size);  
 	return;  
 }  
 
@@ -259,7 +259,7 @@ void cv_print(const cvector cv)
 		iter = cvector_next(cv, iter))   
 	{  
 		cvector_iter_val(cv, iter, &num);  
-		printf("var:%d at:%d\n", num, cvector_iter_at(cv, iter));  
+		printf("var:%d at:%zu\n", num, cvector_iter_at(cv, iter));  
 	}  
 
 	return;  

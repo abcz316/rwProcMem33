@@ -72,7 +72,6 @@ struct HIT_CONDITIONS
 #pragma pack()
 
 #define MAJOR_NUM 100
-#define IOCTL_KEY												_IOR(MAJOR_NUM, 0, char*) //验证KEY
 #define IOCTL_OPEN_PROCESS 							_IOR(MAJOR_NUM, 1, char*) //打开进程
 #define IOCTL_CLOSE_HANDLE 							_IOR(MAJOR_NUM, 2, char*) //关闭进程
 #define IOCTL_GET_NUM_BRPS 							_IOR(MAJOR_NUM, 3, char*) //获取CPU支持硬件执行断点的数量
@@ -93,10 +92,6 @@ static int hwBreakpointProcDriver_Connect();
 
 //断开驱动，返回值：TRUE成功，FALSE失败
 static BOOL hwBreakpointProcDriver_Disconnect(int nDriverLink);
-
-//驱动_设置密匙（身份信息，钥匙），返回值：TRUE钥匙正确，FALSE钥匙错误
-	//（参数key说明：当传入的key为0时，将会从identityBuf128输出128字节的身份信息以供开发者计算key。当传入的key不为0时，将验证钥匙key是否正确）
-static BOOL hwBreakpointProcDriver_SetKey(int nDriverLink, char * identityBuf128, uint64_t key);
 
 //驱动_打开进程（进程PID），返回值：进程句柄，0为失败
 static uint64_t hwBreakpointProcDriver_OpenProcess(int nDriverLink, uint64_t pid);
@@ -197,13 +192,6 @@ public:
 		return m_nDriverLink >= 0 ? TRUE : FALSE;
 	}
 
-	//驱动_设置密匙（身份信息，钥匙），返回值：TRUE钥匙正确，FALSE钥匙错误
-	//（参数key说明：当传入的key为0时，将会从identityBuf128输出128字节的身份信息以供开发者计算key。当传入的key不为0时，将验证钥匙key是否正确）
-	BOOL SetKey(char * identityBuf128, uint64_t key)
-	{
-		return hwBreakpointProcDriver_SetKey(m_nDriverLink, identityBuf128, key);
-	}
-
 	//驱动_打开进程（进程PID），返回值：进程句柄，0为失败
 	uint64_t OpenProcess(uint64_t pid)
 	{
@@ -301,29 +289,6 @@ static BOOL hwBreakpointProcDriver_Disconnect(int nDriverLink)
 	//�Ͽ���������
 	close(nDriverLink);
 	return TRUE;
-}
-static BOOL hwBreakpointProcDriver_SetKey(int nDriverLink, char * identityBuf128, uint64_t key)
-{
-	if (key == 0)
-	{
-		char buf128[128] = { 0 };
-		ioctl(nDriverLink, IOCTL_KEY, (unsigned long)&buf128, sizeof(buf128));
-		if (buf128[0] > 0 && buf128[0] < 100)
-		{
-			return FALSE;
-		}
-		memcpy(identityBuf128, &buf128, sizeof(buf128));
-		return TRUE;
-	}
-	else
-	{
-		ioctl(nDriverLink, IOCTL_KEY, (unsigned long)&key, sizeof(void*));
-		if (key == 0)
-		{
-			return FALSE;
-		}
-		return TRUE;
-	}
 }
 static uint64_t hwBreakpointProcDriver_OpenProcess(int nDriverLink, uint64_t pid)
 {
