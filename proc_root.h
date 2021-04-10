@@ -174,27 +174,27 @@ static inline int get_proc_group(struct pid* proc_pid_struct,
 
 		if (real_cred)
 		{
-			*npOutUID = (size_t)real_cred->uid.val;
-			*npOutSUID = (size_t)real_cred->suid.val;
-			*npOutEUID = (size_t)real_cred->euid.val;
-			*npOutFSUID = (size_t)real_cred->fsuid.val;
+			*npOutUID = (size_t)real_cred->uid KUID_T_VALUE;
+			*npOutSUID = (size_t)real_cred->suid KUID_T_VALUE;
+			*npOutEUID = (size_t)real_cred->euid KUID_T_VALUE;
+			*npOutFSUID = (size_t)real_cred->fsuid KUID_T_VALUE;
 
-			*npOutGID = (size_t)real_cred->gid.val;
-			*npOutSGID = (size_t)real_cred->sgid.val;
-			*npOutEGID = (size_t)real_cred->egid.val;
-			*npOutFSGID = (size_t)real_cred->fsgid.val;
+			*npOutGID = (size_t)real_cred->gid KGID_T_VALUE;
+			*npOutSGID = (size_t)real_cred->sgid KGID_T_VALUE;
+			*npOutEGID = (size_t)real_cred->egid KGID_T_VALUE;
+			*npOutFSGID = (size_t)real_cred->fsgid KGID_T_VALUE;
 
 		}
 		if (cred)
 		{
-			*npOutUID = (size_t)cred->uid.val < *npOutUID ? (size_t)cred->uid.val : *npOutUID;
-			*npOutSUID = (size_t)cred->suid.val < *npOutSUID ? (size_t)cred->suid.val : *npOutSUID;
-			*npOutEUID = (size_t)cred->euid.val < *npOutEUID ? (size_t)cred->euid.val : *npOutEUID;
-			*npOutFSUID = (size_t)cred->fsuid.val < *npOutFSUID ? (size_t)cred->fsuid.val : *npOutFSUID;
-			*npOutGID = (size_t)cred->gid.val < *npOutGID ? (size_t)cred->gid.val : *npOutGID;
-			*npOutSGID = (size_t)cred->sgid.val < *npOutSGID ? (size_t)cred->sgid.val : *npOutSGID;
-			*npOutEGID = (size_t)cred->egid.val < *npOutEGID ? (size_t)cred->egid.val : *npOutEGID;
-			*npOutFSGID = (size_t)cred->fsgid.val < *npOutFSGID ? (size_t)cred->fsgid.val : *npOutFSGID;
+			*npOutUID = (size_t)cred->uid KUID_T_VALUE < *npOutUID ? (size_t)cred->uid KUID_T_VALUE : *npOutUID;
+			*npOutSUID = (size_t)cred->suid KUID_T_VALUE < *npOutSUID ? (size_t)cred->suid KUID_T_VALUE : *npOutSUID;
+			*npOutEUID = (size_t)cred->euid KUID_T_VALUE < *npOutEUID ? (size_t)cred->euid KUID_T_VALUE : *npOutEUID;
+			*npOutFSUID = (size_t)cred->fsuid KUID_T_VALUE < *npOutFSUID ? (size_t)cred->fsuid KUID_T_VALUE : *npOutFSUID;
+			*npOutGID = (size_t)cred->gid KGID_T_VALUE < *npOutGID ? (size_t)cred->gid KGID_T_VALUE : *npOutGID;
+			*npOutSGID = (size_t)cred->sgid KGID_T_VALUE < *npOutSGID ? (size_t)cred->sgid KGID_T_VALUE : *npOutSGID;
+			*npOutEGID = (size_t)cred->egid KGID_T_VALUE < *npOutEGID ? (size_t)cred->egid KGID_T_VALUE : *npOutEGID;
+			*npOutFSGID = (size_t)cred->fsgid KGID_T_VALUE < *npOutFSGID ? (size_t)cred->fsgid KGID_T_VALUE : *npOutFSGID;
 
 		}
 		return 0;

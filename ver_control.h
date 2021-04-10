@@ -6,15 +6,11 @@
 //独立内核模块入口模式
 #define CONFIG_MODULE_GUIDE_ENTRY
 
-//是否启用验证KEY系统
-#define CONFIG_VERIFY
-
 //是否启用读取pagemap文件来计算物理内存的地址
 //#define CONFIG_USE_PAGEMAP_FILE
 
 //是否打印内核调试日志
 //#define CONFIG_DEBUG_PRINTK
-
 
 #ifndef KERNEL_VERSION
 #define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
@@ -51,6 +47,16 @@
 
 #ifndef FILE_OP_DIR_ITER
 #define FILE_OP_DIR_ITER iterate_shared
+#endif
+
+
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(3,10,84)
+#define KUID_T_VALUE
+#define KGID_T_VALUE
+#else
+#define KUID_T_VALUE .val
+#define KGID_T_VALUE .val
 #endif
 
 
