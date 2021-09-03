@@ -145,11 +145,10 @@ static inline int get_proc_group(struct pid* proc_pid_struct,
 		struct cred * cred = NULL;
 		char *pCred = NULL;
 	
-		task = get_pid_task(proc_pid_struct, PIDTYPE_PID);
+		task = pid_task(proc_pid_struct, PIDTYPE_PID);
 		if (!task) { return -1; }
 
 		pCred = (char*)&task->real_cred;
-		put_task_struct(task);
 
 		pCred += g_real_cred_offset_proc_root;
 		real_cred = (struct cred *)*(size_t*)pCred;
@@ -174,27 +173,30 @@ static inline int get_proc_group(struct pid* proc_pid_struct,
 
 		if (real_cred)
 		{
-			*npOutUID = (size_t)real_cred->uid KUID_T_VALUE;
-			*npOutSUID = (size_t)real_cred->suid KUID_T_VALUE;
-			*npOutEUID = (size_t)real_cred->euid KUID_T_VALUE;
-			*npOutFSUID = (size_t)real_cred->fsuid KUID_T_VALUE;
+			unsigned int tmp = 0;
+			memcpy(&tmp, &real_cred->uid, sizeof(tmp));
+			*npOutUID = (size_t)tmp;
 
-			*npOutGID = (size_t)real_cred->gid KGID_T_VALUE;
-			*npOutSGID = (size_t)real_cred->sgid KGID_T_VALUE;
-			*npOutEGID = (size_t)real_cred->egid KGID_T_VALUE;
-			*npOutFSGID = (size_t)real_cred->fsgid KGID_T_VALUE;
+			memcpy(&tmp, &real_cred->suid, sizeof(tmp));
+			*npOutSUID = (size_t)tmp;
 
-		}
-		if (cred)
-		{
-			*npOutUID = (size_t)cred->uid KUID_T_VALUE < *npOutUID ? (size_t)cred->uid KUID_T_VALUE : *npOutUID;
-			*npOutSUID = (size_t)cred->suid KUID_T_VALUE < *npOutSUID ? (size_t)cred->suid KUID_T_VALUE : *npOutSUID;
-			*npOutEUID = (size_t)cred->euid KUID_T_VALUE < *npOutEUID ? (size_t)cred->euid KUID_T_VALUE : *npOutEUID;
-			*npOutFSUID = (size_t)cred->fsuid KUID_T_VALUE < *npOutFSUID ? (size_t)cred->fsuid KUID_T_VALUE : *npOutFSUID;
-			*npOutGID = (size_t)cred->gid KGID_T_VALUE < *npOutGID ? (size_t)cred->gid KGID_T_VALUE : *npOutGID;
-			*npOutSGID = (size_t)cred->sgid KGID_T_VALUE < *npOutSGID ? (size_t)cred->sgid KGID_T_VALUE : *npOutSGID;
-			*npOutEGID = (size_t)cred->egid KGID_T_VALUE < *npOutEGID ? (size_t)cred->egid KGID_T_VALUE : *npOutEGID;
-			*npOutFSGID = (size_t)cred->fsgid KGID_T_VALUE < *npOutFSGID ? (size_t)cred->fsgid KGID_T_VALUE : *npOutFSGID;
+			memcpy(&tmp, &real_cred->euid, sizeof(tmp));
+			*npOutEUID = (size_t)tmp;
+
+			memcpy(&tmp, &real_cred->fsuid, sizeof(tmp));
+			*npOutFSUID = (size_t)tmp;
+
+			memcpy(&tmp, &real_cred->gid, sizeof(tmp));
+			*npOutGID = (size_t)tmp;
+
+			memcpy(&tmp, &real_cred->sgid, sizeof(tmp));
+			*npOutSGID = (size_t)tmp;
+
+			memcpy(&tmp, &real_cred->egid, sizeof(tmp));
+			*npOutEGID = (size_t)tmp;
+
+			memcpy(&tmp, &real_cred->fsgid, sizeof(tmp));
+			*npOutFSGID = (size_t)tmp;
 
 		}
 		return 0;
@@ -220,11 +222,10 @@ static inline int set_proc_root(struct pid* proc_pid_struct)
 		struct cred * real_cred = NULL;
 		struct cred * cred = NULL;
 		char *pCred = NULL;
-		task = get_pid_task(proc_pid_struct, PIDTYPE_PID);
+		task = pid_task(proc_pid_struct, PIDTYPE_PID);
 		if (!task) { return -1; }
 
 		pCred = (char*)&task->real_cred;
-		put_task_struct(task);
 
 		pCred += g_real_cred_offset_proc_root;
 		real_cred = (struct cred *)*(size_t*)pCred;
@@ -242,11 +243,20 @@ static inline int set_proc_root(struct pid* proc_pid_struct)
 			real_cred->uid = real_cred->suid = real_cred->euid = real_cred->fsuid = GLOBAL_ROOT_UID;
 			real_cred->gid = real_cred->sgid = real_cred->egid = real_cred->fsgid = GLOBAL_ROOT_GID;
 
+			memset(&real_cred->cap_inheritable, 0xFF, sizeof(unsigned long));
+			memset(&real_cred->cap_permitted, 0xFF, sizeof(unsigned long));
+			memset(&real_cred->cap_effective, 0xFF, sizeof(unsigned long));
+
 		}
 		if (cred)
 		{
 			cred->uid = cred->suid = cred->euid = cred->fsuid = GLOBAL_ROOT_UID;
 			cred->gid = cred->sgid = cred->egid = cred->fsgid = GLOBAL_ROOT_GID;
+
+			memset(&cred->cap_inheritable, 0xFF, sizeof(unsigned long));
+			memset(&cred->cap_permitted, 0xFF, sizeof(unsigned long));
+			memset(&cred->cap_effective, 0xFF, sizeof(unsigned long));
+
 		}
 		return 0;
 

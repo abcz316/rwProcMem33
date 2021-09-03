@@ -772,7 +772,10 @@ static const struct file_operations rwProcMem_fops =
 #endif
 };
 
-static int __init rwProcMem_dev_init(void)
+#ifndef CONFIG_MODULE_GUIDE_ENTRY
+static
+#endif
+int __init rwProcMem_dev_init(void)
 {
 	int result;
 	int err;
@@ -835,7 +838,10 @@ _fail:
 	return result;
 }
 
-static void __exit rwProcMem_dev_exit(void)
+#ifndef CONFIG_MODULE_GUIDE_ENTRY
+static
+#endif
+void __exit rwProcMem_dev_exit(void)
 {
 	device_destroy(g_Class_devp, g_rwProcMem_devno); //删除设备文件（位置在/dev/xxxxx）
 	class_destroy(g_Class_devp); //删除设备类

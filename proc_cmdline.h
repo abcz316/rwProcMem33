@@ -9,7 +9,7 @@ static inline struct pid * get_proc_pid_struct(int pid);
 static inline int get_proc_pid(struct pid* proc_pid_struct);
 static inline void release_proc_pid_struct(struct pid* proc_pid_struct);
 static inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t * arg_start, size_t * arg_end);
-static inline int get_task_proc_cmdline_addr(struct task_struct *task, bool need_put_task, size_t * arg_start, size_t * arg_end);
+static inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * arg_start, size_t * arg_end);
 
 
 //实现
@@ -18,27 +18,12 @@ static inline int get_task_proc_cmdline_addr(struct task_struct *task, bool need
 static ssize_t g_arg_start_offset_proc_cmdline = 0; //mm_struct里arg_start的偏移位置
 static bool g_init_arg_start_offset_success = false; //是否初始化找到过arg_start的偏移位置
 
-#ifdef CONFIG_VERIFY
-typedef struct pid *(*t_find_get_pid)(int nr);
-static t_find_get_pid o_find_get_pid[256] = { 0 };
-static inline struct pid * get_proc_pid_struct(int pid)
-{
-	int i;
-	for (i=0;i<256;i++)
-	{
-		if (o_find_get_pid[i])
-		{
-			return o_find_get_pid[i](pid);
-		}
-	}
-	return NULL;
-}
-#else
+
 static inline struct pid * get_proc_pid_struct(int pid)
 {
 	return find_get_pid(pid);
 }
-#endif
+
 
 static inline int get_proc_pid(struct pid* proc_pid_struct)
 {
@@ -84,12 +69,12 @@ static inline int init_proc_cmdline_offset(void)
 	lpNewCmdLineBuf = (char*)kmalloc(size, GFP_KERNEL);
 
 	g_init_arg_start_offset_success = true;
-	for (g_arg_start_offset_proc_cmdline = -32; g_arg_start_offset_proc_cmdline <= 32; g_arg_start_offset_proc_cmdline += 4)
+	for (g_arg_start_offset_proc_cmdline = -64; g_arg_start_offset_proc_cmdline <= 64; g_arg_start_offset_proc_cmdline += 1)
 	{
 		size_t arg_start = 0, arg_end = 0;
-		if (get_task_proc_cmdline_addr(current, false, &arg_start, &arg_end) == 0)
+		if (get_task_proc_cmdline_addr(current,  &arg_start, &arg_end) == 0)
 		{
-			printk_debug(KERN_INFO "arg_start %p\n", (void*)arg_start);
+			printk_debug(KERN_INFO "get_task_proc_cmdline_addr arg_start %p\n", (void*)arg_start);
 
 			//读取每个+4的arg_start内存地址的内容
 			if (arg_start > 0)
@@ -118,7 +103,7 @@ static inline int init_proc_cmdline_offset(void)
 					close_pagemap(pFile);
 #else
 					pte_t *pte;
-					get_task_proc_phy_addr(&phy_addr, current, false, arg_start + read_size, &pte);
+					get_task_proc_phy_addr(&phy_addr, current, arg_start + read_size, &pte);
 #endif
 					printk_debug(KERN_INFO "phy_addr:0x%zx\n", phy_addr);
 					if (phy_addr == 0)
@@ -137,7 +122,7 @@ static inline int init_proc_cmdline_offset(void)
 					read_size += pfn_sz;
 				}
 
-				printk_debug(KERN_INFO "lpNewCmdLineBuf:%s\n", lpNewCmdLineBuf);
+				printk_debug(KERN_INFO "lpNewCmdLineBuf:%s, len:%ld\n", lpNewCmdLineBuf, strlen(lpNewCmdLineBuf));
 
 				if (strcmp(lpNewCmdLineBuf, lpOldCmdLineBuf) == 0)
 				{
@@ -178,24 +163,18 @@ static inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t * ar
 	}
 
 
-	task = get_pid_task(proc_pid_struct, PIDTYPE_PID);
+	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) { return -EFAULT;	}
-	ret = get_task_proc_cmdline_addr(task, true, arg_start, arg_end);
-	//put_task_struct(task); //在上面的函数里面put处理，所以这里不需要
+	ret = get_task_proc_cmdline_addr(task, arg_start, arg_end);
 	return ret;
 }
-static inline int get_task_proc_cmdline_addr(struct task_struct *task, bool need_put_task, size_t * arg_start, size_t * arg_end)
+static inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * arg_start, size_t * arg_end)
 {
 	if (g_init_arg_start_offset_success)
 	{
 		struct mm_struct *mm;
 		ssize_t accurate_offset;
 		mm = get_task_mm(task);
-		
-		if (need_put_task)
-		{
-			put_task_struct(task);
-		}
 
 		if (!mm) { return -EFAULT; }
 

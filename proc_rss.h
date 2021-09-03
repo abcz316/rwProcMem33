@@ -14,13 +14,12 @@ static size_t read_proc_rss_size(struct pid* proc_pid_struct)
 {
 	struct task_struct *task;
 	struct mm_struct *mm;
-	task = get_pid_task(proc_pid_struct, PIDTYPE_PID);
+	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task)
 	{
 		return 0;
 	}
 	mm = get_task_mm(task);
-	put_task_struct(task);
 	if (mm)
 	{
 		//¾«È·Æ«ÒÆ

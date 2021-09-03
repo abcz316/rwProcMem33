@@ -12,13 +12,14 @@ static inline struct file * open_pagemap(int pid);
 static size_t get_pagemap_phy_addr(struct file * lpPagemap, size_t virt_addr);
 static inline void close_pagemap(struct file* lpPagemap);
 #else
-static inline bool is_pte_can_read(pte_t* pte);
-static inline bool is_pte_can_write(pte_t* pte);
-static inline bool is_pte_can_exec(pte_t* pte);
-static inline bool change_pte_read_status(pte_t* pte, bool can_read);
-static inline bool change_pte_write_status(pte_t* pte, bool can_write);
-static inline bool change_pte_exec_status(pte_t* pte, bool can_exec);
-//size_t get_task_proc_phy_addr(struct task_struct* task, bool need_put_task, size_t virt_addr, pte_t *out_pte)
+static inline int is_pte_can_read(pte_t* pte);
+static inline int is_pte_can_write(pte_t* pte);
+static inline int is_pte_can_exec(pte_t* pte);
+static inline int change_pte_read_status(pte_t* pte, bool can_read);
+static inline int change_pte_write_status(pte_t* pte, bool can_write);
+static inline int change_pte_exec_status(pte_t* pte, bool can_exec);
+
+//size_t get_task_proc_phy_addr(struct task_struct* task, size_t virt_addr, pte_t *out_pte)
 //size_t get_proc_phy_addr(struct pid* proc_pid_struct, size_t virt_addr, pte_t *out_pte)
 //size_t read_ram_physical_addr(size_t phy_addr, char* lpBuf, bool is_kernel_buf, size_t read_size)
 //size_t write_ram_physical_addr(size_t phy_addr, char* lpBuf, bool is_kernel_buf, size_t write_size)
@@ -149,48 +150,44 @@ static inline void close_pagemap(struct file* lpPagemap)
 }
 #else
 #include <asm/pgtable.h>
-static inline bool is_pte_can_read(pte_t* pte)
+static inline int is_pte_can_read(pte_t* pte)
 {
-	if (!pte) { return false; }
+	if (!pte) { return 0; }
 #ifdef pte_read
-	if (pte_read(*pte)) { return true; }
-	else { return false; }
+	if (pte_read(*pte)) { return 1; }
+	else { return 0; }
 #endif
-	return true;
+	return 1;
 }
-
-static inline bool is_pte_can_write(pte_t* pte)
+static inline int is_pte_can_write(pte_t* pte)
 {
-	if (!pte) { return false; }
-	if (pte_write(*pte)) { return true; }
-	else { return false; }
+	if (!pte) { return 0; }
+	if (pte_write(*pte)) { return 1; }
+	else { return 0; }
 }
-
-static inline bool is_pte_can_exec(pte_t* pte)
+static inline int is_pte_can_exec(pte_t* pte)
 {
-	if (!pte) { return false; }
+	if (!pte) { return 0; }
 #ifdef pte_exec
-	if (pte_exec(*pte)) { return true; }
-	else { return false; }
+	if (pte_exec(*pte)) { return 1; }
+	else { return 0; }
 #endif
 #ifdef pte_user_exec
-	if (pte_user_exec(*pte)) { return true; }
-	else { return false; }
+	if (pte_user_exec(*pte)) { return 1; }
+	else { return 0; }
 #endif
-	return false;
+	return 0;
 }
-
-static inline bool change_pte_read_status(pte_t* pte, bool can_read)
+static inline int change_pte_read_status(pte_t* pte, bool can_read)
 {
 	//ARM64架构所有内存都具备可读属性
-	if (!pte) { return false; }
-	return true;
+	if (!pte) { return 0; }
+	return 1;
 }
-
-static inline bool change_pte_write_status(pte_t* pte, bool can_write)
+static inline int change_pte_write_status(pte_t* pte, bool can_write)
 {
 	//ARM64架构所有内存都必须具备可读属性
-	if (!pte) { return false; }
+	if (!pte) { return 0; }
 	if (can_write)
 	{
 		//ARM64：删除内存“仅可读”属性，此时内存内存可读、可写
@@ -201,11 +198,11 @@ static inline bool change_pte_write_status(pte_t* pte, bool can_write)
 		//ARM64：设置内存“仅可读”属性，此时内存内存可读、不可写
 		set_pte(pte, pte_wrprotect(*pte));
 	}
-	return true;
+	return 1;
 }
-static inline bool change_pte_exec_status(pte_t* pte, bool can_exec)
+static inline int change_pte_exec_status(pte_t* pte, bool can_exec)
 {
-	if (!pte) { return false; }
+	if (!pte) { return 0; }
 	if (can_exec)
 	{
 #ifdef pte_mknexec
@@ -218,26 +215,20 @@ static inline bool change_pte_exec_status(pte_t* pte, bool can_exec)
 		set_pte(pte, pte_mkexec(*pte));
 #endif
 	}
-	return true;
+	return 1;
 }
 //
-//static size_t get_task_proc_phy_addr(struct task_struct* task, bool need_put_task, size_t virt_addr, pte_t *out_pte)
+//static size_t get_task_proc_phy_addr(struct task_struct* task, size_t virt_addr, pte_t *out_pte)
 //{
 	/*Because this code is only for the purpose of learning and research, it is forbidden to use this code to do bad things, so I only release the method code to obtain the physical memory address through the pagemap file here, and the method to calculate the physical memory address can be realized without relying on pagemap and pure algorithm, and I have implemented it, but in order to prevent some people from doing bad things, this part of the code I'm not open. If you need this part of the code, you can contact me and ask me for this part of the code. Of course, you can also add the relevant algorithm code here by yourself. Here I can provide a brief process. You can browse the relevant source code of pagemap in Linux kernel, and calculate the address of physical memory by mixing the PGD, PUD, PMD, PTE and page of the process .*/
-//	if(need_put_task){ put_task_struct(task); }
 //	return 0;
 //}
 
-#define get_task_proc_phy_addr(size_t_ptr___out_ret, task_struct_ptr___task, bool___need_put_task, size_t___virt_addr, pte_t_ptr__out_pte) \
+#define get_task_proc_phy_addr(size_t_ptr___out_ret, task_struct_ptr___task, size_t___virt_addr, pte_t_ptr__out_pte) \
 do{\
 	/*Because this code is only for the purpose of learning and research, it is forbidden to use this code to do bad things, so I only release the method code to obtain the physical memory address through the pagemap file here, and the method to calculate the physical memory address can be realized without relying on pagemap and pure algorithm, and I have implemented it, but in order to prevent some people from doing bad things, this part of the code I'm not open. If you need this part of the code, you can contact me and ask me for this part of the code. Of course, you can also add the relevant algorithm code here by yourself. Here I can provide a brief process. You can browse the relevant source code of pagemap in Linux kernel, and calculate the address of physical memory by mixing the PGD, PUD, PMD, PTE and page of the process .*/\
 	size_t * ret___ = size_t_ptr___out_ret;\
 	struct task_struct* task___ = task_struct_ptr___task;\
-	bool need_put_task___ = bool___need_put_task;\
-	if(need_put_task___)\
-	{\
-		put_task_struct(task___); \
-	}\
 	RETURN_VALUE(ret___, 0)\
 }while(0)
 
@@ -247,14 +238,14 @@ do{\
 //{
 //	struct task_struct *task = get_pid_task(proc_pid_struct, PIDTYPE_PID);
 //	if (!task) { return 0; }
-//	return get_task_proc_phy_addr(task, true, virt_addr, out_pte);
+//	return get_task_proc_phy_addr(task, virt_addr, out_pte);
 //}
 #define get_proc_phy_addr(size_t_ptr___out_ret, pid_ptr___proc_pid_struct, size_t___virt_addr, pte_t_ptr__out_pte) \
 do{\
 	struct task_struct *task_try___ = get_pid_task(pid_ptr___proc_pid_struct, PIDTYPE_PID);\
 	if (!task_try___) { 	RETURN_VALUE(size_t_ptr___out_ret, 0) }\
 	\
-	get_task_proc_phy_addr(size_t_ptr___out_ret,task_try___, true, size_t___virt_addr, pte_t_ptr__out_pte);\
+	get_task_proc_phy_addr(size_t_ptr___out_ret,task_try___, size_t___virt_addr, pte_t_ptr__out_pte);\
 }while(0)
 
 
