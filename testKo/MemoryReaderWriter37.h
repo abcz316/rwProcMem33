@@ -17,12 +17,19 @@
 #define RWPROCMEM_DEV_FILEPATH "/dev/rwProcMem37"
 
 //安静输出模式
-#define QUIET_PRINTF
+//#define QUIET_PRINTF
 
 #ifdef QUIET_PRINTF
+#undef TRACE
 #define TRACE(fmt, ...)
 #else
+#ifdef __ANDROID__
+#include <android/log.h>
+#define LOG_TAG "JNIGlue"
+#define TRACE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#else
 #define TRACE(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#endif
 #endif
 
 
