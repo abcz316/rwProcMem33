@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 
 
 	//驱动默认文件名
-	std::string devFileName = RWPROCMEM_DEV_FILEPATH;
+	std::string devFileName = RWPROCMEM_FILE_NODE;
 	if (argc > 1)
 	{
 		//如果用户自定义输入驱动名

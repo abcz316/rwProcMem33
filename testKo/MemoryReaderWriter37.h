@@ -14,7 +14,7 @@
 #include "cvector.h"
 
 //默认驱动文件名
-#define RWPROCMEM_DEV_FILEPATH "/dev/rwProcMem37"
+#define RWPROCMEM_FILE_NODE "/dev/rwProcMem37"
 
 //安静输出模式
 //#define QUIET_PRINTF
@@ -80,8 +80,8 @@ typedef struct {
 //C语言形式接口：
 /////////////////////////////////////////////////////////////////////////
 
-//连接驱动（驱动/dev路径名），返回值：驱动连接句柄，>=0代表成功
-static inline int rwProcMemDriver_Connect(const char* lpszDevPath);
+//连接驱动（驱动节点文件路径名），返回值：驱动连接句柄，>=0代表成功
+static inline int rwProcMemDriver_Connect(const char* lpszDriverFileNode);
 
 //断开驱动（驱动连接句柄），返回值：TRUE成功，FALSE失败
 static inline BOOL rwProcMemDriver_Disconnect(int nDriverLink);
@@ -199,11 +199,11 @@ public:
 		DisconnectDriver();
 	}
 
-	//连接驱动（驱动/dev路径名，错误代码），返回值：驱动连接句柄，>=0代表成功
-	BOOL ConnectDriver(const char* lpszDevPath, int & err)
+	//连接驱动（驱动节点文件路径名，错误代码），返回值：驱动连接句柄，>=0代表成功
+	BOOL ConnectDriver(const char* lpszDriverFileNode, int & err)
 	{
 		if (m_nDriverLink >= 0) { return TRUE; }
-		m_nDriverLink = rwProcMemDriver_Connect(lpszDevPath);
+		m_nDriverLink = rwProcMemDriver_Connect(lpszDriverFileNode);
 		if (m_nDriverLink < 0)
 		{
 			err = m_nDriverLink;
@@ -436,9 +436,9 @@ private:
 //////////////////////////////////////////////////////////////////////////
 
 
-static inline int rwProcMemDriver_Connect(const char * lpszDevPath)
+static inline int rwProcMemDriver_Connect(const char * lpszDriverFileNode)
 {
-	int nDriverLink = open(lpszDevPath, O_RDWR);
+	int nDriverLink = open(lpszDriverFileNode, O_RDWR);
 	if (nDriverLink < 0)
 	{
 		int last_err = errno;

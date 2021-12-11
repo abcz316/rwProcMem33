@@ -20,7 +20,7 @@ BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName)
 	if (!lpszDevFileName)
 	{
 		//驱动默认文件名
-		lpszDevFileName = RWPROCMEM_DEV_FILEPATH;
+		lpszDevFileName = RWPROCMEM_FILE_NODE;
 	}
 
 	printf("Connecting rwDriver:%s\n", lpszDevFileName);
