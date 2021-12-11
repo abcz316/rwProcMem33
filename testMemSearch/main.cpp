@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
 {
 	printf(
 		"======================================================\n"
-		"本驱动名称: Linux  ARM64 硬件读写进程内存驱动37\n"
+		"本驱动名称: Linux ARM64 硬件读写进程内存驱动37\n"
 		"本驱动接口列表：\n"
 		"\t1.	 驱动_设置驱动设备接口文件允许同时被使用的最大值: SetMaxDevFileOpen\n"
 		"\t2.	 驱动_隐藏驱动（卸载驱动需重启机器）: HideKernelModule\n"
@@ -188,7 +188,6 @@ int main(int argc, char *argv[])
 		fflush(stdout);
 		return 0;
 	}
-
 
 
 	//获取目标进程PID
@@ -231,38 +230,40 @@ int main(int argc, char *argv[])
 	}
 
 	//首次搜索0.33333334327
-	std::vector<ADDR_RESULT_INFO> vSearchResult; //搜索结果
-	std::atomic<int> nSearchProgress;				//当前搜索进度：0~99搜索的进度
-	std::atomic<uint64_t> nFoundAddrCount;		//已找到地址总数
-	nSearchProgress = 0;
-	nFoundAddrCount = 0;
 
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy = std::make_shared<CMemReaderWriterProxy>(&rwDriver);
+	SafeVector<MEM_SECTION_INFO> vScanMemMapsList(vScanMemMaps); //搜索结果
+	SafeVector<ADDR_RESULT_INFO> vSearchResult; //搜索结果
+	SafeVector<MEM_SECTION_INFO> vSearcError;
+	SafeVector<ADDR_RESULT_INFO> vSearcError2;
 
 	//非阻塞模式
 	//std::thread td1(SearchMemoryThread<float>,.....);
 	//td1.detach();
 
+
 	//阻塞模式
 	SearchMemoryThread<float>(
-		&rwDriver,
+		spReadWriteProxy,
 		hProcess,
-		vScanMemMaps, //待搜索的内存区域
+		vScanMemMapsList, //待搜索的内存区域
 		0.33333334327f, //搜索数值
 		0.0f,
 		0.01, //误差范围
-		0, //搜索类型: 0精确搜索
-		1, //搜索线程数
+		SCAN_TYPE::ACCURATE_VAL, //搜索类型: 精确搜索
+		std::thread::hardware_concurrency() - 1, //搜索线程数
 		4, //快速扫描的对齐位数，CE默认为4
-		&vSearchResult, //搜索后的结果
-		&nSearchProgress,
-		&nFoundAddrCount);
+		vSearchResult, //搜索后的结果
+		vSearcError);
 
 
 	printf("共搜索出%zu个地址\n", vSearchResult.size());
 
 	//将每个地址往后偏移20
-	std::vector<ADDR_RESULT_INFO> vWaitSearchAddr; //待搜索的内存地址列表
-	for (ADDR_RESULT_INFO addr : vSearchResult)
+	SafeVector<ADDR_RESULT_INFO> vWaitSearchAddr; //待搜索的内存地址列表
+
+	ADDR_RESULT_INFO addr;
+	while(vSearchResult.get_val(addr))
 	{
 		addr.addr += 20;
 		vWaitSearchAddr.push_back(addr);
@@ -270,24 +271,24 @@ int main(int argc, char *argv[])
 
 	//再次搜索1.19175350666
 	vSearchResult.clear();
-	nSearchProgress = 0;
-	nFoundAddrCount = 0;
+	vSearcError.clear();
+	vSearcError2.clear();
+
 	SearchNextMemoryThread<float>(
-		&rwDriver,
+		spReadWriteProxy,
 		hProcess,
 		vWaitSearchAddr, //待搜索的内存地址列表
 		1.19175350666f, //搜索数值
 		0, 
 		0.01, //误差范围
-		0, //搜索类型: 0精确搜索
-		1, //搜索线程数
-		&vSearchResult,  //搜索后的结果
-		&nSearchProgress,
-		&nFoundAddrCount);
+		SCAN_TYPE::ACCURATE_VAL, //搜索类型: 精确搜索
+		std::thread::hardware_concurrency() - 1, //搜索线程数
+		vSearchResult,  //搜索后的结果
+		vSearcError2);
 
 	//将每个地址往后偏移76
 	vWaitSearchAddr.clear();
-	for (ADDR_RESULT_INFO addr : vSearchResult)
+	while(vSearchResult.get_val(addr))
 	{
 		addr.addr += 76;
 		vWaitSearchAddr.push_back(addr);
@@ -296,24 +297,23 @@ int main(int argc, char *argv[])
 	
 	//再次搜索-50.00500106812
 	vSearchResult.clear();
-	nSearchProgress = 0;
-	nFoundAddrCount = 0;
+	vSearcError.clear();
+	vSearcError2.clear();
 	SearchNextMemoryThread<float>(
-		&rwDriver,
+		spReadWriteProxy,
 		hProcess,
 		vWaitSearchAddr,//待搜索的内存地址列表
 		-50.00500106812f, //搜索数值
 		0, 
 		0.01, //误差范围
-		0, //搜索类型: 0精确搜索
-		1, //搜索线程数
-		&vSearchResult, //搜索后的结果
-		&nSearchProgress,
-		&nFoundAddrCount);
+		SCAN_TYPE::ACCURATE_VAL, //搜索类型: 精确搜索
+		std::thread::hardware_concurrency() - 1, //搜索线程数
+		vSearchResult, //搜索后的结果
+		vSearcError2);
 
 	//将每个地址往后偏移952
 	vWaitSearchAddr.clear();
-	for (ADDR_RESULT_INFO addr : vSearchResult)
+	while (vSearchResult.get_val(addr))
 	{
 		addr.addr += 952;
 		vWaitSearchAddr.push_back(addr);
@@ -321,23 +321,22 @@ int main(int argc, char *argv[])
 
 	//再次搜索-2147483648
 	vSearchResult.clear();
-	nSearchProgress = 0;
-	nFoundAddrCount = 0;
+	vSearcError.clear();
+	vSearcError2.clear();
 	SearchNextMemoryThread<int>(
-		&rwDriver,
+		spReadWriteProxy,
 		hProcess,
 		vWaitSearchAddr,//待搜索的内存地址列表
 		-2147483648, //搜索数值
 		0,
 		0,
-		0, //搜索类型: 0精确搜索
-		1, //搜索线程数
-		&vSearchResult, //搜索后的结果
-		&nSearchProgress,
-		&nFoundAddrCount);
+		SCAN_TYPE::ACCURATE_VAL, //搜索类型: 精确搜索
+		std::thread::hardware_concurrency() - 1, //搜索线程数
+		vSearchResult, //搜索后的结果
+		vSearcError2);
 
 	size_t count = 0;
-	for (ADDR_RESULT_INFO addr : vSearchResult)
+	while(vSearchResult.get_val(addr))
 	{
 		printf("addr:%p\n", (void*)addr.addr);
 		count++;

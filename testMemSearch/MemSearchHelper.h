@@ -10,8 +10,8 @@
 #include <sstream>
 #include <sys/sysinfo.h>
 
-
 #include "../testKo/MemoryReaderWriter37.h"
+#include "SafeVector.h"
 
 struct MEM_SECTION_INFO
 {
@@ -31,31 +31,57 @@ struct ADDR_RESULT_INFO
 	std::shared_ptr<unsigned char> spSaveData = nullptr; //保存到本地缓冲区的内存字节数据
 };
 
+enum SCAN_TYPE
+{
+	ACCURATE_VAL = 0,	//精确数值
+	LARGER_THAN_VAL,	//值大于
+	LESS_THAN_VAL,		//值小于
+	BETWEEN_VAL,		//值在两值之间
+	ADD_UNKNOW_VAL,		//值增加了未知值
+	ADD_ACCURATE_VAL,	//值增加了精确值
+	SUB_UNKNOW_VAL,		//值减少了未知值
+	SUB_ACCURATE_VAL,	//值减少了精确值
+	CHANGED_VAL,		//变动了的数值
+	UNCHANGED_VAL,		//未变动的数值
+};
 
+enum SCAN_VALUE_TYPE
+{
+	_1 = 0,			// 1字节
+	_2,				// 2字节
+	_4,				// 4字节
+	_8,				// 8字节
+	_FLOAT = _4,	// 单精度浮点数
+	_DOUBLE = _8,	// 双精度浮点数
+};
 
+class CMemReaderWriterProxy;
 /*
 内存搜索数值，成功返回true，失败返回false
 hProcess：被搜索的进程句柄
-vScanMemMaps: 被搜索的进程内存区域
+vScanMemMapsJobList: 被搜索的进程内存区域
 value1: 要搜索的数值1
 value2: 要搜索的数值2
 errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
-scanType：搜索类型：0精确数值（value1生效）、1值大于（value1生效）、2值小于（value1生效）、3值在两值之间（value1、value2生效）
+scanType：搜索类型：
+				ACCURATE_VAL精确数值（value1生效）、
+				LARGER_THAN_VAL值大于（value1生效）、
+				LESS_THAN_VAL值小于（value1生效）、
+				BETWEEN_VAL值在两值之间（value1、value2生效）
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
 template<typename T> static void SearchMemoryThread(
-	CMemoryReaderWriter *pDriver,
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
 	uint64_t hProcess,
-	std::vector<MEM_SECTION_INFO>vScanMemMaps,
-	T value1, T value2, float errorRange, int scanType, int nThreadCount,
+	SafeVector<MEM_SECTION_INFO> & vScanMemMapsJobList,
+	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
 	size_t nFastScanAlignment,
-	std::vector<ADDR_RESULT_INFO> * vOutputAddr,
-	std::atomic<int> *nSearchProgress,
-	std::atomic<uint64_t> *nFoundAddrCount);
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<MEM_SECTION_INFO> & vErrorList);
+
 
 /*
 再次搜索内存数值，成功返回true，失败返回false
@@ -64,73 +90,99 @@ vScanMemAddrList: 需要再次搜索的内存地址列表
 value1: 要搜索数值1
 value2: 要搜索数值2
 errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
-scanType：搜索类型：0精确数值（value1生效）、1值大于（value1生效）、2值小于（value1生效）、3值在两值之间（value1、value2生效）、5增加的数值（value1、value2均无效），6数值增加了（value1生效），7减少的数值（value1、value2均无效），8数值减少了（value1生效），9变动的数值（value1、value2均无效），10未变动的数值（value1、value2均无效）
+scanType：搜索类型：
+				ACCURATE_VAL精确数值（value1生效）、
+				LARGER_THAN_VAL值大于（value1生效）、
+				LESS_THAN_VAL值小于（value1生效）、
+				BETWEEN_VAL值在两值之间（value1、value2生效）、
+				ADD_UNKNOW_VAL值增加了未知值（value1、value2均无效），
+				ADD_ACCURATE_VAL值增加了精确值（value1生效），
+				SUB_UNKNOW_VAL值减少了未知值（value1、value2均无效），
+				SUB_ACCURATE_VAL值减少了精确值（value1生效），
+				CHANGED_VAL变动了的数值（value1、value2均无效），
+				UNCHANGED_VAL未变动的数值（value1、value2均无效）
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
 template<typename T> static void SearchNextMemoryThread(
-	CMemoryReaderWriter *pDriver,
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
 	uint64_t hProcess,
-	std::vector<ADDR_RESULT_INFO>vScanMemAddrList,
-	T value1, T value2, float errorRange, int scanType, int nThreadCount,
-	std::vector<ADDR_RESULT_INFO> * vOutputAddr,
-	std::atomic<int> *nSearchProgress,
-	std::atomic<uint64_t> *nFoundAddrCount);
+	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
+	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<ADDR_RESULT_INFO> & vErrorList);
 
 /*
 搜索已拷贝的进程内存数值，成功返回true，失败返回false
-vCopyProcessMemData: 需要再次搜索的已拷贝的进程内存列表
+vCopyProcessMemDataList: 需要再次搜索的已拷贝的进程内存列表
 value1: 要搜索的数值1
 value2: 要搜索的数值2
 errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
-scanType：搜索类型：0精确数值（value1生效）、1值大于（value1生效）、2值小于（value1生效）、3值在两值之间（value1、value2生效）、5增加的数值（value1、value2均无效），6数值增加了（value1生效），7减少的数值（value1、value2均无效），8数值减少了（value1生效），9变动的数值（value1、value2均无效），10未变动的数值（value1、value2均无效）
+scanType：搜索类型：
+				ACCURATE_VAL精确数值（value1生效）、
+				LARGER_THAN_VAL值大于（value1生效）、
+				LESS_THAN_VAL值小于（value1生效）、
+				BETWEEN_VAL值在两值之间（value1、value2生效）、
+				ADD_UNKNOW_VAL值增加了未知值（value1、value2均无效），ADD_ACCURATE_VAL值增加了精确值（value1生效），SUB_UNKNOW_VAL值减少了未知值（value1、value2均无效），SUB_ACCURATE_VAL值减少了精确值（value1生效），CHANGED_VAL变动了的数值（value1、value2均无效），UNCHANGED_VAL未变动的数值（value1、value2均无效）
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
 template<typename T> static void SearchCopyProcessMemThread(
-	CMemoryReaderWriter *pDriver,
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
 	uint64_t hProcess,
-	std::vector<COPY_MEM_INFO> *vCopyProcessMemData,
-	T value1, T value2, float errorRange, int scanType, int nThreadCount,
+	SafeVector<COPY_MEM_INFO> & vCopyProcessMemDataList,
+	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
 	size_t nFastScanAlignment,
-	std::vector<ADDR_RESULT_INFO> * vOutputAddr,
-	std::atomic<int> *nSearchProgress,
-	std::atomic<uint64_t> *nFoundAddrCount);
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<ADDR_RESULT_INFO> & vErrorList);
 
 
 /*
 内存搜索（搜索文本特征码），成功返回true，失败返回false
 hProcess：被搜索的进程句柄
-vScanMemMaps: 被搜索的进程内存区域
+vScanMemMapsList: 被搜索的进程内存区域
 strFeaturesByte: 十六进制的字节特征码，搜索规则与OD相同，如“68 00 00 00 40 ?3 7? ?? ?? ?? ?? ?? ?? 50 E8”
 nThreadCount: 用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
-static void SearchMemoryBytesThread(CMemoryReaderWriter *pDriver, uint64_t hProcess, std::vector<MEM_SECTION_INFO>vScanMemMaps, std::string strFeaturesByte, int nThreadCount, size_t nFastScanAlignment, std::vector<ADDR_RESULT_INFO> * vOutputAddr, std::atomic<int> *nSearchProgress, std::atomic<uint64_t> *nFoundAddrCount);
+static void SearchMemoryBytesThread(
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	uint64_t hProcess,
+	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
+	std::string strFeaturesByte,
+	int nThreadCount,
+	size_t nFastScanAlignment,
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<ADDR_RESULT_INFO> & vErrorList);
 
 
 /*
 内存搜索（搜索内存特征码），成功返回true，失败返回false
 hProcess：被搜索的进程句柄
-vScanMemMaps: 被搜索的进程内存区域
+vScanMemMapsList: 被搜索的进程内存区域
 vFeaturesByte：字节特征码，如“char vBytes[] = {'\x68', '\x00', '\x00', '\x00', '\x40', '\x?3', '\x??', '\x7?', '\x??', '\x??', '\x??', '\x??', '\x??', '\x50', '\xE8};”
 nFeaturesByteLen：字节特征码长度
 vFuzzyBytes：模糊字节，不变动的位置用1表示，变动的位置用0表示，如“char vFuzzy[] = {'\x11', '\x11', '\x11', '\x11', '\x11', '\x01', '\x00', '\x10', '\x00', '\x00', '\x00', '\x00', '\x00', '\x11', '\x11};”
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
-static void SearchMemoryBytesThread2(CMemoryReaderWriter *pDriver, uint64_t hProcess, std::vector<MEM_SECTION_INFO>vScanMemMaps, char vFeaturesByte[], size_t nFeaturesByteLen, char vFuzzyBytes[], int nThreadCount, size_t nFastScanAlignment, std::vector<ADDR_RESULT_INFO> * vOutputAddr, std::atomic<int> *nSearchProgress, std::atomic<uint64_t> *nFoundAddrCount);
-
+static void SearchMemoryBytesThread2(
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	uint64_t hProcess,
+	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
+	char vFeaturesByte[],
+	size_t nFeaturesByteLen,
+	char vFuzzyBytes[],
+	int nThreadCount,
+	size_t nFastScanAlignment,
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<MEM_SECTION_INFO> & vErrorList);
 
 /*
 再次搜索内存（搜索文本特征码），成功返回true，失败返回false
@@ -139,13 +191,18 @@ vScanMemAddrList: 需要再次搜索的内存地址列表
 strFeaturesByte: 十六进制的字节特征码，搜索规则与OD相同，如“68 00 00 00 40 ?3 7? ?? ?? ?? ?? ?? ?? 50 E8”
 nThreadCount: 用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
-static void SearchNextMemoryBytesThread(CMemoryReaderWriter *pDriver, uint64_t hProcess, std::vector<ADDR_RESULT_INFO>vScanMemAddrList, std::string strFeaturesByte, int nThreadCount, size_t nFastScanAlignment, std::vector<ADDR_RESULT_INFO> * vOutputAddr, std::atomic<int> *nSearchProgress, std::atomic<uint64_t> *nFoundAddrCount);
-
-
+static void SearchNextMemoryBytesThread(
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	uint64_t hProcess,
+	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
+	std::string strFeaturesByte,
+	int nThreadCount,
+	size_t nFastScanAlignment,
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<ADDR_RESULT_INFO> & vErrorList);
 
 /*
 再次搜索内存（搜索内存特征码），成功返回true，失败返回false
@@ -156,25 +213,36 @@ nFeaturesByteLen：字节特征码长度
 vFuzzyBytes：模糊字节，不变动的位置用1表示，变动的位置用0表示，如“char vFuzzy[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x01, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x11};”
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
-static void SearchNextMemoryBytesThread2(CMemoryReaderWriter *pDriver, uint64_t hProcess, std::vector<ADDR_RESULT_INFO>vScanMemAddrList, char vFeaturesByte[], size_t nFeaturesByteLen, char vFuzzyBytes[], int nThreadCount, size_t nFastScanAlignment, std::vector<ADDR_RESULT_INFO> * vOutputAddr, std::atomic<int> *nSearchProgress, std::atomic<uint64_t> *nFoundAddrCount);
+static void SearchNextMemoryBytesThread2(
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	uint64_t hProcess,
+	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
+	char vFeaturesByte[],
+	size_t nFeaturesByteLen,
+	char vFuzzyBytes[],
+	int nThreadCount,
+	size_t nFastScanAlignment,
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<ADDR_RESULT_INFO> & vErrorList);
+
 
 /*
 拷贝进程内存数据，成功返回true，失败返回false
 hProcess：被搜索的进程句柄
-vScanMemMaps: 被拷贝的进程内存区域
-vOutputMemCopy：拷贝进程内存数据的存放区域
-scanValueType：记录本次拷贝进程内存数据的值类型，1:1字节，2:2字节，4:4字节，8:8字节，9:单浮点，10:双浮点
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vScanMemMapsList: 被拷贝的进程内存区域
+vOutputMemCopyList：拷贝进程内存数据的存放区域
+vErrorMemCopyList：拷贝进程内存数据失败的存放区域
 */
-static void CopyProcessMemDataThread(CMemoryReaderWriter *pDriver, uint64_t hProcess, std::vector<MEM_SECTION_INFO>vScanMemMaps, std::vector<COPY_MEM_INFO> * vOutputMemCopy, int scanValueType, std::atomic<int> *nSearchProgress, std::atomic<uint64_t> *nFoundAddrCount);
-
-
-
+static void CopyProcessMemDataThread(
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	uint64_t hProcess,
+	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
+	int scanValueType,
+	SafeVector<COPY_MEM_INFO> & vOutputMemCopyList,
+	SafeVector<MEM_SECTION_INFO> & vErrorMemCopyList);
 
 
 /*
@@ -186,9 +254,8 @@ value: 要搜索的数值
 errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindValue(size_t dwAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount);
+template<typename T> static inline void FindValue(size_t dwAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
 
 /*
 寻找大于的数值
@@ -198,9 +265,8 @@ dwLen：要搜索的缓冲区大小
 value: 要搜索大于的数值
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindMax(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount);
+template<typename T> static inline void FindMax(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
 
 /*
 寻找小于的数值
@@ -210,9 +276,8 @@ dwLen：要搜索的缓冲区大小
 value: 要搜索小于的char数值
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindMin(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount);
+template<typename T> static inline void FindMin(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
 
 /*
 寻找两者之间的数值
@@ -223,9 +288,8 @@ value1: 要搜索的数值1
 value2: 要搜索的数值2
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindBetween(size_t dwAddr, size_t dwLen, T value1, T value2, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount);
+template<typename T> static inline void FindBetween(size_t dwAddr, size_t dwLen, T value1, T value2, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
 
 /*
 寻找增加的数值
@@ -235,9 +299,8 @@ dwNewAddr：要搜索的新数据缓冲区地址
 dwLen：要搜索的缓冲区大小
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindUnknowAdd(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount);
+template<typename T> static inline void FindUnknowAdd(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
 
 /*
 寻找增加了已知值的数值
@@ -249,9 +312,8 @@ value: 要搜索增加的已知值
 errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindAdd(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount);
+template<typename T> static inline void FindAdd(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
 
 /*
 寻找减少的数值
@@ -261,9 +323,8 @@ dwNewAddr：要搜索的新数据缓冲区地址
 dwLen：要搜索的缓冲区大小
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindUnknowSum(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount);
+template<typename T> static inline void FindUnknowSum(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
 
 /*
 寻找减少了已知值的数值
@@ -275,9 +336,8 @@ value: 要搜索减少的已知值
 errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindSum(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount);
+template<typename T> static inline void FindSum(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
 
 /*
 寻找变动的数值
@@ -287,9 +347,8 @@ dwNewAddr：要搜索的新数据缓冲区地址
 dwLen：要搜索的缓冲区大小
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindChanged(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount);
+template<typename T> static inline void FindChanged(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
 
 /*
 寻找未变动的数值
@@ -299,9 +358,8 @@ dwNewAddr：要搜索的新数据缓冲区地址
 dwLen：要搜索的缓冲区大小
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindNoChange(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount);
+template<typename T> static inline void FindNoChange(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
 
 
 
@@ -314,14 +372,11 @@ szMask: 要搜索的字节集模糊码（xx=已确定字节，??=可变化字节
 nMaskLen: 要搜索的字节集长度
 nFastScanAlignment: 为快速扫描的对齐位数，CE默认为1
 vOutputAddr: 搜索出来的结果地址存放数组
-nFoundAddrCount: 实时找到的地址数量
 使用方法：
 std::vector<size_t> vAddr;
-std::atomic<uint64_t> nFoundAddrCount;
-nFoundAddrCount = 0;
-FindFeaturesBytes((size_t)lpBuffer, dwBufferSize, (PBYTE);"\x8B\xE8\x00\x00\x00\x00\x33\xC0\xC7\x06\x00\x00\x00\x00\x89\x86\x40", "xxxx??xx?xx?xxxxx",17,1,vAddr , nFoundAddrCount);;
+FindFeaturesBytes((size_t)lpBuffer, dwBufferSize, (PBYTE);"\x8B\xE8\x00\x00\x00\x00\x33\xC0\xC7\x06\x00\x00\x00\x00\x89\x86\x40", "xxxx??xx?xx?xxxxx",17,1,vAddr);;
 */
-static inline void FindFeaturesBytes(size_t dwAddr, size_t dwLen, unsigned char *bMask, const char* szMask, size_t nMaskLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount);
+static inline void FindFeaturesBytes(size_t dwAddr, size_t dwLen, unsigned char *bMask, const char* szMask, size_t nMaskLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
 
 /*
 寻找字节集
@@ -331,14 +386,11 @@ bForSearch: 要搜索的字节集
 ifLen: 要搜索的字节集长度
 nFastScanAlignment: 为快速扫描的对齐位数，CE默认为1
 vOutputAddr: 搜索出来的结果地址存放数组
-nFoundAddrCount: 实时找到的地址数量
 使用方法：
 std::vector<size_t> vAddr;
-std::atomic<uint64_t> nFoundAddrCount;
-nFoundAddrCount = 0;
-FindFeaturesBytes((size_t)lpBuffer, dwBufferSize, (PBYTE)"\x8B\xE8\x00\x00\x00\x00\x33\xC0\xC7\x06\x00\x00\x00\x00\x89\x86\x40", 17,1,vAddr , nFoundAddrCount);
+FindFeaturesBytes((size_t)lpBuffer, dwBufferSize, (PBYTE)"\x8B\xE8\x00\x00\x00\x00\x33\xC0\xC7\x06\x00\x00\x00\x00\x89\x86\x40", 17,1,vAddr);
 */
-static inline void FindBytes(size_t dwWaitSearchAddress, size_t dwLen, unsigned char *bForSearch, size_t ifLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount);
+static inline void FindBytes(size_t dwWaitSearchAddress, size_t dwLen, unsigned char *bForSearch, size_t ifLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
 
 static inline std::string& replace_all_distinct(std::string& str, const std::string& old_value, const std::string& new_value);
 
@@ -348,31 +400,61 @@ static inline std::string& replace_all_distinct(std::string& str, const std::str
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+class CMemReaderWriterProxy
+{
+public:
+	CMemReaderWriterProxy() {}
+	CMemReaderWriterProxy(CMemoryReaderWriter * pDriver) { m_pDriver = pDriver; }
+	virtual BOOL ReadProcessMemory(
+		uint64_t hProcess,
+		uint64_t lpBaseAddress,
+		void *lpBuffer,
+		size_t nSize,
+		size_t * lpNumberOfBytesRead,
+		BOOL bIsForceRead = FALSE) {
+		if (!m_pDriver) { return FALSE; }
+		return m_pDriver->ReadProcessMemory(hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead, bIsForceRead);
+	}
+	virtual BOOL WriteProcessMemory(
+		uint64_t hProcess,
+		uint64_t lpBaseAddress,
+		void * lpBuffer,
+		size_t nSize,
+		size_t * lpNumberOfBytesWritten,
+		BOOL bIsForceWrite = FALSE) {
+		if (!m_pDriver) { return FALSE; }
+		return m_pDriver->WriteProcessMemory(hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesWritten, bIsForceWrite);
+	}
+private:
+	CMemoryReaderWriter * m_pDriver;
+};
 
 
 /*
 内存搜索数值，成功返回true，失败返回false
 hProcess：被搜索的进程句柄
-vScanMemMaps: 被搜索的进程内存区域
+vScanMemMapsJobList: 被搜索的进程内存区域
 value1: 要搜索的数值1
 value2: 要搜索的数值2
 errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
-scanType：搜索类型：0精确数值（value1生效）、1值大于（value1生效）、2值小于（value1生效）、3值在两值之间（value1、value2生效）
+scanType：搜索类型：
+				ACCURATE_VAL精确数值（value1生效）、
+				LARGER_THAN_VAL值大于（value1生效）、
+				LESS_THAN_VAL值小于（value1生效）、
+				BETWEEN_VAL值在两值之间（value1、value2生效）
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
 template<typename T> static void SearchMemoryThread(
-	CMemoryReaderWriter *pDriver, 
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy, 
 	uint64_t hProcess, 
-	std::vector<MEM_SECTION_INFO>vScanMemMaps, 
-	T value1, T value2, float errorRange, int scanType, int nThreadCount,
+	SafeVector<MEM_SECTION_INFO> & vScanMemMapsJobList,
+	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
 	size_t nFastScanAlignment, 
-	std::vector<ADDR_RESULT_INFO> * vOutputAddr, 
-	std::atomic<int> *nSearchProgress, 
-	std::atomic<uint64_t> *nFoundAddrCount)
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<MEM_SECTION_INFO> & vErrorList)
 {
 	//获取当前系统内存大小
 	struct sysinfo si;
@@ -380,84 +462,53 @@ template<typename T> static void SearchMemoryThread(
 	size_t nMaxMemSize = si.totalram;
 
 
-	std::mutex mtxResultAccessLock;			//搜索结果汇总数组访问锁
-	std::vector<ADDR_RESULT_INFO> vResultAddr;	//全部线程的搜索结果汇总数组
-
-	//分配线程进行内存搜索
-	size_t nScanMemMapsMaxCount = vScanMemMaps.size(); //记录被搜索的进程内存区域总数
-	size_t nThreadJob = nScanMemMapsMaxCount / nThreadCount; //每条线程需要处理的内存区段任务数
-	//cout << "每 " << nThreadJob << endl;
-	if (nThreadJob == 0)
-	{
-		nThreadJob = 1;
-		nThreadCount = nScanMemMapsMaxCount;
+	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
+	std::vector<std::shared_ptr<std::atomic<int>>> vbThreadStarted;
+	for (int i = 0; i < nThreadCount; ++i) {
+		vspMtxThreadExist.push_back(std::make_shared<std::mutex>());
+		vbThreadStarted.push_back(std::make_shared<std::atomic<int>>(0));
 	}
-
-	std::atomic<int> nWorkingThreadCount; //记录实时正在工作的搜索线程数
-	std::atomic<uint64_t> nFinishedMemSectionJobCount; //记录实时已处理完成的内存区段任务总数
-	nWorkingThreadCount = nThreadCount;
-	nFinishedMemSectionJobCount = 0;
 
 	//开始分配线程搜索内存
 	for (int i = 0; i < nThreadCount; i++)
 	{
-		//每条线程需要处理的内存区段任务数组
-		std::unique_ptr<std::vector<MEM_SECTION_INFO>> upVecThreadJob = std::make_unique<std::vector<MEM_SECTION_INFO>>();
-
-
-		for (int count = 0; count < nThreadJob; count++)
-		{
-			MEM_SECTION_INFO task = *vScanMemMaps.rbegin(); //从总内存区段任务队列末尾取出一个内存区段任务
-			upVecThreadJob->push_back(task); //取完保存起来
-			vScanMemMaps.pop_back(); //取完末尾后删除
-		}
-
-		if (i + 1 == nThreadCount)
-		{
-			//如果是最后一条线程了，则需要把剩下的内存区段任务全部处理
-			for (MEM_SECTION_INFO task : vScanMemMaps)
-			{
-				upVecThreadJob->push_back(task);
-			}
-		}
-
-
 		//内存搜索线程
+		std::shared_ptr<std::mutex> spMtxThread = vspMtxThreadExist[i];
+		std::shared_ptr<std::atomic<int>> spnThreadStarted = vbThreadStarted[i];
+
 		std::thread td(
-			[](
-				CMemoryReaderWriter *pDriver,
-				size_t nMaxMallocMem, //最大申请内存字节
-				std::unique_ptr<std::vector<MEM_SECTION_INFO>> upVecThreadJob, //每条线程需要处理的内存区段任务数组
-				uint64_t hProcess, //被搜索进程句柄
-				std::atomic<int> *nWorkingThreadCount, //记录实时正在工作的搜索线程数
-				std::atomic<uint64_t> *nFinishedMemSectionJobCount, //记录实时已处理完成的内存区段任务总数
-				std::atomic<uint64_t> *nFoundAddrCount, //记录实时已找到的地址数目
-				T value1, //要搜索的char数值1
-				T value2, //要搜索的char数值2
-				float errorRange,
-				int scanType, //搜索类型：0精确数值（value1生效）、1值大于（value1生效）、2值小于（value1生效）、3值在两值之间（value1、value2生效）
-				std::mutex *mtxResultAccessLock,	//搜索结果汇总数组访问锁
-				std::vector<ADDR_RESULT_INFO> *pvResultAddr,	//全部线程的搜索结果汇总数组
-				size_t nFastScanAlignment	//快速扫描的对齐位数
-				)->void
+			[spReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsJobList, &vErrorList, value1, value2, errorRange, scanType, &vResultList, nFastScanAlignment, spMtxThread, spnThreadStarted]()->void
 		{
+			std::lock_guard<std::mutex> mlock(*spMtxThread);
+			spnThreadStarted->store(1);
+
 			//cout << "我 " << upVecThreadJob->size() << endl;
 			std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
 
-			for (MEM_SECTION_INFO memSecInfo : *upVecThreadJob) //线程的每个任务
+			MEM_SECTION_INFO memSecInfo;
+			while (vScanMemMapsJobList.get_val(memSecInfo))
 			{
 				//当前内存区域块大小超过了最大内存申请的限制，所以跳过
-				if (memSecInfo.nSectionSize > nMaxMallocMem) { continue; }
-				
+				if (memSecInfo.nSectionSize > nMaxMemSize)
+				{
+					vErrorList.push_back(memSecInfo);
+					continue;
+				}
+
 				unsigned char *pnew = new (std::nothrow) unsigned char[memSecInfo.nSectionSize];
-				if (!pnew) { /*cout << "malloc "<< memSecInfo.nSectionSize  << " failed."<< endl;*/ continue; }
+				if (!pnew)
+				{
+					vErrorList.push_back(memSecInfo);
+					continue;
+				}
 				memset(pnew, 0, memSecInfo.nSectionSize);
 
 
 				std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 				size_t dwRead = 0;
-				if (!pDriver->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
+				if (!spReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
 				{
+					vErrorList.push_back(memSecInfo);
 					continue;
 				}
 				//寻找数值
@@ -465,32 +516,30 @@ template<typename T> static void SearchMemoryThread(
 
 				switch (scanType)
 				{
-				case 0:
+				case SCAN_TYPE::ACCURATE_VAL:
 					//精确数值
-					FindValue<T>((size_t)spMemBuf.get(), dwRead, value1, errorRange, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+					FindValue<T>((size_t)spMemBuf.get(), dwRead, value1, errorRange, nFastScanAlignment, vFindAddr);
 					break;
-				case 1:
+				case SCAN_TYPE::LARGER_THAN_VAL:
 					//值大于
-					FindMax<T>((size_t)spMemBuf.get(), dwRead, value1, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+					FindMax<T>((size_t)spMemBuf.get(), dwRead, value1, nFastScanAlignment, vFindAddr);
 					break;
-				case 2:
+				case SCAN_TYPE::LESS_THAN_VAL:
 					//值小于
-					FindMin<T>((size_t)spMemBuf.get(), dwRead, value1, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+					FindMin<T>((size_t)spMemBuf.get(), dwRead, value1, nFastScanAlignment, vFindAddr);
 					break;
-				case 3:
+				case SCAN_TYPE::BETWEEN_VAL:
 					//值在两者之间于
-					FindBetween<T>((size_t)spMemBuf.get(), dwRead, value1 < value2 ? value1 : value2, value1 < value2 ? value2 : value1, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+					FindBetween<T>((size_t)spMemBuf.get(), dwRead, value1 < value2 ? value1 : value2, value1 < value2 ? value2 : value1, nFastScanAlignment, vFindAddr);
 					break;
 				default:
 					break;
 				}
-
-			
 				for (size_t addr : vFindAddr)
 				{
 					ADDR_RESULT_INFO aInfo;
 					aInfo.addr = (uint64_t)((uint64_t)memSecInfo.npSectionAddr + (uint64_t)addr - (uint64_t)spMemBuf.get());
-					aInfo.size = 1;
+					aInfo.size = sizeof(T);
 
 					std::shared_ptr<unsigned char> sp(new unsigned char[aInfo.size], std::default_delete<unsigned char[]>());
 					memcpy(sp.get(), (void*)addr, aInfo.size);
@@ -498,61 +547,28 @@ template<typename T> static void SearchMemoryThread(
 					aInfo.spSaveData = sp;
 					vThreadOutput.push_back(aInfo);
 				}
-				(*nFinishedMemSectionJobCount)++; //实时已处理完成的内存区段任务总数+1
+
 			}
+
+
 			//将当前线程的搜索结果，汇总到父线程的全部搜索结果数组里
-			mtxResultAccessLock->lock();
-			for (ADDR_RESULT_INFO newAddr : vThreadOutput)
+			for (ADDR_RESULT_INFO & newAddr : vThreadOutput)
 			{
-				pvResultAddr->push_back(newAddr);
+				vResultList.push_back(newAddr);
 			}
-			mtxResultAccessLock->unlock();
-
-			(*nWorkingThreadCount)--; //实时正在工作的搜索线程数-1
-			return;
-
-		},
-			pDriver,
-			nMaxMemSize,
-			std::move(upVecThreadJob),
-			hProcess,
-			&nWorkingThreadCount,
-			&nFinishedMemSectionJobCount,
-			nFoundAddrCount,
-			value1,
-			value2,
-			errorRange,
-			scanType,
-			&mtxResultAccessLock,
-			&vResultAddr,
-			nFastScanAlignment
-			);
+		});
 		td.detach();
-
 	}
 	//等待所有搜索线程结束汇总
-	while (nWorkingThreadCount != 0)
+	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		//计算搜索进度为
-		uint64_t progress = ((double)nFinishedMemSectionJobCount / (double)nScanMemMapsMaxCount) * 100;
-		if (progress >= 100)
-		{
-			(*nSearchProgress) = 99;
-		}
-		else
-		{
-			(*nSearchProgress) = progress;
-		}
-
-		sleep(0);
+		while (spnThreadStarted->load() == 0) { sleep(0); }
 	}
-
-	vOutputAddr->clear();
-	vOutputAddr->assign(vResultAddr.begin(), vResultAddr.end());
-	sort(vOutputAddr->begin(), vOutputAddr->end(), [](ADDR_RESULT_INFO a, ADDR_RESULT_INFO b) -> bool { return a.addr < b.addr; });
-
-	//设置搜索进度为100
-	(*nSearchProgress) = 100;
+	for (auto spMtxThread : vspMtxThreadExist)
+	{
+		std::lock_guard<std::mutex> mlock(*spMtxThread);
+	}
+	vResultList.sort([](const ADDR_RESULT_INFO & a, const ADDR_RESULT_INFO & b) -> bool { return a.addr < b.addr; });
 	return;
 }
 
@@ -563,99 +579,71 @@ vScanMemAddrList: 需要再次搜索的内存地址列表
 value1: 要搜索数值1
 value2: 要搜索数值2
 errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
-scanType：搜索类型：0精确数值（value1生效）、1值大于（value1生效）、2值小于（value1生效）、3值在两值之间（value1、value2生效）、5增加的数值（value1、value2均无效），6数值增加了（value1生效），7减少的数值（value1、value2均无效），8数值减少了（value1生效），9变动的数值（value1、value2均无效），10未变动的数值（value1、value2均无效）
+scanType：搜索类型：
+				ACCURATE_VAL精确数值（value1生效）、
+				LARGER_THAN_VAL值大于（value1生效）、
+				LESS_THAN_VAL值小于（value1生效）、
+				BETWEEN_VAL值在两值之间（value1、value2生效）、
+				ADD_UNKNOW_VAL值增加了未知值（value1、value2均无效），
+				ADD_ACCURATE_VAL值增加了精确值（value1生效），
+				SUB_UNKNOW_VAL值减少了未知值（value1、value2均无效），
+				SUB_ACCURATE_VAL值减少了精确值（value1生效），
+				CHANGED_VAL变动了的数值（value1、value2均无效），
+				UNCHANGED_VAL未变动的数值（value1、value2均无效）
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
 template<typename T> static void SearchNextMemoryThread(
-	CMemoryReaderWriter *pDriver,
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
 	uint64_t hProcess, 
-	std::vector<ADDR_RESULT_INFO>vScanMemAddrList,
-	T value1, T value2, float errorRange, int scanType, int nThreadCount,
-	std::vector<ADDR_RESULT_INFO> * vOutputAddr, 
-	std::atomic<int> *nSearchProgress,
-	std::atomic<uint64_t> *nFoundAddrCount)
+	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
+	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<ADDR_RESULT_INFO> & vErrorList)
 {
-	std::mutex mtxResultAccessLock;			//搜索结果汇总数组访问锁
-	std::vector<ADDR_RESULT_INFO> vResultAddr;	//全部线程的搜索结果汇总数组
-
-	//分配线程进行内存搜索
-	size_t nScanMemAddrMaxCount = vScanMemAddrList.size(); //记录需要再次搜索的内存地址总数
-	size_t nThreadJob = nScanMemAddrMaxCount / nThreadCount; //每条线程需要处理的内存地址任务数
-	//cout << "每 " << nThreadJob << endl;
-	if (nThreadJob == 0)
-	{
-		nThreadJob = 1;
-		nThreadCount = nScanMemAddrMaxCount;
+	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
+	std::vector<std::shared_ptr<std::atomic<int>>> vbThreadStarted;
+	for (int i = 0; i < nThreadCount; ++i) {
+		vspMtxThreadExist.push_back(std::make_shared<std::mutex>());
+		vbThreadStarted.push_back(std::make_shared<std::atomic<int>>(0));
 	}
-
-	std::atomic<int> nWorkingThreadCount; //记录实时正在工作的搜索线程数
-	std::atomic<uint64_t> nFinishedMemAddrJobCount{0}; //记录实时已处理完成的内存地址任务总数
-	nWorkingThreadCount = nThreadCount;
-
-
 	//开始分配线程搜索内存
 	for (int i = 0; i < nThreadCount; i++)
 	{
-		//每条线程需要处理的内存地址任务数组
-		std::unique_ptr<std::vector<ADDR_RESULT_INFO>> upVecThreadJob = std::make_unique<std::vector<ADDR_RESULT_INFO>>();
-
-
-		for (int count = 0; count < nThreadJob; count++)
-		{
-			ADDR_RESULT_INFO task = *vScanMemAddrList.rbegin(); //从总内存区段任务队列末尾取出一个内存地址任务
-			upVecThreadJob->push_back(task); //取完保存起来
-			vScanMemAddrList.pop_back(); //取完末尾后删除
-		}
-
-		if (i + 1 == nThreadCount)
-		{
-			//如果是最后一条线程了，则需要把剩下的内存地址任务全部处理
-			for (ADDR_RESULT_INFO task : vScanMemAddrList)
-			{
-				upVecThreadJob->push_back(task);
-			}
-		}
-
+		std::shared_ptr<std::mutex> spMtxThread = vspMtxThreadExist[i];
+		std::shared_ptr<std::atomic<int>> spnThreadStarted = vbThreadStarted[i];
 		//内存搜索线程
 		std::thread td(
-			[](
-				CMemoryReaderWriter *pDriver,
-				std::unique_ptr<std::vector<ADDR_RESULT_INFO>> upVecThreadJob, //每条线程需要处理的内存地址任务数组
-				uint64_t hProcess, //被搜索进程句柄
-				std::atomic<int> *nWorkingThreadCount, //记录实时正在工作的搜索线程数
-				std::atomic<uint64_t> *nFinishedMemAddrJobCount, //记录实时已处理完成的内存地址任务总数
-				std::atomic<uint64_t> *nFoundAddrCount, //记录实时已找到的地址数目
-				T value1, //要搜索的数值1
-				T value2, //要搜索的数值2
-				float errorRange, //误差范围
-				int scanType, //搜索类型：0精确数值（value1生效）、1值大于（value1生效）、2值小于（value1生效）、3值在两值之间（value1、value2生效）、5增加的数值（value1、value2均无效），6数值增加了（value1生效），7减少的数值（value1、value2均无效），8数值减少了（value1生效），9变动的数值（value1、value2均无效），10未变动的数值（value1、value2均无效）
-				std::mutex *mtxResultAccessLock,	//搜索结果汇总数组访问锁
-				std::vector<ADDR_RESULT_INFO> *pvResultAddr	//全部线程的搜索结果汇总数组
-				)->void
+			[spReadWriteProxy, hProcess, &vScanMemAddrList, &vErrorList, value1, value2, errorRange, scanType, &vResultList, spMtxThread, spnThreadStarted]()->void
 		{
+
+			std::lock_guard<std::mutex> mlock(*spMtxThread);
+			spnThreadStarted->store(1);
+
 			//cout << "我 " << upVecThreadJob->size() << endl;
 			std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
-
-			for (ADDR_RESULT_INFO memAddrJob : *upVecThreadJob) //线程的每个任务
+			ADDR_RESULT_INFO memAddrJob;
+			while (vScanMemAddrList.get_val(memAddrJob))
 			{
-				(*nFinishedMemAddrJobCount)++; //实时已处理完成的内存区段任务总数+1
-
 				T temp = 0;
 				size_t dwRead = 0;
-				if (!pDriver->ReadProcessMemory(hProcess, memAddrJob.addr, &temp, sizeof(temp), &dwRead, FALSE))
+				if (!spReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, &temp, sizeof(temp), &dwRead, FALSE))
 				{
+					vErrorList.push_back(memAddrJob);
 					continue;
 				}
 				
-				if (dwRead != sizeof(T)){ continue; }
+				if (dwRead != sizeof(T))
+				{
+					vErrorList.push_back(memAddrJob);
+					continue;
+				}
 
 				//寻找数值
 				switch (scanType)
 				{
-				case 0:
+				case SCAN_TYPE::ACCURATE_VAL:
 					if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
 					{
 						//当是float、double数值的情况
@@ -667,15 +655,15 @@ template<typename T> static void SearchNextMemoryThread(
 						if (temp != value1) { continue; }
 					}
 					break;
-				case 1:
+				case SCAN_TYPE::LARGER_THAN_VAL:
 					//值大于的结果保留
 					if (temp < value1) { continue; }
 					break;
-				case 2:
+				case SCAN_TYPE::LESS_THAN_VAL:
 					//值小于的结果保留
 					if (temp > value1) { continue; }
 					break;
-				case 3:
+				case SCAN_TYPE::BETWEEN_VAL:
 					//值在两者之间的结果保留
 					if (value1 < value2)
 					{
@@ -686,11 +674,11 @@ template<typename T> static void SearchNextMemoryThread(
 						if (value2 > temp || temp > value1) { continue; }
 					}
 					break;
-				case 5:
+				case SCAN_TYPE::ADD_UNKNOW_VAL:
 					//增加的数值的结果保留
 					if (temp <= *(T*)(memAddrJob.spSaveData.get())) { continue; }
 					break;
-				case 6:
+				case SCAN_TYPE::ADD_ACCURATE_VAL:
 					if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
 					{
 						//float、double数值增加了的结果保留
@@ -706,11 +694,11 @@ template<typename T> static void SearchNextMemoryThread(
 
 					}
 					break;
-				case 7:
+				case SCAN_TYPE::SUB_UNKNOW_VAL:
 					//减少的数值的结果保留
 					if (temp >= *(T*)(memAddrJob.spSaveData.get())) { continue; }
 					break;
-				case 8:
+				case SCAN_TYPE::SUB_ACCURATE_VAL:
 					if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
 					{
 						//float、double数值减少了的结果保留
@@ -726,7 +714,7 @@ template<typename T> static void SearchNextMemoryThread(
 						if (((*(T*)(memAddrJob.spSaveData.get())) - (temp)) != value1) { continue; }
 					}
 					break;
-				case 9:
+				case SCAN_TYPE::CHANGED_VAL:
 					if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
 					{
 						//float、double变动的数值的结果保留
@@ -747,7 +735,7 @@ template<typename T> static void SearchNextMemoryThread(
 						if (temp == *(T*)(memAddrJob.spSaveData.get())) { continue; }
 					}
 					break;
-				case 10:
+				case SCAN_TYPE::UNCHANGED_VAL:
 					if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
 					{
 						//float、double未变动的数值的结果保留
@@ -775,202 +763,133 @@ template<typename T> static void SearchNextMemoryThread(
 				}
 			
 			
-				if (memAddrJob.size != 1)
+				if (memAddrJob.size != sizeof(T))
 				{
-					memAddrJob.size = 1;
+					memAddrJob.size = sizeof(T);
 					std::shared_ptr<unsigned char> sp(new unsigned char[memAddrJob.size], std::default_delete<unsigned char[]>());
 					memAddrJob.spSaveData = sp;
 				}
 				memcpy(&(*memAddrJob.spSaveData), &temp, 1);
 				vThreadOutput.push_back(memAddrJob);
-
-				(*nFoundAddrCount)++;
-
 			}
 			//将当前线程的搜索结果，汇总到父线程的全部搜索结果数组里
-			mtxResultAccessLock->lock();
-			for (ADDR_RESULT_INFO newAddr : vThreadOutput)
+			for (ADDR_RESULT_INFO & newAddr : vThreadOutput)
 			{
-				pvResultAddr->push_back(newAddr);
+				vResultList.push_back(newAddr);
 			}
-			mtxResultAccessLock->unlock();
 
-
-			(*nWorkingThreadCount)--; //实时正在工作的搜索线程数-1
-			return;
-
-		},
-			pDriver,
-			std::move(upVecThreadJob),
-			hProcess,
-			&nWorkingThreadCount,
-			&nFinishedMemAddrJobCount,
-			nFoundAddrCount,
-			value1,
-			value2,
-			errorRange,
-			scanType,
-			&mtxResultAccessLock,
-			&vResultAddr
-			);
+		});
 		td.detach();
 
 	}
 	//等待所有搜索线程结束汇总
-	while (nWorkingThreadCount != 0)
+	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		//计算搜索进度为
-		uint64_t progress = ((double)nFinishedMemAddrJobCount / (double)nScanMemAddrMaxCount) * 100;
-		if (progress >= 100)
-		{
-			(*nSearchProgress) = 99;
-		}
-		else
-		{
-			(*nSearchProgress) = progress;
-		}
-
-		sleep(0);
+		while (spnThreadStarted->load() == 0) { sleep(0); }
 	}
-
-	vOutputAddr->clear();
-	vOutputAddr->assign(vResultAddr.begin(), vResultAddr.end());
-	sort(vOutputAddr->begin(), vOutputAddr->end(), [](ADDR_RESULT_INFO a, ADDR_RESULT_INFO b) -> bool { return a.addr < b.addr; });
-	//设置搜索进度为100
-	(*nSearchProgress) = 100;
-
+	for (auto spMtxThread : vspMtxThreadExist)
+	{
+		std::lock_guard<std::mutex> mlock(*spMtxThread);
+	}
+	vResultList.sort([](const ADDR_RESULT_INFO & a, const ADDR_RESULT_INFO & b) -> bool { return a.addr < b.addr; });
 	return;
-
 }
 
 /*
 搜索已拷贝的进程内存数值，成功返回true，失败返回false
-vCopyProcessMemData: 需要再次搜索的已拷贝的进程内存列表
+vCopyProcessMemDataList: 需要再次搜索的已拷贝的进程内存列表
 value1: 要搜索的数值1
 value2: 要搜索的数值2
 errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
-scanType：搜索类型：0精确数值（value1生效）、1值大于（value1生效）、2值小于（value1生效）、3值在两值之间（value1、value2生效）、5增加的数值（value1、value2均无效），6数值增加了（value1生效），7减少的数值（value1、value2均无效），8数值减少了（value1生效），9变动的数值（value1、value2均无效），10未变动的数值（value1、value2均无效）
+scanType：搜索类型：
+				ACCURATE_VAL精确数值（value1生效）、
+				LARGER_THAN_VAL值大于（value1生效）、
+				LESS_THAN_VAL值小于（value1生效）、
+				BETWEEN_VAL值在两值之间（value1、value2生效）、
+				ADD_UNKNOW_VAL值增加了未知值（value1、value2均无效），ADD_ACCURATE_VAL值增加了精确值（value1生效），SUB_UNKNOW_VAL值减少了未知值（value1、value2均无效），SUB_ACCURATE_VAL值减少了精确值（value1生效），CHANGED_VAL变动了的数值（value1、value2均无效），UNCHANGED_VAL未变动的数值（value1、value2均无效）
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
 template<typename T> static void SearchCopyProcessMemThread(
-	CMemoryReaderWriter *pDriver, 
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy, 
 	uint64_t hProcess, 
-	std::vector<COPY_MEM_INFO> *vCopyProcessMemData, 
-	T value1, T value2, float errorRange, int scanType, int nThreadCount,
+	SafeVector<COPY_MEM_INFO> & vCopyProcessMemDataList,
+	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
 	size_t nFastScanAlignment, 
-	std::vector<ADDR_RESULT_INFO> * vOutputAddr, 
-	std::atomic<int> *nSearchProgress, 
-	std::atomic<uint64_t> *nFoundAddrCount)
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<COPY_MEM_INFO> & vErrorList)
 {
-	std::mutex mtxResultAccessLock;			//搜索结果汇总数组访问锁
-	std::vector<ADDR_RESULT_INFO> vResultAddr;	//全部线程的搜索结果汇总数组
 
-	//分配线程进行内存搜索
-	size_t nCopyProcessMemMaxCount = vCopyProcessMemData->size(); //记录被搜索的进程内存区域总数
-	size_t nThreadJob = nCopyProcessMemMaxCount / nThreadCount; //每条线程需要处理的内存区段任务数
-	//cout << "每 " << nThreadJob << endl;
-	if (nThreadJob == 0)
-	{
-		nThreadJob = 1;
-		nThreadCount = nCopyProcessMemMaxCount;
+	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
+	std::vector<std::shared_ptr<std::atomic<int>>> vbThreadStarted;
+	for (int i = 0; i < nThreadCount; ++i) {
+		vspMtxThreadExist.push_back(std::make_shared<std::mutex>());
+		vbThreadStarted.push_back(std::make_shared<std::atomic<int>>(0));
 	}
-
-	std::atomic<int> nWorkingThreadCount; //记录实时正在工作的搜索线程数
-	std::atomic<uint64_t> nFinishedMemSectionJobCount; //记录实时已处理完成的内存区段任务总数
-	nWorkingThreadCount = nThreadCount;
-	nFinishedMemSectionJobCount = 0;
-
 	//开始分配线程搜索内存
 	for (int i = 0; i < nThreadCount; i++)
 	{
-		//每条线程需要处理的内存区段任务数组
-		std::unique_ptr<std::vector<COPY_MEM_INFO>> upVecThreadJob = std::make_unique<std::vector<COPY_MEM_INFO>>();
-
-
-		for (int count = 0; count < nThreadJob; count++)
-		{
-			COPY_MEM_INFO task = *vCopyProcessMemData->rbegin(); //从总内存区段任务队列末尾取出一个内存区段任务
-			upVecThreadJob->push_back(task); //取完保存起来
-			vCopyProcessMemData->pop_back(); //取完末尾后删除
-		}
-
-		if (i + 1 == nThreadCount)
-		{
-			//如果是最后一条线程了，则需要把剩下的内存区段任务全部处理
-			for (COPY_MEM_INFO task : *vCopyProcessMemData)
-			{
-				upVecThreadJob->push_back(task);
-			}
-		}
-
+		std::shared_ptr<std::mutex> spMtxThread = vspMtxThreadExist[i];
+		std::shared_ptr<std::atomic<int>> spnThreadStarted = vbThreadStarted[i];
 		//内存搜索线程
 		std::thread td(
-			[](
-				CMemoryReaderWriter *pDriver,
-				std::unique_ptr<std::vector<COPY_MEM_INFO>> upVecThreadJob, //每条线程需要处理的内存区段任务数组
-				uint64_t hProcess, //被搜索进程句柄
-				std::atomic<int> *nWorkingThreadCount, //记录实时正在工作的搜索线程数
-				std::atomic<uint64_t> *nFinishedMemSectionJobCount, //记录实时已处理完成的内存区段任务总数
-				std::atomic<uint64_t> *nFoundAddrCount, //记录实时已找到的地址数目
-				T value1, //要搜索的int数值1
-				T value2, //要搜索的int数值2
-				float errorRange, //误差范围
-				int scanType, //搜索类型：0精确数值（value1生效）、1值大于（value1生效）、2值小于（value1生效）、3值在两值之间（value1、value2生效）、5增加的数值（value1、value2均无效），6数值增加了（value1生效），7减少的数值（value1、value2均无效），8数值减少了（value1生效），9变动的数值（value1、value2均无效），10未变动的数值（value1、value2均无效）
-				std::mutex *mtxResultAccessLock,	//搜索结果汇总数组访问锁
-				std::vector<ADDR_RESULT_INFO> *pvResultAddr,	//全部线程的搜索结果汇总数组
-				size_t nFastScanAlignment	//快速扫描的对齐位数
-				)->void
+			[spReadWriteProxy, &vCopyProcessMemDataList, hProcess, value1, value2, errorRange, scanType, nFastScanAlignment, &vResultList, &vErrorList, spMtxThread, spnThreadStarted]()->void
 		{
+			std::lock_guard<std::mutex> mlock(*spMtxThread);
+			spnThreadStarted->store(1);
+
 			//cout << "我 " << upVecThreadJob->size() << endl;
 			std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
-
-			for (COPY_MEM_INFO memSecInfo : *upVecThreadJob) //线程的每个任务
+			COPY_MEM_INFO memSecInfo;
+			while (vCopyProcessMemDataList.get_val(memSecInfo))
 			{
-				(*nFinishedMemSectionJobCount)++; //实时已处理完成的内存区段任务总数+1
-
 				//寻找数值
 				std::vector<size_t >vFindAddr;
 				std::shared_ptr<unsigned char> spMemBuf = nullptr;
 				size_t dwRead = 0;
 				switch (scanType)
 				{
-				case 0:
+				case SCAN_TYPE::ACCURATE_VAL:
 					//精确数值
 					FindValue<T>((size_t)(memSecInfo.spSaveMemBuf.get()),
-						memSecInfo.nSectionSize, value1, errorRange, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+						memSecInfo.nSectionSize, value1, errorRange, nFastScanAlignment, vFindAddr);
 					break;
-				case 1:
+				case SCAN_TYPE::LARGER_THAN_VAL:
 					//值大于
 					FindMax<T>((size_t)(memSecInfo.spSaveMemBuf.get()),
-						memSecInfo.nSectionSize, value1, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+						memSecInfo.nSectionSize, value1, nFastScanAlignment, vFindAddr);
 					break;
-				case 2:
+				case SCAN_TYPE::LESS_THAN_VAL:
 					//值小于
 					FindMin<T>((size_t)(memSecInfo.spSaveMemBuf.get()),
-						memSecInfo.nSectionSize, value1, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+						memSecInfo.nSectionSize, value1, nFastScanAlignment, vFindAddr);
 					break;
-				case 3:
+				case SCAN_TYPE::BETWEEN_VAL:
 					//值在两者之间于
 					FindBetween<T>((size_t)(memSecInfo.spSaveMemBuf.get()),
-						memSecInfo.nSectionSize, value1 < value2 ? value1 : value2, value1 < value2 ? value2 : value1, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+						memSecInfo.nSectionSize, value1 < value2 ? value1 : value2, value1 < value2 ? value2 : value1, nFastScanAlignment, vFindAddr);
 					break;
-				case 5:
-				case 6:
-				case 7:
-				case 8:
-				case 9:
-				case 10:{
+				case SCAN_TYPE::ADD_UNKNOW_VAL:
+				case SCAN_TYPE::ADD_ACCURATE_VAL:
+				case SCAN_TYPE::SUB_UNKNOW_VAL:
+				case SCAN_TYPE::SUB_ACCURATE_VAL:
+				case SCAN_TYPE::CHANGED_VAL:
+				case SCAN_TYPE::UNCHANGED_VAL:{
 					unsigned char *pnew = new (std::nothrow) unsigned char[memSecInfo.nSectionSize];
-					if (!pnew) { /*cout << "malloc "<< memSecInfo.nSectionSize  << " failed."<< endl;*/ continue; }
+					if (!pnew)
+					{
+						vErrorList.push_back(memSecInfo);
+						/*cout << "malloc "<< memSecInfo.nSectionSize  << " failed."<< endl;*/ 
+						continue;
+					}
 					memset(pnew, 0, memSecInfo.nSectionSize);
 
 					std::shared_ptr<unsigned char> sp(pnew, std::default_delete<unsigned char[]>());
 
-					if (!pDriver->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, sp.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
+					if (!spReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, sp.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
 					{
+						vErrorList.push_back(memSecInfo);
 						continue;
 					}
 					spMemBuf = sp;
@@ -981,29 +900,29 @@ template<typename T> static void SearchCopyProcessMemThread(
 
 				switch (scanType)
 				{
-				case 5:
-					//增加的数值
-					FindUnknowAdd<T>((size_t)(memSecInfo.spSaveMemBuf.get()), (size_t)spMemBuf.get(), dwRead, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+				case SCAN_TYPE::ADD_UNKNOW_VAL:
+					//值增加了未知值
+					FindUnknowAdd<T>((size_t)(memSecInfo.spSaveMemBuf.get()), (size_t)spMemBuf.get(), dwRead, nFastScanAlignment, vFindAddr);
 					break;
-				case 6:
-					//数值增加了
-					FindAdd<T>((size_t)memSecInfo.spSaveMemBuf.get(), (size_t)spMemBuf.get(), value1, errorRange, dwRead, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+				case SCAN_TYPE::ADD_ACCURATE_VAL:
+					//值增加了精确值
+					FindAdd<T>((size_t)memSecInfo.spSaveMemBuf.get(), (size_t)spMemBuf.get(), value1, errorRange, dwRead, nFastScanAlignment, vFindAddr);
 					break;
-				case 7:
-					//减少的数值
-					FindUnknowSum<T>((size_t)memSecInfo.spSaveMemBuf.get(), (size_t)spMemBuf.get(), dwRead, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+				case SCAN_TYPE::SUB_UNKNOW_VAL:
+					//值减少了未知值
+					FindUnknowSum<T>((size_t)memSecInfo.spSaveMemBuf.get(), (size_t)spMemBuf.get(), dwRead, nFastScanAlignment, vFindAddr);
 					break;
-				case 8:
-					//数值减少了
-					FindSum<T>((size_t)memSecInfo.spSaveMemBuf.get(), (size_t)spMemBuf.get(), value1, errorRange, dwRead, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+				case SCAN_TYPE::SUB_ACCURATE_VAL:
+					//值减少了精确值
+					FindSum<T>((size_t)memSecInfo.spSaveMemBuf.get(), (size_t)spMemBuf.get(), value1, errorRange, dwRead, nFastScanAlignment, vFindAddr);
 					break;
-				case 9:
+				case SCAN_TYPE::CHANGED_VAL:
 					//变动的数值
-					FindChanged<T>((size_t)memSecInfo.spSaveMemBuf.get(), (size_t)spMemBuf.get(), dwRead, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+					FindChanged<T>((size_t)memSecInfo.spSaveMemBuf.get(), (size_t)spMemBuf.get(), dwRead, nFastScanAlignment, vFindAddr);
 					break;
-				case 10:
+				case SCAN_TYPE::UNCHANGED_VAL:
 					//未变动的数值
-					FindNoChange<T>((size_t)memSecInfo.spSaveMemBuf.get(), (size_t)spMemBuf.get(), dwRead, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+					FindNoChange<T>((size_t)memSecInfo.spSaveMemBuf.get(), (size_t)spMemBuf.get(), dwRead, nFastScanAlignment, vFindAddr);
 					break;
 				default:
 					break;
@@ -1013,7 +932,7 @@ template<typename T> static void SearchCopyProcessMemThread(
 				{
 					ADDR_RESULT_INFO aInfo;
 					aInfo.addr = (uint64_t)((uint64_t)memSecInfo.npSectionAddr + (uint64_t)addr - (uint64_t)memSecInfo.spSaveMemBuf.get());
-					aInfo.size = 1;
+					aInfo.size = sizeof(T);
 					std::shared_ptr<unsigned char> sp(new unsigned char[aInfo.size], std::default_delete<unsigned char[]>());
 					memcpy(sp.get(), (void*)addr, aInfo.size);
 					aInfo.spSaveData = sp;
@@ -1021,60 +940,24 @@ template<typename T> static void SearchCopyProcessMemThread(
 				}
 			}
 			//将当前线程的搜索结果，汇总到父线程的全部搜索结果数组里
-			mtxResultAccessLock->lock();
-			for (ADDR_RESULT_INFO newAddr : vThreadOutput)
+			for (ADDR_RESULT_INFO & newAddr : vThreadOutput)
 			{
-				pvResultAddr->push_back(newAddr);
+				vResultList.push_back(newAddr);
 			}
-			mtxResultAccessLock->unlock();
-
-			(*nWorkingThreadCount)--; //实时正在工作的搜索线程数-1
-			return;
-
-		},
-			pDriver,
-			std::move(upVecThreadJob),
-			hProcess,
-			&nWorkingThreadCount,
-			&nFinishedMemSectionJobCount,
-			nFoundAddrCount,
-			value1,
-			value2,
-			errorRange,
-			scanType,
-			&mtxResultAccessLock,
-			&vResultAddr,
-			nFastScanAlignment
-			);
+		});
 		td.detach();
 
 	}
 	//等待所有搜索线程结束汇总
-	while (nWorkingThreadCount != 0)
+	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		//计算搜索进度为
-		uint64_t progress = ((double)nFinishedMemSectionJobCount / (double)nCopyProcessMemMaxCount) * 100;
-		if (progress >= 100)
-		{
-			(*nSearchProgress) = 99;
-		}
-		else
-		{
-			(*nSearchProgress) = progress;
-		}
-
-		sleep(0);
+		while (spnThreadStarted->load() == 0) { sleep(0); }
 	}
-
-	vOutputAddr->clear();
-	vOutputAddr->assign(vResultAddr.begin(), vResultAddr.end());
-	sort(vOutputAddr->begin(), vOutputAddr->end(), [](ADDR_RESULT_INFO a, ADDR_RESULT_INFO b) -> bool { return a.addr < b.addr; });
-
-	vCopyProcessMemData->clear();
-
-	//设置搜索进度为100
-	(*nSearchProgress) = 100;
-
+	for (auto spMtxThread : vspMtxThreadExist)
+	{
+		std::lock_guard<std::mutex> mlock(*spMtxThread);
+	}
+	vResultList.sort([](ADDR_RESULT_INFO & a, ADDR_RESULT_INFO & b) -> bool { return a.addr < b.addr; });
 	return;
 
 }
@@ -1084,15 +967,22 @@ template<typename T> static void SearchCopyProcessMemThread(
 /*
 内存搜索（搜索文本特征码），成功返回true，失败返回false
 hProcess：被搜索的进程句柄
-vScanMemMaps: 被搜索的进程内存区域
+vScanMemMapsList: 被搜索的进程内存区域
 strFeaturesByte: 十六进制的字节特征码，搜索规则与OD相同，如“68 00 00 00 40 ?3 7? ?? ?? ?? ?? ?? ?? 50 E8”
 nThreadCount: 用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
-static void SearchMemoryBytesThread(CMemoryReaderWriter *pDriver, uint64_t hProcess, std::vector<MEM_SECTION_INFO>vScanMemMaps, std::string strFeaturesByte, int nThreadCount, size_t nFastScanAlignment, std::vector<ADDR_RESULT_INFO> * vOutputAddr, std::atomic<int> *nSearchProgress, std::atomic<uint64_t> *nFoundAddrCount)
+static void SearchMemoryBytesThread(
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	uint64_t hProcess,
+	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
+	std::string strFeaturesByte,
+	int nThreadCount,
+	size_t nFastScanAlignment,
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<MEM_SECTION_INFO> & vErrorList)
 {
 
 
@@ -1100,8 +990,6 @@ static void SearchMemoryBytesThread(CMemoryReaderWriter *pDriver, uint64_t hProc
 	replace_all_distinct(strFeaturesByte, " ", "");//去除空格
 	if (strFeaturesByte.length() % 2)
 	{
-		//设置搜索进度为100
-		(*nSearchProgress) = 100;
 		return;
 	}
 
@@ -1124,11 +1012,11 @@ static void SearchMemoryBytesThread(CMemoryReaderWriter *pDriver, uint64_t hProc
 		{
 			upFuzzyBytesBuf[nFeaturesBytePos] = '\x00';
 		}
-		else 	if (strByte.substr(0, 1) == "?")
+		else if (strByte.substr(0, 1) == "?")
 		{
 			upFuzzyBytesBuf[nFeaturesBytePos] = '\x01';
 		}
-		else 	if (strByte.substr(1, 2) == "?")
+		else if (strByte.substr(1, 2) == "?")
 		{
 			upFuzzyBytesBuf[nFeaturesBytePos] = '\x10';
 		}
@@ -1151,33 +1039,41 @@ static void SearchMemoryBytesThread(CMemoryReaderWriter *pDriver, uint64_t hProc
 
 	}
 	return SearchMemoryBytesThread2(
-		pDriver,
+		spReadWriteProxy,
 		hProcess,
-		vScanMemMaps,
+		vScanMemMapsList,
 		upFeaturesBytesBuf.get(),
 		strFeaturesByte.length() / 2,
 		upFuzzyBytesBuf.get(),
 		nThreadCount,
 		nFastScanAlignment,
-		vOutputAddr,
-		nSearchProgress,
-		nFoundAddrCount);
+		vResultList,
+		vErrorList);
 }
 
 /*
 内存搜索（搜索内存特征码），成功返回true，失败返回false
 hProcess：被搜索的进程句柄
-vScanMemMaps: 被搜索的进程内存区域
+vScanMemMapsList: 被搜索的进程内存区域
 vFeaturesByte：字节特征码，如“char vBytes[] = {'\x68', '\x00', '\x00', '\x00', '\x40', '\x?3', '\x??', '\x7?', '\x??', '\x??', '\x??', '\x??', '\x??', '\x50', '\xE8};”
 nFeaturesByteLen：字节特征码长度
 vFuzzyBytes：模糊字节，不变动的位置用1表示，变动的位置用0表示，如“char vFuzzy[] = {'\x11', '\x11', '\x11', '\x11', '\x11', '\x01', '\x00', '\x10', '\x00', '\x00', '\x00', '\x00', '\x00', '\x11', '\x11};”
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
-static void SearchMemoryBytesThread2(CMemoryReaderWriter *pDriver, uint64_t hProcess, std::vector<MEM_SECTION_INFO>vScanMemMaps, char vFeaturesByte[], size_t nFeaturesByteLen, char vFuzzyBytes[], int nThreadCount, size_t nFastScanAlignment, std::vector<ADDR_RESULT_INFO> * vOutputAddr, std::atomic<int> *nSearchProgress, std::atomic<uint64_t> *nFoundAddrCount)
+static void SearchMemoryBytesThread2(
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	uint64_t hProcess,
+	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
+	char vFeaturesByte[],
+	size_t nFeaturesByteLen,
+	char vFuzzyBytes[],
+	int nThreadCount,
+	size_t nFastScanAlignment,
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<MEM_SECTION_INFO> & vErrorList)
 {
 	//获取当前系统内存大小
 	struct sysinfo si;
@@ -1205,86 +1101,58 @@ static void SearchMemoryBytesThread2(CMemoryReaderWriter *pDriver, uint64_t hPro
 			strFuzzyCode += "xx";
 		}
 	}
-	std::mutex mtxResultAccessLock;			//搜索结果汇总数组访问锁
-	std::vector<ADDR_RESULT_INFO> vResultAddr;		//全部线程的搜索结果汇总数组
 
-	//分配线程进行内存搜索
-	size_t nScanMemMapsMaxCount = vScanMemMaps.size(); //记录被搜索的进程内存区域总数
-	size_t nThreadJob = nScanMemMapsMaxCount / nThreadCount; //每条线程需要处理的内存区段任务数
-	//cout << "每 " << nThreadJob << endl;
-	if (nThreadJob == 0)
-	{
-		nThreadJob = 1;
-		nThreadCount = nScanMemMapsMaxCount;
+	//内存搜索线程
+	std::shared_ptr<unsigned char> spCopyFeaturesByte(new unsigned char[nFeaturesByteLen], std::default_delete<unsigned char[]>());
+	memcpy(spCopyFeaturesByte.get(), &vFeaturesByte[0], nFeaturesByteLen); //每条线程都传一份拷贝的特征码进去
+
+	std::shared_ptr<std::string> spStrFuzzyCode = std::make_shared<std::string>(strFuzzyCode);
+
+
+	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
+	std::vector<std::shared_ptr<std::atomic<int>>> vbThreadStarted;
+	for (int i = 0; i < nThreadCount; ++i) {
+		vspMtxThreadExist.push_back(std::make_shared<std::mutex>());
+		vbThreadStarted.push_back(std::make_shared<std::atomic<int>>(0));
 	}
-	std::atomic<int> nWorkingThreadCount; //记录实时正在工作的搜索线程数
-	std::atomic<uint64_t> nFinishedMemSectionJobCount; //记录实时已处理完成的内存区段任务总数
-	nWorkingThreadCount = nThreadCount;
-	nFinishedMemSectionJobCount = 0;
-
 	//开始分配线程搜索内存
 	for (int i = 0; i < nThreadCount; i++)
 	{
-		//每条线程需要处理的内存区段任务数组
-		std::unique_ptr<std::vector<MEM_SECTION_INFO>> upVecThreadJob = std::make_unique<std::vector<MEM_SECTION_INFO>>();
+		std::shared_ptr<std::mutex> spMtxThread = vspMtxThreadExist[i];
+		std::shared_ptr<std::atomic<int>> spnThreadStarted = vbThreadStarted[i];
 
-		for (size_t count = 0; count < nThreadJob; count++)
-		{
-			MEM_SECTION_INFO task = *vScanMemMaps.rbegin(); //从总内存区段任务队列末尾取出一个内存区段任务
-			upVecThreadJob->push_back(task); //取完保存起来
-			vScanMemMaps.pop_back(); //取完末尾后删除
-		}
-
-		if (i + 1 == nThreadCount)
-		{
-			//如果是最后一条线程了，则需要把剩下的内存区段任务全部处理
-			for (MEM_SECTION_INFO task : vScanMemMaps)
-			{
-				upVecThreadJob->push_back(task);
-			}
-		}
-
-
-		//内存搜索线程
-		std::unique_ptr<unsigned char[]> vCopyFeaturesByte = std::make_unique<unsigned char[]>(nFeaturesByteLen);
-		memcpy(&vCopyFeaturesByte[0], &vFeaturesByte[0], nFeaturesByteLen); //每条线程都传一份拷贝的特征码进去
-
+	
 		//内存搜索线程
 		std::thread td(
-			[](
-				CMemoryReaderWriter *pDriver,
-				size_t nMaxMallocMem, //最大申请内存字节
-				std::unique_ptr<std::vector<MEM_SECTION_INFO>> upVecThreadJob, //每条线程需要处理的内存区段任务数组
-				uint64_t hProcess, //被搜索进程句柄
-				std::atomic<int> *nWorkingThreadCount, //记录实时正在工作的搜索线程数
-				std::atomic<uint64_t> *nFinishedMemSectionJobCount, //记录实时已处理完成的内存区段任务总数
-				std::atomic<uint64_t> *nFoundAddrCount, //记录实时已找到的地址数目
-				std::unique_ptr<unsigned char[]>vFeaturesByte,	//特征码字节数组
-				std::unique_ptr<std::string>strFuzzyCode,	//特征码容错文本
-				std::mutex *mtxResultAccessLock,	//搜索结果汇总数组访问锁
-				std::vector<ADDR_RESULT_INFO> *pvResultAddr,	//全部线程的搜索结果汇总数组
-				size_t nFastScanAlignment	//快速扫描的对齐位数
-				)->void
+			[spReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsList, spCopyFeaturesByte, spStrFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList, spMtxThread, spnThreadStarted]()->void
 		{
 			//cout << "我 " << upVecThreadJob->size() << endl;
+			std::lock_guard<std::mutex> mlock(*spMtxThread);
+			spnThreadStarted->store(1);
 
 			//是否启用特征码容错搜索
-			int isSimpleSearch = (strFuzzyCode->find("?") == -1) ? 1 : 0;
+			int isSimpleSearch = (spStrFuzzyCode->find("?") == -1) ? 1 : 0;
 
 			std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
 
-			for (MEM_SECTION_INFO memSecInfo : *upVecThreadJob) //线程的每个任务
+			MEM_SECTION_INFO memSecInfo;
+			while (vScanMemMapsList.get_val(memSecInfo))
 			{
 				//当前内存区域块大小超过了最大内存申请的限制，所以跳过
-				if (memSecInfo.nSectionSize > nMaxMallocMem) { continue; }
+				if (memSecInfo.nSectionSize > nMaxMemSize)
+				{
+					vErrorList.push_back(memSecInfo);
+					continue;
+				}
 				unsigned char *pnew = new (std::nothrow) unsigned char[memSecInfo.nSectionSize];
 				if (!pnew) { /*cout << "malloc "<< memSecInfo.nSectionSize  << " failed."<< endl;*/ continue; }
 				memset(pnew, 0, memSecInfo.nSectionSize);
 
 				std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 				size_t dwRead = 0;
-				if (!pDriver->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
+				if (!spReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
 				{
+					vErrorList.push_back(memSecInfo);
 					continue;
 				}
 
@@ -1293,12 +1161,12 @@ static void SearchMemoryBytesThread2(CMemoryReaderWriter *pDriver, uint64_t hPro
 				if (isSimpleSearch)
 				{
 					//不需要容错搜索
-					FindBytes((size_t)spMemBuf.get(), dwRead, &vFeaturesByte[0], strFuzzyCode->length() / 2, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+					FindBytes((size_t)spMemBuf.get(), dwRead, (unsigned char*)spCopyFeaturesByte.get(), spStrFuzzyCode->length() / 2, nFastScanAlignment, vFindAddr);
 				}
 				else
 				{
 					//需要容错搜索
-					FindFeaturesBytes((size_t)spMemBuf.get(), dwRead, &vFeaturesByte[0], strFuzzyCode->c_str(), strFuzzyCode->length() / 2, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+					FindFeaturesBytes((size_t)spMemBuf.get(), dwRead, (unsigned char*)spCopyFeaturesByte.get(), spStrFuzzyCode->c_str(), spStrFuzzyCode->length() / 2, nFastScanAlignment, vFindAddr);
 				}
 
 				for (size_t addr : vFindAddr)
@@ -1306,64 +1174,34 @@ static void SearchMemoryBytesThread2(CMemoryReaderWriter *pDriver, uint64_t hPro
 					//保存搜索结果
 					ADDR_RESULT_INFO aInfo;
 					aInfo.addr = (uint64_t)((uint64_t)memSecInfo.npSectionAddr + (uint64_t)addr - (uint64_t)spMemBuf.get());
-					aInfo.size = strFuzzyCode->length() / 2;
+					aInfo.size = spStrFuzzyCode->length() / 2;
 					std::shared_ptr<unsigned char> sp(new unsigned char[aInfo.size], std::default_delete<unsigned char[]>());
 					memcpy(sp.get(), (void*)addr, aInfo.size);
 					aInfo.spSaveData = sp;
 					vThreadOutput.push_back(aInfo);
 				}
-				(*nFinishedMemSectionJobCount)++; //实时已处理完成的内存区段任务总数+1
 			}
 
 			//将当前线程的搜索结果，汇总到父线程的全部搜索结果数组里
-			mtxResultAccessLock->lock();
-			for (ADDR_RESULT_INFO newAddr : vThreadOutput)
+			for (ADDR_RESULT_INFO & newAddr : vThreadOutput)
 			{
-				pvResultAddr->push_back(newAddr);
+				vResultList.push_back(newAddr);
 			}
-			mtxResultAccessLock->unlock();
-			(*nWorkingThreadCount)--; //实时正在工作的搜索线程数-1
 			return;
-		},
-			pDriver,
-			nMaxMemSize,
-			std::move(upVecThreadJob),
-			hProcess,
-			&nWorkingThreadCount,
-			&nFinishedMemSectionJobCount,
-			nFoundAddrCount,
-			std::move(vCopyFeaturesByte),
-			std::make_unique<std::string>(strFuzzyCode),
-			&mtxResultAccessLock,
-			&vResultAddr,
-			nFastScanAlignment
-			);
+		});
 		td.detach();
 	}
 
 	//等待所有搜索线程结束汇总
-	while (nWorkingThreadCount != 0)
+	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		//计算搜索进度为
-		uint64_t progress = ((double)nFinishedMemSectionJobCount / (double)nScanMemMapsMaxCount) * 100;
-		if (progress >= 100)
-		{
-			(*nSearchProgress) = 99;
-		}
-		else
-		{
-			(*nSearchProgress) = progress;
-		}
-
-		sleep(0);
+		while (spnThreadStarted->load() == 0) { sleep(0); }
 	}
-
-	vOutputAddr->clear();
-	vOutputAddr->assign(vResultAddr.begin(), vResultAddr.end());
-	sort(vOutputAddr->begin(), vOutputAddr->end(), [](ADDR_RESULT_INFO a, ADDR_RESULT_INFO b) -> bool { return a.addr < b.addr; });
-
-	//设置搜索进度为100
-	(*nSearchProgress) = 100;
+	for (auto spMtxThread : vspMtxThreadExist)
+	{
+		std::lock_guard<std::mutex> mlock(*spMtxThread);
+	}
+	vResultList.sort([](const ADDR_RESULT_INFO & a, const ADDR_RESULT_INFO & b) -> bool { return a.addr < b.addr; });
 	return;
 }
 
@@ -1375,20 +1213,24 @@ vScanMemAddrList: 需要再次搜索的内存地址列表
 strFeaturesByte: 十六进制的字节特征码，搜索规则与OD相同，如“68 00 00 00 40 ?3 7? ?? ?? ?? ?? ?? ?? 50 E8”
 nThreadCount: 用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
-static void SearchNextMemoryBytesThread(CMemoryReaderWriter *pDriver, uint64_t hProcess, std::vector<ADDR_RESULT_INFO>vScanMemAddrList, std::string strFeaturesByte, int nThreadCount, size_t nFastScanAlignment, std::vector<ADDR_RESULT_INFO> * vOutputAddr, std::atomic<int> *nSearchProgress, std::atomic<uint64_t> *nFoundAddrCount)
+static void SearchNextMemoryBytesThread(
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	uint64_t hProcess,
+	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
+	std::string strFeaturesByte,
+	int nThreadCount,
+	size_t nFastScanAlignment,
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<ADDR_RESULT_INFO> & vErrorList)
 {
-
-
 	//预处理特征码
 	replace_all_distinct(strFeaturesByte, " ", "");//去除空格
 	if (strFeaturesByte.length() % 2)
 	{
 		//设置搜索进度为100
-		(*nSearchProgress) = 100;
 		return;
 	}
 
@@ -1438,7 +1280,7 @@ static void SearchNextMemoryBytesThread(CMemoryReaderWriter *pDriver, uint64_t h
 
 	}
 	return SearchNextMemoryBytesThread2(
-		pDriver,
+		spReadWriteProxy,
 		hProcess,
 		vScanMemAddrList,
 		upFeaturesBytesBuf.get(),
@@ -1446,9 +1288,8 @@ static void SearchNextMemoryBytesThread(CMemoryReaderWriter *pDriver, uint64_t h
 		upFuzzyBytesBuf.get(),
 		nThreadCount,
 		nFastScanAlignment,
-		vOutputAddr,
-		nSearchProgress,
-		nFoundAddrCount);
+		vResultList,
+		vErrorList);
 
 }
 
@@ -1461,11 +1302,20 @@ nFeaturesByteLen：字节特征码长度
 vFuzzyBytes：模糊字节，不变动的位置用1表示，变动的位置用0表示，如“char vFuzzy[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x01, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x11};”
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
-vOutputAddr：存放搜索完成的结果地址
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
 */
-static void SearchNextMemoryBytesThread2(CMemoryReaderWriter *pDriver, uint64_t hProcess, std::vector<ADDR_RESULT_INFO>vScanMemAddrList, char vFeaturesByte[], size_t nFeaturesByteLen, char vFuzzyBytes[], int nThreadCount, size_t nFastScanAlignment, std::vector<ADDR_RESULT_INFO> * vOutputAddr, std::atomic<int> *nSearchProgress, std::atomic<uint64_t> *nFoundAddrCount)
+static void SearchNextMemoryBytesThread2(
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	uint64_t hProcess,
+	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
+	char vFeaturesByte[],
+	size_t nFeaturesByteLen,
+	char vFuzzyBytes[],
+	int nThreadCount,
+	size_t nFastScanAlignment,
+	SafeVector<ADDR_RESULT_INFO> & vResultList,
+	SafeVector<ADDR_RESULT_INFO> & vErrorList)
 {
 
 	//生成特征码容错文本
@@ -1490,93 +1340,63 @@ static void SearchNextMemoryBytesThread2(CMemoryReaderWriter *pDriver, uint64_t 
 		}
 	}
 
-
-	std::mutex mtxResultAccessLock;			//搜索结果汇总数组访问锁
-	std::vector<ADDR_RESULT_INFO> vResultAddr;		//全部线程的搜索结果汇总数组
-
-	//分配线程进行内存搜索
-	size_t nScanMemAddrMaxCount = vScanMemAddrList.size(); //记录需要再次搜索的内存地址总数
-	size_t nThreadJob = nScanMemAddrMaxCount / nThreadCount; //每条线程需要处理的内存地址任务数
-	//cout << "每 " << nThreadJob << endl;
-	if (nThreadJob == 0)
-	{
-		nThreadJob = 1;
-		nThreadCount = nScanMemAddrMaxCount;
+	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
+	std::vector<std::shared_ptr<std::atomic<int>>> vbThreadStarted;
+	for (int i = 0; i < nThreadCount; ++i) {
+		vspMtxThreadExist.push_back(std::make_shared<std::mutex>());
+		vbThreadStarted.push_back(std::make_shared<std::atomic<int>>(0));
 	}
 
-	std::atomic<int> nWorkingThreadCount; //记录实时正在工作的搜索线程数
-	std::atomic<uint64_t> nFinishedMemAddrJobCount{0}; //记录实时已处理完成的内存地址任务总数
-	nWorkingThreadCount = nThreadCount;
+	//内存搜索线程
+	std::shared_ptr<unsigned char> spCopyFeaturesByte(new unsigned char[nFeaturesByteLen], std::default_delete<unsigned char[]>());
+	memcpy(spCopyFeaturesByte.get(), &vFeaturesByte[0], nFeaturesByteLen); //每条线程都传一份拷贝的特征码进去
 	
+	std::shared_ptr<std::string> spStrFuzzyCode = std::make_shared<std::string>(strFuzzyCode);
 
 	//开始分配线程搜索内存
 	for (int i = 0; i < nThreadCount; i++)
 	{
-		//每条线程需要处理的内存区段任务数组
-		std::unique_ptr<std::vector<ADDR_RESULT_INFO>> upVecThreadJob = std::make_unique<std::vector<ADDR_RESULT_INFO>>();
 
-		for (size_t count = 0; count < nThreadJob; count++)
-		{
-			ADDR_RESULT_INFO task = *vScanMemAddrList.rbegin(); //从总内存区段任务队列末尾取出一个内存区段任务
-			upVecThreadJob->push_back(task); //取完保存起来
-			vScanMemAddrList.pop_back(); //取完末尾后删除
-		}
+		 std::shared_ptr<std::mutex> spMtxThread = vspMtxThreadExist[i];
+		std::shared_ptr<std::atomic<int>> spnThreadStarted = vbThreadStarted[i];
 
-		if (i + 1 == nThreadCount)
-		{
-			//如果是最后一条线程了，则需要把剩下的内存地址任务全部处理
-			for (ADDR_RESULT_INFO task : vScanMemAddrList)
-			{
-				upVecThreadJob->push_back(task);
-			}
-		}
-
-
-		//内存搜索线程
-		std::unique_ptr<unsigned char[]> vCopyFeaturesByte = std::make_unique<unsigned char[]>(nFeaturesByteLen);
-		memcpy(&vCopyFeaturesByte[0], &vFeaturesByte[0], nFeaturesByteLen); //每条线程都传一份拷贝的特征码进去
 
 		//内存搜索线程
 		std::thread td(
-			[](
-				CMemoryReaderWriter *pDriver,
-				std::unique_ptr<std::vector<ADDR_RESULT_INFO>> upVecThreadJob, //每条线程需要处理的内存地址任务数组
-				uint64_t hProcess, //被搜索进程句柄
-				std::atomic<int> *nWorkingThreadCount, //记录实时正在工作的搜索线程数
-				std::atomic<uint64_t> *nFinishedMemSectionJobCount, //记录实时已处理完成的内存区段任务总数
-				std::atomic<uint64_t> *nFoundAddrCount, //记录实时已找到的地址数目
-				std::unique_ptr<unsigned char[]>vFeaturesByte,	//特征码字节数组
-				std::unique_ptr<std::string>strFuzzyCode,	//特征码容错文本
-				std::mutex *mtxResultAccessLock,	//搜索结果汇总数组访问锁
-				std::vector<ADDR_RESULT_INFO> *pvResultAddr,	//全部线程的搜索结果汇总数组
-				size_t nFastScanAlignment	//快速扫描的对齐位数
-				)->void
+			[spReadWriteProxy, &vScanMemAddrList, hProcess, spCopyFeaturesByte, spStrFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList, spMtxThread, spnThreadStarted]()->void
 		{
 			//cout << "我 " << upVecThreadJob->size() << endl;
+			std::lock_guard<std::mutex> mlock(*spMtxThread);
+			spnThreadStarted->store(1);
 
 			//是否启用特征码容错搜索
-			int isSimpleSearch = (strFuzzyCode->find("?") == -1) ? 1 : 0;
+			int isSimpleSearch = (spStrFuzzyCode->find("?") == -1) ? 1 : 0;
 
 
 			std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
-
-			for (ADDR_RESULT_INFO memAddrJob : *upVecThreadJob) //线程的每个任务
+			ADDR_RESULT_INFO memAddrJob;
+			while (vScanMemAddrList.get_val(memAddrJob))
 			{
-				(*nFinishedMemSectionJobCount)++; //实时已处理完成的内存区段任务总数+1
-
-				size_t memBufSize = strFuzzyCode->length() / 2;
+				size_t memBufSize = spStrFuzzyCode->length() / 2;
 				unsigned char *pnew = new (std::nothrow) unsigned char[memBufSize];
-				if (!pnew) { /*cout << "malloc "<< memSecInfo.nSectionSize  << " failed."<< endl;*/ continue; }
+				if (!pnew)
+				{ 
+					/*cout << "malloc "<< memSecInfo.nSectionSize  << " failed."<< endl;*/ 
+					vErrorList.push_back(memAddrJob);
+					continue;
+				}
 				memset(pnew, 0, memBufSize);
 
 				std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 				size_t dwRead = 0;
-				if (!pDriver->ReadProcessMemory(hProcess, memAddrJob.addr, spMemBuf.get(), memBufSize, &dwRead, FALSE))
+				if (!spReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, spMemBuf.get(), memBufSize, &dwRead, FALSE))
 				{
+					vErrorList.push_back(memAddrJob);
 					continue;
 				}
 				if (dwRead != memBufSize)
 				{
+					vErrorList.push_back(memAddrJob);
 					continue;
 				}
 				//寻找字节集
@@ -1586,12 +1406,12 @@ static void SearchNextMemoryBytesThread2(CMemoryReaderWriter *pDriver, uint64_t 
 				if (isSimpleSearch)
 				{
 					//不需要容错搜索
-					FindBytes((size_t)spMemBuf.get(), dwRead, &vFeaturesByte[0], strFuzzyCode->length() / 2, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+					FindBytes((size_t)spMemBuf.get(), dwRead, spCopyFeaturesByte.get(), spStrFuzzyCode->length() / 2, nFastScanAlignment, vFindAddr);
 				}
 				else
 				{
 					//需要容错搜索
-					FindFeaturesBytes((size_t)spMemBuf.get(), dwRead, &vFeaturesByte[0], strFuzzyCode->c_str(), strFuzzyCode->length() / 2, nFastScanAlignment, vFindAddr, *nFoundAddrCount);
+					FindFeaturesBytes((size_t)spMemBuf.get(), dwRead, spCopyFeaturesByte.get(), spStrFuzzyCode->c_str(), spStrFuzzyCode->length() / 2, nFastScanAlignment, vFindAddr);
 				}
 
 				if (vFindAddr.size())
@@ -1599,74 +1419,47 @@ static void SearchNextMemoryBytesThread2(CMemoryReaderWriter *pDriver, uint64_t 
 					//保存搜索结果
 					memcpy(memAddrJob.spSaveData.get(), spMemBuf.get(), memBufSize);
 					vThreadOutput.push_back(memAddrJob);
-					//记录实时找到的地址数
-					(*nFoundAddrCount)++;
 				}
 
 			}
 			//将当前线程的搜索结果，汇总到父线程的全部搜索结果数组里
-			mtxResultAccessLock->lock();
-			for (ADDR_RESULT_INFO newAddr : vThreadOutput)
+			for (ADDR_RESULT_INFO & newAddr : vThreadOutput)
 			{
-				pvResultAddr->push_back(newAddr);
+				vResultList.push_back(newAddr);
 			}
-			mtxResultAccessLock->unlock();
-			(*nWorkingThreadCount)--; //实时正在工作的搜索线程数-1
-			return;
 
-		},
-			pDriver,
-			std::move(upVecThreadJob),
-			hProcess,
-			&nWorkingThreadCount,
-			&nFinishedMemAddrJobCount,
-			nFoundAddrCount,
-			std::move(vCopyFeaturesByte),
-			std::make_unique<std::string>(strFuzzyCode),
-			&mtxResultAccessLock,
-			&vResultAddr,
-			nFastScanAlignment
-			);
+		});
 		td.detach();
 
 	}
 
 	//等待所有搜索线程结束汇总
-	while (nWorkingThreadCount != 0)
+	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		//计算搜索进度为
-		uint64_t progress = ((double)nFinishedMemAddrJobCount / (double)nScanMemAddrMaxCount) * 100;
-		if (progress >= 100)
-		{
-			(*nSearchProgress) = 99;
-		}
-		else
-		{
-			(*nSearchProgress) = progress;
-		}
-
-		sleep(0);
+		while (spnThreadStarted->load() == 0) { sleep(0); }
 	}
-
-	vOutputAddr->clear();
-	vOutputAddr->assign(vResultAddr.begin(), vResultAddr.end());
-	sort(vOutputAddr->begin(), vOutputAddr->end(), [](ADDR_RESULT_INFO a, ADDR_RESULT_INFO b) -> bool { return a.addr < b.addr; });
-
-	//设置搜索进度为100
-	(*nSearchProgress) = 100;
+	for (auto spMtxThread : vspMtxThreadExist)
+	{
+		std::lock_guard<std::mutex> mlock(*spMtxThread);
+	}
+	vResultList.sort([](const ADDR_RESULT_INFO & a, const ADDR_RESULT_INFO & b) -> bool { return a.addr < b.addr; });
 	return;
 }
 
 /*
 拷贝进程内存数据，成功返回true，失败返回false
 hProcess：被搜索的进程句柄
-vScanMemMaps: 被拷贝的进程内存区域
-vOutputMemCopy：拷贝进程内存数据的存放区域
-scanValueType：记录本次拷贝进程内存数据的值类型，1:1字节，2:2字节，4:4字节，8:8字节，9:单浮点，10:双浮点
-nSearchProgress：记录实时搜索百分比进度
-nFoundAddrCount：记录实时已找到的地址数目
+vScanMemMapsList: 被拷贝的进程内存区域
+vOutputMemCopyList：拷贝进程内存数据的存放区域
+vErrorMemCopyList：拷贝进程内存数据失败的存放区域
 */
-static void CopyProcessMemDataThread(CMemoryReaderWriter *pDriver, uint64_t hProcess, std::vector<MEM_SECTION_INFO>vScanMemMaps, std::vector<COPY_MEM_INFO> * vOutputMemCopy, int scanValueType, std::atomic<int> *nSearchProgress, std::atomic<uint64_t> *nFoundAddrCount)
+static void CopyProcessMemDataThread(
+	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	uint64_t hProcess,
+	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
+	int scanValueType,
+	SafeVector<COPY_MEM_INFO> & vOutputMemCopyList,
+	SafeVector<MEM_SECTION_INFO> & vErrorMemCopyList)
 {
 
 	//获取当前系统内存大小
@@ -1674,73 +1467,46 @@ static void CopyProcessMemDataThread(CMemoryReaderWriter *pDriver, uint64_t hPro
 	sysinfo(&si);
 	size_t nMaxMemSize = si.totalram;
 
-	size_t  nMemRegionCount = vScanMemMaps.size();
-
-	for (int i = 0; i < nMemRegionCount; ++i) {
-
-		MEM_SECTION_INFO memSecInfo = vScanMemMaps.at(i);
-
+	MEM_SECTION_INFO memSecInfo;
+	while(vScanMemMapsList.get_val(memSecInfo))
+	{
 		//当前内存区域块大小超过了最大内存申请的限制，所以跳过
-		if (memSecInfo.nSectionSize > nMaxMemSize) { continue; }
+		if (memSecInfo.nSectionSize > nMaxMemSize)
+		{
+			vErrorMemCopyList.push_back(memSecInfo);
+			continue;
+		}
 
 		unsigned char * pnew = new (std::nothrow) unsigned char[memSecInfo.nSectionSize];
-		if (!pnew) { /*cout << "malloc "<< memSecInfo.nSectionSize  << " failed."<< endl;*/ continue; }
+		if (!pnew)
+		{
+			/*cout << "malloc "<< memSecInfo.nSectionSize  << " failed."<< endl;*/
+			vErrorMemCopyList.push_back(memSecInfo);
+			continue;
+		}
 		memset(pnew, 0, memSecInfo.nSectionSize);
 
 
 		std::shared_ptr<unsigned char>spMemBuf(pnew, std::default_delete<unsigned char[]>());
 		size_t dwRead = 0;
-		if (!pDriver->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
+		if (!spReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
 		{
+			vErrorMemCopyList.push_back(memSecInfo);
 			continue;
 		}
-		COPY_MEM_INFO copyMem = { 0 };
+		COPY_MEM_INFO copyMem;
 		copyMem.npSectionAddr = memSecInfo.npSectionAddr;
 		copyMem.nSectionSize = dwRead;
 		copyMem.spSaveMemBuf = spMemBuf;
-		(*vOutputMemCopy).push_back(copyMem);
-
-		switch (scanValueType)
-		{
-		case 1: //字节搜索
-			(*nFoundAddrCount) += dwRead;
-			break;
-		case 2: //2 字节搜索
-			(*nFoundAddrCount) += ((double)dwRead / (double)2);
-			break;
-		case 4: //4 字节搜索
-			(*nFoundAddrCount) += ((double)dwRead / (double)4);
-			break;
-		case 8: //8 字节搜索
-			(*nFoundAddrCount) += ((double)dwRead / (double)8);
-			break;
-		case 9: //单浮点搜索
-			(*nFoundAddrCount) += ((double)dwRead / (double)4);
-			break;
-		case 10: //双浮点搜索
-			(*nFoundAddrCount) += ((double)dwRead / (double)8);
-			break;
-		default:
-			break;
-		}
-
-
-		//计算搜索进度为
-		uint64_t progress = ((double)i / (double)nMemRegionCount) * 100;
-		if (progress >= 100)
-		{
-			(*nSearchProgress) = 99;
-		}
-		else
-		{
-			(*nSearchProgress) = progress;
-		}
+		vOutputMemCopyList.push_back(copyMem);
 	}
-
-	(*nSearchProgress) = 100;
-
 	return;
 }
+
+
+
+
+
 
 
 /*
@@ -1752,13 +1518,12 @@ value: 要搜索的数值
 errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindValue(size_t dwAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount)
+template<typename T> static inline void FindValue(size_t dwAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
 {
 	if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
 	{
-		FindBetween(dwAddr, dwLen, value - errorRange, value + errorRange, nFastScanAlignment, vOutputAddr, nFoundAddrCount);
+		FindBetween(dwAddr, dwLen, value - errorRange, value + errorRange, nFastScanAlignment, vOutputAddr);
 	}
 	else
 	{
@@ -1777,10 +1542,6 @@ template<typename T> static inline void FindValue(size_t dwAddr, size_t dwLen, T
 			if (*pData == value)
 			{
 				vOutputAddr.push_back((size_t)((size_t)dwAddr + (size_t)i));
-
-				//记录实时找到的地址数
-				nFoundAddrCount++;
-
 			}
 			continue;
 		}
@@ -1797,9 +1558,8 @@ dwLen：要搜索的缓冲区大小
 value: 要搜索大于的数值
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindMax(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount)
+template<typename T> static inline void FindMax(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
 {
 	vOutputAddr.clear();
 
@@ -1815,9 +1575,6 @@ template<typename T> static inline void FindMax(size_t dwAddr, size_t dwLen, T v
 		if (*pData > value)
 		{
 			vOutputAddr.push_back((size_t)((size_t)dwAddr + (size_t)i));
-
-			//记录实时找到的地址数
-			nFoundAddrCount++;
 		}
 		continue;
 	}
@@ -1834,9 +1591,8 @@ dwLen：要搜索的缓冲区大小
 value: 要搜索小于的char数值
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindMin(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount)
+template<typename T> static inline void FindMin(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
 {
 	vOutputAddr.clear();
 
@@ -1852,9 +1608,6 @@ template<typename T> static inline void FindMin(size_t dwAddr, size_t dwLen, T v
 		if (*pData < value)
 		{
 			vOutputAddr.push_back((size_t)((size_t)dwAddr + (size_t)i));
-
-			//记录实时找到的地址数
-			nFoundAddrCount++;
 		}
 		continue;
 	}
@@ -1869,9 +1622,8 @@ value1: 要搜索的数值1
 value2: 要搜索的数值2
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindBetween(size_t dwAddr, size_t dwLen, T value1, T value2, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount)
+template<typename T> static inline void FindBetween(size_t dwAddr, size_t dwLen, T value1, T value2, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
 {
 	vOutputAddr.clear();
 
@@ -1889,9 +1641,6 @@ template<typename T> static inline void FindBetween(size_t dwAddr, size_t dwLen,
 		if (cData > value1 && cData < value2)
 		{
 			vOutputAddr.push_back((size_t)((size_t)dwAddr + (size_t)i));
-
-			//记录实时找到的地址数
-			nFoundAddrCount++;
 		}
 		continue;
 	}
@@ -1907,9 +1656,8 @@ dwNewAddr：要搜索的新数据缓冲区地址
 dwLen：要搜索的缓冲区大小
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindUnknowAdd(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount)
+template<typename T> static inline void FindUnknowAdd(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
 {
 	vOutputAddr.clear();
 
@@ -1926,9 +1674,6 @@ template<typename T> static inline void FindUnknowAdd(size_t dwOldAddr, size_t d
 		if (*pNewData > *pOldData)
 		{
 			vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
-
-			//记录实时找到的地址数
-			nFoundAddrCount++;
 		}
 		continue;
 	}
@@ -1944,9 +1689,8 @@ value: 要搜索增加的已知值
 errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindAdd(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount)
+template<typename T> static inline void FindAdd(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
 {
 	vOutputAddr.clear();
 
@@ -1973,8 +1717,6 @@ template<typename T> static inline void FindAdd(size_t dwOldAddr, size_t dwNewAd
 			if (myAdd >= value1 && myAdd <= value2)
 			{
 				vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
-				//记录实时找到的地址数
-				nFoundAddrCount++;
 
 			}
 		}
@@ -1983,8 +1725,6 @@ template<typename T> static inline void FindAdd(size_t dwOldAddr, size_t dwNewAd
 			if (myAdd == value)
 			{
 				vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
-				//记录实时找到的地址数
-				nFoundAddrCount++;
 
 			}
 		}
@@ -2001,9 +1741,8 @@ dwNewAddr：要搜索的新数据缓冲区地址
 dwLen：要搜索的缓冲区大小
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindUnknowSum(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount)
+template<typename T> static inline void FindUnknowSum(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
 {
 	vOutputAddr.clear();
 
@@ -2020,9 +1759,6 @@ template<typename T> static inline void FindUnknowSum(size_t dwOldAddr, size_t d
 		if (*pNewData < *pOldData)
 		{
 			vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
-
-			//记录实时找到的地址数
-			nFoundAddrCount++;
 		}
 		continue;
 	}
@@ -2038,9 +1774,8 @@ value: 要搜索减少的已知值
 errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindSum(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount)
+template<typename T> static inline void FindSum(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
 {
 	vOutputAddr.clear();
 
@@ -2068,9 +1803,6 @@ template<typename T> static inline void FindSum(size_t dwOldAddr, size_t dwNewAd
 			if (mySum >= value1 && mySum <= value2)
 			{
 				vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
-
-				//记录实时找到的地址数
-				nFoundAddrCount++;
 			}
 		}
 		else
@@ -2078,9 +1810,6 @@ template<typename T> static inline void FindSum(size_t dwOldAddr, size_t dwNewAd
 			if (mySum == value)
 			{
 				vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
-
-				//记录实时找到的地址数
-				nFoundAddrCount++;
 			}
 		}
 		
@@ -2097,9 +1826,8 @@ dwNewAddr：要搜索的新数据缓冲区地址
 dwLen：要搜索的缓冲区大小
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindChanged(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount)
+template<typename T> static inline void FindChanged(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
 {
 	vOutputAddr.clear();
 
@@ -2116,9 +1844,6 @@ template<typename T> static inline void FindChanged(size_t dwOldAddr, size_t dwN
 		if (*pNewData != *pOldData)
 		{
 			vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
-
-			//记录实时找到的地址数
-			nFoundAddrCount++;
 		}
 		continue;
 	}
@@ -2132,9 +1857,8 @@ dwNewAddr：要搜索的新数据缓冲区地址
 dwLen：要搜索的缓冲区大小
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
-nFoundAddrCount：记录实时找到的地址数目
 */
-template<typename T> static inline void FindNoChange(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount)
+template<typename T> static inline void FindNoChange(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
 {
 	vOutputAddr.clear();
 
@@ -2151,9 +1875,6 @@ template<typename T> static inline void FindNoChange(size_t dwOldAddr, size_t dw
 		if (*pNewData == *pOldData)
 		{
 			vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
-
-			//记录实时找到的地址数
-			nFoundAddrCount++;
 		}
 		continue;
 	}
@@ -2172,14 +1893,11 @@ szMask: 要搜索的字节集模糊码（xx=已确定字节，??=可变化字节
 nMaskLen: 要搜索的字节集长度
 nFastScanAlignment: 为快速扫描的对齐位数，CE默认为1
 vOutputAddr: 搜索出来的结果地址存放数组
-nFoundAddrCount: 实时找到的地址数量
 使用方法：
 std::vector<size_t> vAddr;
-std::atomic<uint64_t> nFoundAddrCount;
-nFoundAddrCount = 0;
-FindFeaturesBytes((size_t)lpBuffer, dwBufferSize, (PBYTE)"\x8B\xE8\x00\x00\x00\x00\x33\xC0\xC7\x06\x00\x00\x00\x00\x89\x86\x40", "xxxx??xx?xx?xxxxx",17,1,vAddr , nFoundAddrCount);
+FindFeaturesBytes((size_t)lpBuffer, dwBufferSize, (PBYTE)"\x8B\xE8\x00\x00\x00\x00\x33\xC0\xC7\x06\x00\x00\x00\x00\x89\x86\x40", "xxxx??xx?xx?xxxxx",17,1,vAddr);
 */
-static inline void FindFeaturesBytes(size_t dwAddr, size_t dwLen, unsigned char *bMask, const char* szMask, size_t nMaskLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount)
+static inline void FindFeaturesBytes(size_t dwAddr, size_t dwLen, unsigned char *bMask, const char* szMask, size_t nMaskLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
 {
 	vOutputAddr.clear();
 	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
@@ -2220,9 +1938,6 @@ static inline void FindFeaturesBytes(size_t dwAddr, size_t dwLen, unsigned char 
 		if ((*szTemMask) == '\x00')
 		{
 			vOutputAddr.push_back((size_t)((size_t)dwAddr + (size_t)i));
-
-			//记录实时找到的地址数
-			nFoundAddrCount++;
 		}
 	}
 	return;
@@ -2235,14 +1950,11 @@ bForSearch: 要搜索的字节集
 ifLen: 要搜索的字节集长度
 nFastScanAlignment: 为快速扫描的对齐位数，CE默认为1
 vOutputAddr: 搜索出来的结果地址存放数组
-nFoundAddrCount: 实时找到的地址数量
 使用方法：
 std::vector<size_t> vAddr;
-std::atomic<uint64_t> nFoundAddrCount;
-nFoundAddrCount = 0;
-FindFeaturesBytes((size_t)lpBuffer, dwBufferSize, (PBYTE)"\x8B\xE8\x00\x00\x00\x00\x33\xC0\xC7\x06\x00\x00\x00\x00\x89\x86\x40", 17,1,vAddr , nFoundAddrCount);
+FindFeaturesBytes((size_t)lpBuffer, dwBufferSize, (PBYTE)"\x8B\xE8\x00\x00\x00\x00\x33\xC0\xC7\x06\x00\x00\x00\x00\x89\x86\x40", 17,1,vAddr);
 */
-static inline void FindBytes(size_t dwWaitSearchAddress, size_t dwLen, unsigned char *bForSearch, size_t ifLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr, std::atomic<uint64_t> &nFoundAddrCount)
+static inline void FindBytes(size_t dwWaitSearchAddress, size_t dwLen, unsigned char *bForSearch, size_t ifLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
 {
 	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
 	{
@@ -2268,8 +1980,6 @@ static inline void FindBytes(size_t dwWaitSearchAddress, size_t dwLen, unsigned 
 			continue;
 		}
 		vOutputAddr.push_back((size_t)((size_t)dwWaitSearchAddress + (size_t)i));
-		//记录实时找到的地址数
-		nFoundAddrCount++;
 	}
 	return;
 }
@@ -2289,6 +1999,7 @@ static inline std::string& replace_all_distinct(std::string& str, const std::str
 	}
 	return str;
 }
+
 
 #endif /* MEM_SEARCH_HELPER_H_ */
 
