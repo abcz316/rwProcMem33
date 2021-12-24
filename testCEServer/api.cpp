@@ -10,7 +10,6 @@
 #include "ceserver.h"
 
 
-
 CMemoryReaderWriter m_Driver;
 
 
@@ -35,15 +34,16 @@ BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName)
 		return FALSE;
 	}
 
+
+	m_Driver.SetMaxDevFileOpen(100);
 	return TRUE;
 
 }
 
 
 
-BOOL GetProcessListInfo(CMemoryReaderWriter *pDriver, BOOL bGetPhyMemorySize, std::vector<MyProcessInfo> & vOutput)
+BOOL GetProcessListInfo(CMemoryReaderWriter* pDriver, BOOL bGetPhyMemorySize, std::vector<MyProcessInfo> & vOutput)
 {
-
 	//驱动_获取进程PID列表
 	std::vector<int> vPID;
 	BOOL bOutListCompleted;
@@ -403,7 +403,6 @@ int CApi::VirtualQueryExFull(HANDLE hProcess, uint32_t flags, std::vector<Region
 		printf("m_Driver.VirtualQueryExFull(showPhy)  failed.\n");
 		fflush(stdout);
 
-		//智能指针马上解除接管，免得被释放
 		return 0;
 	}
 	else

@@ -1,4 +1,5 @@
-﻿#include <stdio.h>
+﻿
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -206,9 +207,9 @@ int DispatchCommand(int currentsocket, unsigned char command)
 	case CMD_CLOSEHANDLE:
 	{
 		HANDLE h;
-		printf("CMD_CLOSEHANDLE(%d)\n",h);
 		if (recvall(currentsocket, &h, sizeof(h), MSG_WAITALL) > 0)
 		{
+			printf("CMD_CLOSEHANDLE(%d)\n", h);
 			CApi::CloseHandle(h);
 			int r = 1;
 			sendall(currentsocket, &r, sizeof(r), 0); //stupid naggle

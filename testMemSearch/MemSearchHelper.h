@@ -6,11 +6,14 @@
 #include <mutex>
 #include <mutex>
 #include <thread>
-#include <unistd.h>
 #include <sstream>
+#ifdef __linux__
+#include <unistd.h>
 #include <sys/sysinfo.h>
+#endif
 
 #include "../testKo/MemoryReaderWriter37.h"
+#include "MemReaderWriterProxy.h"
 #include "SafeVector.h"
 
 struct MEM_SECTION_INFO
@@ -55,7 +58,6 @@ enum SCAN_VALUE_TYPE
 	_DOUBLE = _8,	// 双精度浮点数
 };
 
-class CMemReaderWriterProxy;
 /*
 内存搜索数值，成功返回true，失败返回false
 hProcess：被搜索的进程句柄
@@ -74,7 +76,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 template<typename T> static void SearchMemoryThread(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess,
 	SafeVector<MEM_SECTION_INFO> & vScanMemMapsJobList,
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
@@ -106,7 +108,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 template<typename T> static void SearchNextMemoryThread(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess,
 	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
@@ -130,7 +132,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 template<typename T> static void SearchCopyProcessMemThread(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess,
 	SafeVector<COPY_MEM_INFO> & vCopyProcessMemDataList,
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
@@ -150,7 +152,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 static void SearchMemoryBytesThread(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess,
 	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
 	std::string strFeaturesByte,
@@ -173,7 +175,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 static void SearchMemoryBytesThread2(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess,
 	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
 	char vFeaturesByte[],
@@ -195,7 +197,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 static void SearchNextMemoryBytesThread(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess,
 	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
 	std::string strFeaturesByte,
@@ -217,7 +219,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 static void SearchNextMemoryBytesThread2(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess,
 	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
 	char vFeaturesByte[],
@@ -237,7 +239,7 @@ vOutputMemCopyList：拷贝进程内存数据的存放区域
 vErrorMemCopyList：拷贝进程内存数据失败的存放区域
 */
 static void CopyProcessMemDataThread(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess,
 	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
 	int scanValueType,
@@ -394,41 +396,6 @@ static inline void FindBytes(size_t dwWaitSearchAddress, size_t dwLen, unsigned 
 
 static inline std::string& replace_all_distinct(std::string& str, const std::string& old_value, const std::string& new_value);
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-class CMemReaderWriterProxy
-{
-public:
-	CMemReaderWriterProxy() {}
-	CMemReaderWriterProxy(CMemoryReaderWriter * pDriver) { m_pDriver = pDriver; }
-	virtual BOOL ReadProcessMemory(
-		uint64_t hProcess,
-		uint64_t lpBaseAddress,
-		void *lpBuffer,
-		size_t nSize,
-		size_t * lpNumberOfBytesRead,
-		BOOL bIsForceRead = FALSE) {
-		if (!m_pDriver) { return FALSE; }
-		return m_pDriver->ReadProcessMemory(hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead, bIsForceRead);
-	}
-	virtual BOOL WriteProcessMemory(
-		uint64_t hProcess,
-		uint64_t lpBaseAddress,
-		void * lpBuffer,
-		size_t nSize,
-		size_t * lpNumberOfBytesWritten,
-		BOOL bIsForceWrite = FALSE) {
-		if (!m_pDriver) { return FALSE; }
-		return m_pDriver->WriteProcessMemory(hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesWritten, bIsForceWrite);
-	}
-private:
-	CMemoryReaderWriter * m_pDriver;
-};
-
 
 /*
 内存搜索数值，成功返回true，失败返回false
@@ -448,7 +415,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 template<typename T> static void SearchMemoryThread(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy, 
+	IMemReaderWriterProxy* IReadWriteProxy, 
 	uint64_t hProcess, 
 	SafeVector<MEM_SECTION_INFO> & vScanMemMapsJobList,
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
@@ -457,9 +424,17 @@ template<typename T> static void SearchMemoryThread(
 	SafeVector<MEM_SECTION_INFO> & vErrorList)
 {
 	//获取当前系统内存大小
+#ifdef __linux__
 	struct sysinfo si;
 	sysinfo(&si);
 	size_t nMaxMemSize = si.totalram;
+#else
+	MEMORYSTATUS memoryStatus;
+	memset(&memoryStatus, 0, sizeof(MEMORYSTATUS));
+	memoryStatus.dwLength = sizeof(MEMORYSTATUS);
+	GlobalMemoryStatus(&memoryStatus);
+	size_t nMaxMemSize = memoryStatus.dwTotalPhys;
+#endif
 
 
 	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
@@ -477,7 +452,7 @@ template<typename T> static void SearchMemoryThread(
 		std::shared_ptr<std::atomic<int>> spnThreadStarted = vbThreadStarted[i];
 
 		std::thread td(
-			[spReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsJobList, &vErrorList, value1, value2, errorRange, scanType, &vResultList, nFastScanAlignment, spMtxThread, spnThreadStarted]()->void
+			[IReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsJobList, &vErrorList, value1, value2, errorRange, scanType, &vResultList, nFastScanAlignment, spMtxThread, spnThreadStarted]()->void
 		{
 			std::lock_guard<std::mutex> mlock(*spMtxThread);
 			spnThreadStarted->store(1);
@@ -506,7 +481,7 @@ template<typename T> static void SearchMemoryThread(
 
 				std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 				size_t dwRead = 0;
-				if (!spReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
+				if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
 				{
 					vErrorList.push_back(memSecInfo);
 					continue;
@@ -562,7 +537,13 @@ template<typename T> static void SearchMemoryThread(
 	//等待所有搜索线程结束汇总
 	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		while (spnThreadStarted->load() == 0) { sleep(0); }
+		while (spnThreadStarted->load() == 0) {
+#ifdef __linux__
+			sleep(0);
+#else
+			Sleep(0);
+#endif
+		}
 	}
 	for (auto spMtxThread : vspMtxThreadExist)
 	{
@@ -595,7 +576,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 template<typename T> static void SearchNextMemoryThread(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess, 
 	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
@@ -615,7 +596,7 @@ template<typename T> static void SearchNextMemoryThread(
 		std::shared_ptr<std::atomic<int>> spnThreadStarted = vbThreadStarted[i];
 		//内存搜索线程
 		std::thread td(
-			[spReadWriteProxy, hProcess, &vScanMemAddrList, &vErrorList, value1, value2, errorRange, scanType, &vResultList, spMtxThread, spnThreadStarted]()->void
+			[IReadWriteProxy, hProcess, &vScanMemAddrList, &vErrorList, value1, value2, errorRange, scanType, &vResultList, spMtxThread, spnThreadStarted]()->void
 		{
 
 			std::lock_guard<std::mutex> mlock(*spMtxThread);
@@ -628,7 +609,7 @@ template<typename T> static void SearchNextMemoryThread(
 			{
 				T temp = 0;
 				size_t dwRead = 0;
-				if (!spReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, &temp, sizeof(temp), &dwRead, FALSE))
+				if (!IReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, &temp, sizeof(temp), &dwRead, FALSE))
 				{
 					vErrorList.push_back(memAddrJob);
 					continue;
@@ -785,7 +766,13 @@ template<typename T> static void SearchNextMemoryThread(
 	//等待所有搜索线程结束汇总
 	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		while (spnThreadStarted->load() == 0) { sleep(0); }
+		while (spnThreadStarted->load() == 0) {
+#ifdef __linux__
+			sleep(0);
+#else
+			Sleep(0);
+#endif
+		}
 	}
 	for (auto spMtxThread : vspMtxThreadExist)
 	{
@@ -812,7 +799,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 template<typename T> static void SearchCopyProcessMemThread(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy, 
+	IMemReaderWriterProxy* IReadWriteProxy, 
 	uint64_t hProcess, 
 	SafeVector<COPY_MEM_INFO> & vCopyProcessMemDataList,
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
@@ -834,7 +821,7 @@ template<typename T> static void SearchCopyProcessMemThread(
 		std::shared_ptr<std::atomic<int>> spnThreadStarted = vbThreadStarted[i];
 		//内存搜索线程
 		std::thread td(
-			[spReadWriteProxy, &vCopyProcessMemDataList, hProcess, value1, value2, errorRange, scanType, nFastScanAlignment, &vResultList, &vErrorList, spMtxThread, spnThreadStarted]()->void
+			[IReadWriteProxy, &vCopyProcessMemDataList, hProcess, value1, value2, errorRange, scanType, nFastScanAlignment, &vResultList, &vErrorList, spMtxThread, spnThreadStarted]()->void
 		{
 			std::lock_guard<std::mutex> mlock(*spMtxThread);
 			spnThreadStarted->store(1);
@@ -887,7 +874,7 @@ template<typename T> static void SearchCopyProcessMemThread(
 
 					std::shared_ptr<unsigned char> sp(pnew, std::default_delete<unsigned char[]>());
 
-					if (!spReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, sp.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
+					if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, sp.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
 					{
 						vErrorList.push_back(memSecInfo);
 						continue;
@@ -951,7 +938,13 @@ template<typename T> static void SearchCopyProcessMemThread(
 	//等待所有搜索线程结束汇总
 	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		while (spnThreadStarted->load() == 0) { sleep(0); }
+		while (spnThreadStarted->load() == 0) {
+#ifdef __linux__
+			sleep(0);
+#else
+			Sleep(0);
+#endif
+		}
 	}
 	for (auto spMtxThread : vspMtxThreadExist)
 	{
@@ -975,7 +968,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 static void SearchMemoryBytesThread(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess,
 	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
 	std::string strFeaturesByte,
@@ -1039,7 +1032,7 @@ static void SearchMemoryBytesThread(
 
 	}
 	return SearchMemoryBytesThread2(
-		spReadWriteProxy,
+		IReadWriteProxy,
 		hProcess,
 		vScanMemMapsList,
 		upFeaturesBytesBuf.get(),
@@ -1064,7 +1057,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 static void SearchMemoryBytesThread2(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess,
 	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
 	char vFeaturesByte[],
@@ -1076,9 +1069,18 @@ static void SearchMemoryBytesThread2(
 	SafeVector<MEM_SECTION_INFO> & vErrorList)
 {
 	//获取当前系统内存大小
+#ifdef __linux__
 	struct sysinfo si;
 	sysinfo(&si);
 	size_t nMaxMemSize = si.totalram;
+#else
+	MEMORYSTATUS memoryStatus;
+	memset(&memoryStatus, 0, sizeof(MEMORYSTATUS));
+	memoryStatus.dwLength = sizeof(MEMORYSTATUS);
+	GlobalMemoryStatus(&memoryStatus);
+	size_t nMaxMemSize = memoryStatus.dwTotalPhys;
+#endif
+
 
 	//生成特征码容错文本
 	std::string strFuzzyCode = ""; //如：xxxxx????????xx
@@ -1124,7 +1126,7 @@ static void SearchMemoryBytesThread2(
 	
 		//内存搜索线程
 		std::thread td(
-			[spReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsList, spCopyFeaturesByte, spStrFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList, spMtxThread, spnThreadStarted]()->void
+			[IReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsList, spCopyFeaturesByte, spStrFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList, spMtxThread, spnThreadStarted]()->void
 		{
 			//cout << "我 " << upVecThreadJob->size() << endl;
 			std::lock_guard<std::mutex> mlock(*spMtxThread);
@@ -1150,7 +1152,7 @@ static void SearchMemoryBytesThread2(
 
 				std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 				size_t dwRead = 0;
-				if (!spReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
+				if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
 				{
 					vErrorList.push_back(memSecInfo);
 					continue;
@@ -1195,7 +1197,14 @@ static void SearchMemoryBytesThread2(
 	//等待所有搜索线程结束汇总
 	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		while (spnThreadStarted->load() == 0) { sleep(0); }
+		while (spnThreadStarted->load() == 0) {
+#ifdef __linux__
+			sleep(0);
+#else
+			Sleep(0);
+#endif
+			
+		}
 	}
 	for (auto spMtxThread : vspMtxThreadExist)
 	{
@@ -1217,7 +1226,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 static void SearchNextMemoryBytesThread(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess,
 	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
 	std::string strFeaturesByte,
@@ -1280,7 +1289,7 @@ static void SearchNextMemoryBytesThread(
 
 	}
 	return SearchNextMemoryBytesThread2(
-		spReadWriteProxy,
+		IReadWriteProxy,
 		hProcess,
 		vScanMemAddrList,
 		upFeaturesBytesBuf.get(),
@@ -1306,7 +1315,7 @@ vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
 */
 static void SearchNextMemoryBytesThread2(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess,
 	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
 	char vFeaturesByte[],
@@ -1363,7 +1372,7 @@ static void SearchNextMemoryBytesThread2(
 
 		//内存搜索线程
 		std::thread td(
-			[spReadWriteProxy, &vScanMemAddrList, hProcess, spCopyFeaturesByte, spStrFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList, spMtxThread, spnThreadStarted]()->void
+			[IReadWriteProxy, &vScanMemAddrList, hProcess, spCopyFeaturesByte, spStrFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList, spMtxThread, spnThreadStarted]()->void
 		{
 			//cout << "我 " << upVecThreadJob->size() << endl;
 			std::lock_guard<std::mutex> mlock(*spMtxThread);
@@ -1389,7 +1398,7 @@ static void SearchNextMemoryBytesThread2(
 
 				std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 				size_t dwRead = 0;
-				if (!spReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, spMemBuf.get(), memBufSize, &dwRead, FALSE))
+				if (!IReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, spMemBuf.get(), memBufSize, &dwRead, FALSE))
 				{
 					vErrorList.push_back(memAddrJob);
 					continue;
@@ -1436,7 +1445,13 @@ static void SearchNextMemoryBytesThread2(
 	//等待所有搜索线程结束汇总
 	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		while (spnThreadStarted->load() == 0) { sleep(0); }
+		while (spnThreadStarted->load() == 0) {
+#ifdef __linux__
+			sleep(0);
+#else
+			Sleep(0);
+#endif
+		}
 	}
 	for (auto spMtxThread : vspMtxThreadExist)
 	{
@@ -1454,7 +1469,7 @@ vOutputMemCopyList：拷贝进程内存数据的存放区域
 vErrorMemCopyList：拷贝进程内存数据失败的存放区域
 */
 static void CopyProcessMemDataThread(
-	std::shared_ptr<CMemReaderWriterProxy> spReadWriteProxy,
+	IMemReaderWriterProxy* IReadWriteProxy,
 	uint64_t hProcess,
 	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
 	int scanValueType,
@@ -1463,9 +1478,17 @@ static void CopyProcessMemDataThread(
 {
 
 	//获取当前系统内存大小
+#ifdef __linux__
 	struct sysinfo si;
 	sysinfo(&si);
 	size_t nMaxMemSize = si.totalram;
+#else
+	MEMORYSTATUS memoryStatus;
+	memset(&memoryStatus, 0, sizeof(MEMORYSTATUS));
+	memoryStatus.dwLength = sizeof(MEMORYSTATUS);
+	GlobalMemoryStatus(&memoryStatus);
+	size_t nMaxMemSize = memoryStatus.dwTotalPhys;
+#endif
 
 	MEM_SECTION_INFO memSecInfo;
 	while(vScanMemMapsList.get_val(memSecInfo))
@@ -1489,7 +1512,7 @@ static void CopyProcessMemDataThread(
 
 		std::shared_ptr<unsigned char>spMemBuf(pnew, std::default_delete<unsigned char[]>());
 		size_t dwRead = 0;
-		if (!spReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
+		if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
 		{
 			vErrorMemCopyList.push_back(memSecInfo);
 			continue;

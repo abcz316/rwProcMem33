@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
 {
 	printf(
 		"======================================================\n"
-		"本驱动名称: Linux  ARM64 硬件读写进程内存驱动37\n"
+		"本驱动名称: Linux ARM64 硬件读写进程内存驱动37\n"
 		"本驱动接口列表：\n"
 		"\t1.	 驱动_设置驱动设备接口文件允许同时被使用的最大值: SetMaxDevFileOpen\n"
 		"\t2.	 驱动_隐藏驱动（卸载驱动需重启机器）: HideKernelModule\n"

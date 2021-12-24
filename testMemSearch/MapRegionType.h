@@ -5,8 +5,10 @@
 #ifndef MEMSEARCHER_MAPREGIONTYPE_H
 #define MEMSEARCHER_MAPREGIONTYPE_H
 #include "../testKo/MemoryReaderWriter37.h"
-
-std::string MapsTypeToString(DRIVER_REGION_INFO * rInfo)
+#ifndef __linux__
+#include <windows.h>
+#endif
+static inline std::string MapsTypeToString(const DRIVER_REGION_INFO * rInfo)
 {
 	std::string type;
 	switch (rInfo->protection)
@@ -53,7 +55,7 @@ std::string MapsTypeToString(DRIVER_REGION_INFO * rInfo)
 	}
 	return type;
 }
-void StringToMapsType(std::string type, uint32_t & out_protection, uint32_t & out_type)
+static inline void StringToMapsType(const std::string & type, uint32_t & out_protection, uint32_t & out_type)
 {
 	if (type.length() < 4) { return; }
 	std::string head = type.substr(0, 3);
@@ -61,15 +63,14 @@ void StringToMapsType(std::string type, uint32_t & out_protection, uint32_t & ou
 	else if (head == "r--") { out_protection = PAGE_READONLY; }
 	else if (head == "rw-") { out_protection = PAGE_READWRITE; }
 	else if (head == "-w-") { out_protection = PAGE_WRITECOPY; }
-	else if (head == "--x") { out_protection = PAGE_EXECUTE_READ; }
+	else if (head == "--x") { out_protection = PAGE_EXECUTE; }
+	else if (head == "r-x") { out_protection = PAGE_EXECUTE_READ; }
 	else if (head == "rwx") { out_protection = PAGE_EXECUTE_READWRITE; }
-	head = type.substr(3, 4);
-
-	if (head == "p") { out_type = MEM_PRIVATE; }
-	else if (head == "s") { out_type = MEM_MAPPED; }
+	if (type[3] == 'p') { out_type = MEM_PRIVATE; }
+	else if (type[3] == 's') { out_type = MEM_MAPPED; }
 	return;
 }
-static inline int is__000(DRIVER_REGION_INFO * rInfo)
+static inline int is__000(const DRIVER_REGION_INFO * rInfo)
 {
     if(rInfo->protection==PAGE_NOACCESS)
     {
@@ -77,7 +78,7 @@ static inline int is__000(DRIVER_REGION_INFO * rInfo)
     }
     return 0;
 }
-static inline int is_rw_p(DRIVER_REGION_INFO * rInfo)
+static inline int is_rw_p(const DRIVER_REGION_INFO * rInfo)
 {
     if(rInfo->protection == PAGE_READWRITE)
     {
@@ -88,7 +89,7 @@ static inline int is_rw_p(DRIVER_REGION_INFO * rInfo)
     }
     return 0;
 }
-static inline int is_rw_s(DRIVER_REGION_INFO * rInfo)
+static inline int is_rw_s(const DRIVER_REGION_INFO * rInfo)
 {
     if(rInfo->protection == PAGE_READWRITE)
     {
@@ -99,7 +100,7 @@ static inline int is_rw_s(DRIVER_REGION_INFO * rInfo)
     }
     return 0;
 }
-static inline int is_rw00(DRIVER_REGION_INFO * rInfo)
+static inline int is_rw00(const DRIVER_REGION_INFO * rInfo)
 {
 	if (rInfo->protection == PAGE_READWRITE)
 	{
@@ -107,7 +108,7 @@ static inline int is_rw00(DRIVER_REGION_INFO * rInfo)
 	}
 	return 0;
 }
-static inline int is_r__p(DRIVER_REGION_INFO * rInfo)
+static inline int is_r__p(const DRIVER_REGION_INFO * rInfo)
 {
     if(rInfo->protection == PAGE_READONLY)
     {
@@ -118,7 +119,7 @@ static inline int is_r__p(DRIVER_REGION_INFO * rInfo)
     }
     return 0;
 }
-static inline int is_r__s(DRIVER_REGION_INFO * rInfo)
+static inline int is_r__s(const DRIVER_REGION_INFO * rInfo)
 {
     if(rInfo->protection == PAGE_READONLY)
     {
@@ -129,7 +130,7 @@ static inline int is_r__s(DRIVER_REGION_INFO * rInfo)
     }
     return 0;
 }
-static inline int is_r0xp(DRIVER_REGION_INFO * rInfo)
+static inline int is_r0xp(const DRIVER_REGION_INFO * rInfo)
 {
     if(rInfo->protection == PAGE_EXECUTE_READ || rInfo->protection == PAGE_EXECUTE_READWRITE)
     {
@@ -140,7 +141,7 @@ static inline int is_r0xp(DRIVER_REGION_INFO * rInfo)
     }
     return 0;
 }
-static inline int is_r0_0(DRIVER_REGION_INFO * rInfo)
+static inline int is_r0_0(const DRIVER_REGION_INFO * rInfo)
 {
     if(
             (rInfo->protection != PAGE_EXECUTE_READ) &&
@@ -152,7 +153,7 @@ static inline int is_r0_0(DRIVER_REGION_INFO * rInfo)
     }
     return 0;
 }
-static inline int is_r0_p(DRIVER_REGION_INFO * rInfo)
+static inline int is_r0_p(const DRIVER_REGION_INFO * rInfo)
 {
     if(
             (rInfo->protection == PAGE_READONLY) ||
@@ -166,7 +167,7 @@ static inline int is_r0_p(DRIVER_REGION_INFO * rInfo)
     }
     return 0;
 }
-static inline int is_r_xp(DRIVER_REGION_INFO * rInfo)
+static inline int is_r_xp(const DRIVER_REGION_INFO * rInfo)
 {
     if(rInfo->protection == PAGE_EXECUTE_READ)
     {
@@ -178,7 +179,7 @@ static inline int is_r_xp(DRIVER_REGION_INFO * rInfo)
     return 0;
 }
 
-static inline int is_Ch(DRIVER_REGION_INFO * rInfo)
+static inline int is_Ch(const DRIVER_REGION_INFO * rInfo)
 {
     if (is_rw_p(rInfo))
     {
@@ -190,7 +191,7 @@ static inline int is_Ch(DRIVER_REGION_INFO * rInfo)
     return 0;
 }
 
-static inline int is_Jh(DRIVER_REGION_INFO * rInfo)
+static inline int is_Jh(const DRIVER_REGION_INFO * rInfo)
 {
     if(is_rw_p(rInfo))
     {
@@ -202,7 +203,7 @@ static inline int is_Jh(DRIVER_REGION_INFO * rInfo)
     }
     return 0;
 }
-static inline int is_S(DRIVER_REGION_INFO * rInfo)
+static inline int is_S(const DRIVER_REGION_INFO * rInfo)
 {
     if(strstr(rInfo->name,"stack") != 0)
     {
@@ -217,7 +218,7 @@ static inline int is_S(DRIVER_REGION_INFO * rInfo)
     return 0;
 }
 
-static inline int is_A(DRIVER_REGION_INFO * rInfo)
+static inline int is_A(const DRIVER_REGION_INFO * rInfo)
 {
     if(is_r0_0(rInfo))
     {
@@ -229,7 +230,7 @@ static inline int is_A(DRIVER_REGION_INFO * rInfo)
     return 0;
 }
 
-static inline int is_As(DRIVER_REGION_INFO * rInfo)
+static inline int is_As(const DRIVER_REGION_INFO * rInfo)
 {
     if(is_rw_s(rInfo))
     {
@@ -245,7 +246,7 @@ static inline int is_As(DRIVER_REGION_INFO * rInfo)
 }
 
 
-static inline int is_B(DRIVER_REGION_INFO * rInfo)
+static inline int is_B(const DRIVER_REGION_INFO * rInfo)
 {
     if(is_r0_0(rInfo))
     {
@@ -256,7 +257,7 @@ static inline int is_B(DRIVER_REGION_INFO * rInfo)
     return 0;
 }
 
-static inline int is_Jb(DRIVER_REGION_INFO * rInfo)
+static inline int is_Jb(const DRIVER_REGION_INFO * rInfo)
 {
     if(is_r0_p(rInfo))
     {
@@ -268,7 +269,7 @@ static inline int is_Jb(DRIVER_REGION_INFO * rInfo)
 }
 
 
-static inline int is_Xs(DRIVER_REGION_INFO * rInfo)
+static inline int is_Xs(const DRIVER_REGION_INFO * rInfo)
 {
     if(strcmp(rInfo->name,"[vdso]") == 0) { return 1; }
 

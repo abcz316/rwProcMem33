@@ -8,7 +8,7 @@
 
 struct HANDLE_INFO
 {
-	uint64_t p;
+	uint64_t p;//TODO：这里有空再搞成shared_ptr派生成各个基类，防止内存泄漏
 	handleType type;
 };
 std::map<HANDLE, HANDLE_INFO> m_HandlePointList;

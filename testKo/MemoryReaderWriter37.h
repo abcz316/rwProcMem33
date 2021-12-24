@@ -179,6 +179,7 @@ static inline BOOL rwProcMemDriver_GetProcessRSS(int nDriverLink, uint64_t hProc
 
 //驱动_获取进程命令行（驱动连接句柄，进程句柄，输出缓冲区，输出缓冲区的大小），返回值：TRUE成功，FALSE失败
 static inline BOOL rwProcMemDriver_GetProcessCmdline(int nDriverLink, uint64_t hProcess, char *lpOutCmdlineBuf, size_t bufSize);
+#endif
 
 //////////////////////////////////////////////////////////////////////////
 //C++语言形式接口：
@@ -186,7 +187,8 @@ static inline BOOL rwProcMemDriver_GetProcessCmdline(int nDriverLink, uint64_t h
 #ifdef __cplusplus
 #include <vector>
 #include <mutex>
-class CMemoryReaderWriter
+#include "IMemReaderWriterProxy.h"
+class CMemoryReaderWriter : public IMemReaderWriterProxy
 {
 public:
 
@@ -202,6 +204,7 @@ public:
 	//连接驱动（驱动节点文件路径名，错误代码），返回值：驱动连接句柄，>=0代表成功
 	BOOL ConnectDriver(const char* lpszDriverFileNode, int & err)
 	{
+#ifdef __linux__
 		if (m_nDriverLink >= 0) { return TRUE; }
 		m_nDriverLink = rwProcMemDriver_Connect(lpszDriverFileNode);
 		if (m_nDriverLink < 0)
@@ -214,55 +217,77 @@ public:
 			err = 0;
 		}
 		return TRUE;
+#else 
+		return FALSE;
+#endif
 	}
 
 	//断开驱动，返回值：TRUE成功，FALSE失败
 	BOOL DisconnectDriver()
 	{
+#ifdef __linux__
 		if (m_nDriverLink >= 0)
 		{
 			rwProcMemDriver_Disconnect(m_nDriverLink);
 			m_nDriverLink = -1;
 			return TRUE;
 		}
+#endif
 		return FALSE;
 	}
 
 	//驱动是否连接正常，返回值：TRUE已连接，FALSE未连接
 	BOOL IsDriverConnected()
 	{
+#ifdef __linux__
 		return m_nDriverLink >= 0 ? TRUE : FALSE;
+#else
+		return FALSE;
+#endif
 	}
 
 
 	//驱动_设置驱动接口文件允许同时被使用的最大值（最大值），返回值：TRUE成功，FALSE失败
 	BOOL SetMaxDevFileOpen(uint64_t max)
 	{
+#ifdef __linux__
 		return rwProcMemDriver_SetMaxDevFileOpen(m_nDriverLink, max);
+#else
+		return FALSE;
+#endif
 	}
 
 
 	//驱动_隐藏驱动（），返回值：TRUE成功，FALSE失败
 	BOOL HideKernelModule()
 	{
+#ifdef __linux__
 		return rwProcMemDriver_HideKernelModule(m_nDriverLink);
+#else
+		return FALSE;
+#endif
 	}
 
 	//驱动_打开进程（进程PID），返回值：进程句柄，0为失败
 	uint64_t OpenProcess(uint64_t pid)
 	{
+#ifdef __linux__
 		return rwProcMemDriver_OpenProcess(m_nDriverLink, pid);
+#else
+		return FALSE;
+#endif
 	}
 
 	//驱动_读取进程内存（进程句柄，进程内存地址，读取结果缓冲区，读取结果缓冲区大小，实际读取字节数，是否暴力读取），返回值：TRUE成功，FALSE失败
 	BOOL ReadProcessMemory(
-		uint64_t hProcess,
-		uint64_t lpBaseAddress,
-		void *lpBuffer,
-		size_t nSize,
-		size_t * lpNumberOfBytesRead,
-		BOOL bIsForceRead = FALSE)
+			uint64_t hProcess,
+			uint64_t lpBaseAddress,
+			void *lpBuffer,
+			size_t nSize,
+			size_t * lpNumberOfBytesRead,
+			BOOL bIsForceRead = FALSE) override
 	{
+#ifdef __linux__
 		return rwProcMemDriver_ReadProcessMemory(
 			m_nDriverLink,
 			hProcess,
@@ -271,6 +296,9 @@ public:
 			nSize,
 			lpNumberOfBytesRead,
 			bIsForceRead);
+#else
+		return FALSE;
+#endif
 	}
 
 	//驱动_读取进程内存_单线程极速版（进程句柄，进程内存地址，读取结果缓冲区，读取结果缓冲区大小，实际读取字节数，是否暴力读取），返回值：TRUE成功，FALSE失败
@@ -280,8 +308,9 @@ public:
 		void *lpBuffer,
 		size_t nSize,
 		size_t * lpNumberOfBytesRead,
-		BOOL bIsForceRead = FALSE)
+		BOOL bIsForceRead = FALSE) override
 	{
+#ifdef __linux__
 		return rwProcMemDriver_ReadProcessMemory_Fast(
 			m_nDriverLink,
 			hProcess,
@@ -290,6 +319,9 @@ public:
 			nSize,
 			lpNumberOfBytesRead,
 			bIsForceRead);
+#else
+		return FALSE;
+#endif
 	}
 
 	//驱动_写入进程内存（进程句柄，进程内存地址，写入数据缓冲区，写入数据缓冲区大小，实际写入字节数，是否暴力写入），返回值：TRUE成功，FALSE失败
@@ -299,8 +331,9 @@ public:
 		void * lpBuffer,
 		size_t nSize,
 		size_t * lpNumberOfBytesWritten,
-		BOOL bIsForceWrite = FALSE)
+		BOOL bIsForceWrite = FALSE) override
 	{
+#ifdef __linux__
 		return rwProcMemDriver_WriteProcessMemory(
 			m_nDriverLink,
 			hProcess,
@@ -309,6 +342,9 @@ public:
 			nSize,
 			lpNumberOfBytesWritten,
 			bIsForceWrite);
+#else
+		return FALSE;
+#endif
 	}
 
 
@@ -320,8 +356,9 @@ public:
 		void * lpBuffer,
 		size_t nSize,
 		size_t * lpNumberOfBytesWritten,
-		BOOL bIsForceWrite = FALSE)
+		BOOL bIsForceWrite = FALSE) override
 	{
+#ifdef __linux__
 		return rwProcMemDriver_WriteProcessMemory_Fast(
 			m_nDriverLink,
 			hProcess,
@@ -330,20 +367,28 @@ public:
 			nSize,
 			lpNumberOfBytesWritten,
 			bIsForceWrite);
+#else
+		return FALSE;
+#endif
 	}
 
 	//驱动_关闭进程（进程句柄），返回值：TRUE成功，FALSE失败
 	BOOL CloseHandle(uint64_t hProcess)
 	{
+#ifdef __linux__
 		return rwProcMemDriver_CloseHandle(m_nDriverLink, hProcess);
+#else
+		return FALSE;
+#endif
 	}
 
 
 	//驱动_获取进程内存块列表（进程句柄，是否仅显示物理内存，输出缓冲区，输出是否完整），返回值：TRUE成功，FALSE失败
 	//（参数showPhy说明: FALSE为显示全部内存，TRUE为只显示在物理内存中的内存，注意：如果进程内存不存在于物理内存中，驱动将无法读取该内存位置的值）
 	//（参数bOutListCompleted说明: 若输出FALSE，则代表输出缓冲区里的进程内存块列表不完整，若输出TRUE，则代表输出缓冲区里的进程内存块列表完整可靠）
-	BOOL VirtualQueryExFull(uint64_t hProcess, BOOL showPhy, std::vector<DRIVER_REGION_INFO> & vOutput, BOOL & bOutListCompleted)
+	BOOL VirtualQueryExFull(uint64_t hProcess, BOOL showPhy, std::vector<DRIVER_REGION_INFO> & vOutput, BOOL & bOutListCompleted) override
 	{
+#ifdef __linux__
 		cvector cvOutput = cvector_create(sizeof(DRIVER_REGION_INFO));
 		BOOL b = rwProcMemDriver_VirtualQueryExFull(m_nDriverLink, hProcess, showPhy, cvOutput, &bOutListCompleted);
 		for (citerator iter = cvector_begin(cvOutput); iter != cvector_end(cvOutput); iter = cvector_next(cvOutput, iter))
@@ -353,6 +398,9 @@ public:
 		}
 		cvector_destroy(cvOutput);
 		return b;
+#else
+		return FALSE;
+#endif
 	}
 
 	//驱动_获取进程PID列表（获取方式，获取方式，输出缓冲区，输出是否完整），返回值：TRUE成功，FALSE失败
@@ -360,6 +408,7 @@ public:
 	//（参数bOutListCompleted说明: 若输出FALSE，则代表输出缓冲区里的进程PID列表不完整，若输出TRUE，则代表输出缓冲区里的进程PID列表完整可靠）
 	BOOL GetProcessPidList(std::vector<int> & vOutput, BOOL bIsSpeedMode, BOOL & bOutListCompleted)
 	{
+#ifdef __linux__
 		cvector cvOutput = cvector_create(sizeof(int));
 		BOOL b = rwProcMemDriver_GetProcessPidList(m_nDriverLink, bIsSpeedMode, cvOutput, &bOutListCompleted);
 		for (citerator iter = cvector_begin(cvOutput); iter != cvector_end(cvOutput); iter = cvector_next(cvOutput, iter))
@@ -369,6 +418,9 @@ public:
 		}
 		cvector_destroy(cvOutput);
 		return b;
+#else
+		return FALSE;
+#endif
 	}
 
 
@@ -383,6 +435,7 @@ public:
 		uint64_t & nOutEGID,
 		uint64_t & nOutFSGID)
 	{
+#ifdef __linux__
 		return rwProcMemDriver_GetProcessGroup(m_nDriverLink, hProcess,
 			&nOutUID,
 			&nOutSUID,
@@ -392,36 +445,57 @@ public:
 			&nOutSGID,
 			&nOutEGID,
 			&nOutFSGID);
+#else
+		return FALSE;
+#endif
 	}
 
 	//驱动_提升进程权限到Root（进程句柄），返回值：TRUE成功，FALSE失败
 	BOOL SetProcessRoot(uint64_t hProcess)
 	{
+#ifdef __linux__
 		return rwProcMemDriver_SetProcessRoot(m_nDriverLink, hProcess);
+#else
+		return FALSE;
+#endif
 	}
 
 	//驱动_获取进程占用物理内存大小（进程句柄，输出的占用物理内存大小），返回值：TRUE成功，FALSE失败
 	BOOL GetProcessRSS(uint64_t hProcess, uint64_t & outRss)
 	{
+#ifdef __linux__
 		return rwProcMemDriver_GetProcessRSS(m_nDriverLink, hProcess, &outRss);
+#else
+		return FALSE;
+#endif
 	}
 
 	//驱动_获取进程命令行（进程句柄，输出缓冲区，输出缓冲区的大小），返回值：TRUE成功，FALSE失败
 	BOOL GetProcessCmdline(uint64_t hProcess, char *lpOutCmdlineBuf, size_t bufSize)
 	{
+#ifdef __linux__
 		return rwProcMemDriver_GetProcessCmdline(m_nDriverLink, hProcess, lpOutCmdlineBuf, bufSize);
+#else
+		return FALSE;
+#endif
 	}
 
 	//获取驱动连接FD，返回值：驱动连接的FD
 	int GetLinkFD()
 	{
+#ifdef __linux__
 		return m_nDriverLink;
+#else
+		return -1;
+#endif
 	}
 
 	//设置驱动连接FD
 	void SetLinkFD(int fd)
 	{
+#ifdef __linux__
 		m_nDriverLink = fd;
+#endif
 	}
 
 
@@ -431,7 +505,7 @@ private:
 
 #endif
 
-
+#ifdef __linux__
 //实现
 //////////////////////////////////////////////////////////////////////////
 
@@ -765,6 +839,7 @@ static BOOL rwProcMemDriver_VirtualQueryExFull(int nDriverLink, uint64_t hProces
 		memcpy(&vma_flags, (void*)copy_pos, 4);
 		copy_pos += 4;
 		memcpy(&name, (void*)copy_pos, 4096);
+		name[sizeof(name) - 1] = '\0';
 		copy_pos += 4096;
 
 		DRIVER_REGION_INFO rInfo = { 0 };
@@ -807,7 +882,7 @@ static BOOL rwProcMemDriver_VirtualQueryExFull(int nDriverLink, uint64_t hProces
 			rInfo.type = MEM_PRIVATE;
 		}
 		memcpy(&rInfo.name, &name, 4096);
-
+		rInfo.name[sizeof(rInfo.name) - 1] = '\0';
 		if (showPhy)
 		{
 			//只显示在物理内存中的内存
