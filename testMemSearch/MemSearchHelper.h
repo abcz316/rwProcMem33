@@ -16,6 +16,8 @@
 #include "MemReaderWriterProxy.h"
 #include "SafeVector.h"
 
+#define GET_JOB_COUNT 3
+
 struct MEM_SECTION_INFO
 {
 	uint64_t npSectionAddr = 0; //进程内存地址
@@ -32,6 +34,47 @@ struct ADDR_RESULT_INFO
 	uint64_t addr = 0; //进程内存地址
 	uint64_t size = 0; //大小
 	std::shared_ptr<unsigned char> spSaveData = nullptr; //保存到本地缓冲区的内存字节数据
+};
+
+template<typename T> struct BATCH_BETWEEN_VAL
+{
+	T val1 = {}; //批量搜索值在两值之间的值1
+	T val2 = {}; //批量搜索值在两值之间的值2
+	union
+	{
+		char chCtx;
+		short sCtx;
+		int nCtx;
+		long lCtx;
+		unsigned long ulCtx;
+		unsigned long long ullCtx;
+		uint16_t u16Ctx;
+		uint32_t u32Ctx;
+		uint64_t u64Ctx = 0;
+		int16_t i16Ctx;
+		int32_t i32Ctx;
+		int64_t i64Ctx;
+	} markContext;  //附带的上下文，可传递消息
+};
+template<typename T> struct BATCH_BETWEEN_VAL_ADDR_RESULT
+{
+	ADDR_RESULT_INFO addrInfo; //结果地址
+	BATCH_BETWEEN_VAL<T> originalCondition; //原始搜索条件
+	union
+	{
+		char chCtx;
+		short sCtx;
+		int nCtx;
+		long lCtx;
+		unsigned long ulCtx;
+		unsigned long long ullCtx;
+		uint16_t u16Ctx;
+		uint32_t u32Ctx;
+		uint64_t u64Ctx = 0;
+		int16_t i16Ctx;
+		int32_t i32Ctx;
+		int64_t i64Ctx;
+	} markContext;  //附带的上下文，可用于传递消息或标记某个地址
 };
 
 enum SCAN_TYPE
@@ -114,6 +157,26 @@ template<typename T> static void SearchNextMemoryThread(
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
 	SafeVector<ADDR_RESULT_INFO> & vErrorList);
+
+/*
+内存批量搜索值在两值之间的内存地址，成功返回true，失败返回false
+hProcess：被搜索的进程句柄
+vScanMemMapsJobList: 被搜索的进程内存区域
+betweenValueList: 待搜索的两值之间的数值数组
+nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
+nFastScanAlignment为快速扫描的对齐位数，CE默认为1
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
+*/
+template<typename T> static void SearchMemoryBatchBetweenValThread(
+	IMemReaderWriterProxy* IReadWriteProxy,
+	uint64_t hProcess,
+	SafeVector<MEM_SECTION_INFO> & vScanMemMapsJobList,
+	const std::vector<BATCH_BETWEEN_VAL<T>> & betweenValueList, int nThreadCount,
+	size_t nFastScanAlignment,
+	SafeVector<BATCH_BETWEEN_VAL_ADDR_RESULT<T>> & vResultList,
+	SafeVector<MEM_SECTION_INFO> & vErrorList);
+
 
 /*
 搜索已拷贝的进程内存数值，成功返回true，失败返回false
@@ -438,10 +501,10 @@ template<typename T> static void SearchMemoryThread(
 
 
 	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
-	std::vector<std::shared_ptr<std::atomic<int>>> vbThreadStarted;
+	std::vector<std::shared_ptr<std::atomic<bool>>> vbThreadStarted;
 	for (int i = 0; i < nThreadCount; ++i) {
 		vspMtxThreadExist.push_back(std::make_shared<std::mutex>());
-		vbThreadStarted.push_back(std::make_shared<std::atomic<int>>(0));
+		vbThreadStarted.push_back(std::make_shared<std::atomic<bool>>(false));
 	}
 
 	//开始分配线程搜索内存
@@ -449,20 +512,23 @@ template<typename T> static void SearchMemoryThread(
 	{
 		//内存搜索线程
 		std::shared_ptr<std::mutex> spMtxThread = vspMtxThreadExist[i];
-		std::shared_ptr<std::atomic<int>> spnThreadStarted = vbThreadStarted[i];
+		std::shared_ptr<std::atomic<bool>> spnThreadStarted = vbThreadStarted[i];
 
 		std::thread td(
 			[IReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsJobList, &vErrorList, value1, value2, errorRange, scanType, &vResultList, nFastScanAlignment, spMtxThread, spnThreadStarted]()->void
 		{
 			std::lock_guard<std::mutex> mlock(*spMtxThread);
-			spnThreadStarted->store(1);
+			spnThreadStarted->store(true);
 
 			//cout << "我 " << upVecThreadJob->size() << endl;
 			std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
 
-			MEM_SECTION_INFO memSecInfo;
-			while (vScanMemMapsJobList.get_val(memSecInfo))
+			//一个一个job拿会拖慢速度
+			std::vector<MEM_SECTION_INFO> vTempJobMemSecInfo;
+			while (vTempJobMemSecInfo.size() || vScanMemMapsJobList.get_vals(GET_JOB_COUNT, vTempJobMemSecInfo) || vScanMemMapsJobList.get_vals(1, vTempJobMemSecInfo))
 			{
+				MEM_SECTION_INFO memSecInfo = vTempJobMemSecInfo[vTempJobMemSecInfo.size() - 1];
+				vTempJobMemSecInfo.pop_back();
 				//当前内存区域块大小超过了最大内存申请的限制，所以跳过
 				if (memSecInfo.nSectionSize > nMaxMemSize)
 				{
@@ -537,7 +603,7 @@ template<typename T> static void SearchMemoryThread(
 	//等待所有搜索线程结束汇总
 	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		while (spnThreadStarted->load() == 0) {
+		while (!spnThreadStarted->load()) {
 #ifdef __linux__
 			sleep(0);
 #else
@@ -552,6 +618,7 @@ template<typename T> static void SearchMemoryThread(
 	vResultList.sort([](const ADDR_RESULT_INFO & a, const ADDR_RESULT_INFO & b) -> bool { return a.addr < b.addr; });
 	return;
 }
+
 
 /*
 再次搜索内存数值，成功返回true，失败返回false
@@ -584,29 +651,34 @@ template<typename T> static void SearchNextMemoryThread(
 	SafeVector<ADDR_RESULT_INFO> & vErrorList)
 {
 	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
-	std::vector<std::shared_ptr<std::atomic<int>>> vbThreadStarted;
+	std::vector<std::shared_ptr<std::atomic<bool>>> vbThreadStarted;
 	for (int i = 0; i < nThreadCount; ++i) {
 		vspMtxThreadExist.push_back(std::make_shared<std::mutex>());
-		vbThreadStarted.push_back(std::make_shared<std::atomic<int>>(0));
+		vbThreadStarted.push_back(std::make_shared<std::atomic<bool>>(false));
 	}
 	//开始分配线程搜索内存
 	for (int i = 0; i < nThreadCount; i++)
 	{
 		std::shared_ptr<std::mutex> spMtxThread = vspMtxThreadExist[i];
-		std::shared_ptr<std::atomic<int>> spnThreadStarted = vbThreadStarted[i];
+		std::shared_ptr<std::atomic<bool>> spnThreadStarted = vbThreadStarted[i];
 		//内存搜索线程
 		std::thread td(
 			[IReadWriteProxy, hProcess, &vScanMemAddrList, &vErrorList, value1, value2, errorRange, scanType, &vResultList, spMtxThread, spnThreadStarted]()->void
 		{
 
 			std::lock_guard<std::mutex> mlock(*spMtxThread);
-			spnThreadStarted->store(1);
+			spnThreadStarted->store(true);
 
 			//cout << "我 " << upVecThreadJob->size() << endl;
 			std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
-			ADDR_RESULT_INFO memAddrJob;
-			while (vScanMemAddrList.get_val(memAddrJob))
+
+			//一个一个job拿会拖慢速度
+			std::vector<ADDR_RESULT_INFO> vTempJobMemAddrInfo;
+			while (vTempJobMemAddrInfo.size() || vScanMemAddrList.get_vals(GET_JOB_COUNT, vTempJobMemAddrInfo) || vScanMemAddrList.get_vals(1, vTempJobMemAddrInfo))
 			{
+				ADDR_RESULT_INFO memAddrJob = vTempJobMemAddrInfo[vTempJobMemAddrInfo.size() - 1];
+				vTempJobMemAddrInfo.pop_back();
+
 				T temp = 0;
 				size_t dwRead = 0;
 				if (!IReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, &temp, sizeof(temp), &dwRead, FALSE))
@@ -766,7 +838,7 @@ template<typename T> static void SearchNextMemoryThread(
 	//等待所有搜索线程结束汇总
 	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		while (spnThreadStarted->load() == 0) {
+		while (!spnThreadStarted->load()) {
 #ifdef __linux__
 			sleep(0);
 #else
@@ -782,6 +854,161 @@ template<typename T> static void SearchNextMemoryThread(
 	return;
 }
 
+
+/*
+内存批量搜索值在两值之间的内存地址，成功返回true，失败返回false
+hProcess：被搜索的进程句柄
+vScanMemMapsJobList: 被搜索的进程内存区域
+betweenValueList: 待搜索的两值之间的数值数组
+nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
+nFastScanAlignment为快速扫描的对齐位数，CE默认为1
+vResultList：存放实时搜索完成的结果地址
+vErrorList：存放实时搜索失败的结果地址
+*/
+template<typename T> static void SearchMemoryBatchBetweenValThread(
+	IMemReaderWriterProxy* IReadWriteProxy,
+	uint64_t hProcess,
+	SafeVector<MEM_SECTION_INFO> & vScanMemMapsJobList,
+	const std::vector<BATCH_BETWEEN_VAL<T>> & betweenValueList, int nThreadCount,
+	size_t nFastScanAlignment,
+	SafeVector<BATCH_BETWEEN_VAL_ADDR_RESULT<T>> & vResultList,
+	SafeVector<MEM_SECTION_INFO> & vErrorList)
+{
+	//获取当前系统内存大小
+#ifdef __linux__
+	struct sysinfo si;
+	sysinfo(&si);
+	size_t nMaxMemSize = si.totalram;
+#else
+	MEMORYSTATUS memoryStatus;
+	memset(&memoryStatus, 0, sizeof(MEMORYSTATUS));
+	memoryStatus.dwLength = sizeof(MEMORYSTATUS);
+	GlobalMemoryStatus(&memoryStatus);
+	size_t nMaxMemSize = memoryStatus.dwTotalPhys;
+#endif
+
+
+	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
+	std::vector<std::shared_ptr<std::atomic<bool>>> vbThreadStarted;
+	for (int i = 0; i < nThreadCount; ++i) {
+		vspMtxThreadExist.push_back(std::make_shared<std::mutex>());
+		vbThreadStarted.push_back(std::make_shared<std::atomic<bool>>(false));
+	}
+
+	//开始分配线程搜索内存
+	for (int i = 0; i < nThreadCount; i++)
+	{
+		//内存搜索线程
+		std::shared_ptr<std::mutex> spMtxThread = vspMtxThreadExist[i];
+		std::shared_ptr<std::atomic<bool>> spnThreadStarted = vbThreadStarted[i];
+
+		std::thread td(
+			[IReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsJobList, &vErrorList, &betweenValueList, &vResultList, nFastScanAlignment, spMtxThread, spnThreadStarted]()->void
+		{
+			std::lock_guard<std::mutex> mlock(*spMtxThread);
+			spnThreadStarted->store(true);
+
+			//cout << "我 " << upVecThreadJob->size() << endl;
+			std::vector<BATCH_BETWEEN_VAL_ADDR_RESULT<T>> vThreadOutput; //存放当前线程的搜索结果
+
+			//一个一个job拿会拖慢速度
+			std::vector<MEM_SECTION_INFO> vTempJobMemSecInfo;
+			while (vTempJobMemSecInfo.size() || vScanMemMapsJobList.get_vals(GET_JOB_COUNT, vTempJobMemSecInfo) || vScanMemMapsJobList.get_vals(1, vTempJobMemSecInfo))
+			{
+				MEM_SECTION_INFO memSecInfo = vTempJobMemSecInfo[vTempJobMemSecInfo.size() - 1];
+				vTempJobMemSecInfo.pop_back();
+				//当前内存区域块大小超过了最大内存申请的限制，所以跳过
+				if (memSecInfo.nSectionSize > nMaxMemSize)
+				{
+					vErrorList.push_back(memSecInfo);
+					continue;
+				}
+
+				unsigned char *pnew = new (std::nothrow) unsigned char[memSecInfo.nSectionSize];
+				if (!pnew)
+				{
+					vErrorList.push_back(memSecInfo);
+					continue;
+				}
+				memset(pnew, 0, memSecInfo.nSectionSize);
+
+
+				std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
+				size_t dwRead = 0;
+				if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
+				{
+					vErrorList.push_back(memSecInfo);
+					continue;
+				}
+				for (size_t i = 0; i < betweenValueList.size(); i++) {
+					auto & item = betweenValueList.at(i);
+
+					//寻找数值
+					std::vector<size_t >vFindAddr;
+
+					//值在两者之间于
+					FindBetween<T>((size_t)spMemBuf.get(), dwRead, item.val1 < item.val2 ? item.val1 : item.val2, item.val1 < item.val2 ? item.val2 : item.val1, nFastScanAlignment, vFindAddr);
+
+					for (size_t addr : vFindAddr)
+					{
+						BATCH_BETWEEN_VAL_ADDR_RESULT<T> baInfo;
+						baInfo.addrInfo.addr = (uint64_t)((uint64_t)memSecInfo.npSectionAddr + (uint64_t)addr - (uint64_t)spMemBuf.get());
+						baInfo.addrInfo.size = sizeof(T);
+						std::shared_ptr<unsigned char> sp(new unsigned char[baInfo.addrInfo.size], std::default_delete<unsigned char[]>());
+						memcpy(sp.get(), (void*)addr, baInfo.addrInfo.size);
+						baInfo.addrInfo.spSaveData = sp;
+
+						//原始条件
+						baInfo.originalCondition = item;
+
+						//附带的上下文传回去
+						baInfo.markContext.chCtx = item.markContext.chCtx;
+						baInfo.markContext.sCtx = item.markContext.sCtx;
+						baInfo.markContext.nCtx = item.markContext.nCtx;
+						baInfo.markContext.lCtx = item.markContext.lCtx;
+						baInfo.markContext.ulCtx = item.markContext.ulCtx;
+						baInfo.markContext.ullCtx = item.markContext.ullCtx;
+						baInfo.markContext.u16Ctx = item.markContext.u16Ctx;
+						baInfo.markContext.u32Ctx = item.markContext.u32Ctx;
+						baInfo.markContext.u64Ctx = item.markContext.u64Ctx;
+						baInfo.markContext.i16Ctx = item.markContext.i16Ctx;
+						baInfo.markContext.i32Ctx = item.markContext.i32Ctx;
+						baInfo.markContext.i64Ctx = item.markContext.i64Ctx;
+
+						vThreadOutput.push_back(baInfo);
+					}
+				}
+
+
+			}
+
+
+			//将当前线程的搜索结果，汇总到父线程的全部搜索结果数组里
+			for (BATCH_BETWEEN_VAL_ADDR_RESULT<T> & newAddr : vThreadOutput)
+			{
+				vResultList.push_back(newAddr);
+			}
+		});
+		td.detach();
+	}
+	//等待所有搜索线程结束汇总
+	for (auto spnThreadStarted : vbThreadStarted)
+	{
+		while (!spnThreadStarted->load()) {
+#ifdef __linux__
+			sleep(0);
+#else
+			Sleep(0);
+#endif
+		}
+	}
+	for (auto spMtxThread : vspMtxThreadExist)
+	{
+		std::lock_guard<std::mutex> mlock(*spMtxThread);
+	}
+	vResultList.sort([](const BATCH_BETWEEN_VAL_ADDR_RESULT<T> & a, const BATCH_BETWEEN_VAL_ADDR_RESULT<T> & b) -> bool { return a.addrInfo.addr < b.addrInfo.addr; });
+	return;
+}
 /*
 搜索已拷贝的进程内存数值，成功返回true，失败返回false
 vCopyProcessMemDataList: 需要再次搜索的已拷贝的进程内存列表
@@ -809,28 +1036,34 @@ template<typename T> static void SearchCopyProcessMemThread(
 {
 
 	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
-	std::vector<std::shared_ptr<std::atomic<int>>> vbThreadStarted;
+	std::vector<std::shared_ptr<std::atomic<bool>>> vbThreadStarted;
 	for (int i = 0; i < nThreadCount; ++i) {
 		vspMtxThreadExist.push_back(std::make_shared<std::mutex>());
-		vbThreadStarted.push_back(std::make_shared<std::atomic<int>>(0));
+		vbThreadStarted.push_back(std::make_shared<std::atomic<bool>>(false));
 	}
 	//开始分配线程搜索内存
 	for (int i = 0; i < nThreadCount; i++)
 	{
 		std::shared_ptr<std::mutex> spMtxThread = vspMtxThreadExist[i];
-		std::shared_ptr<std::atomic<int>> spnThreadStarted = vbThreadStarted[i];
+		std::shared_ptr<std::atomic<bool>> spnThreadStarted = vbThreadStarted[i];
 		//内存搜索线程
 		std::thread td(
 			[IReadWriteProxy, &vCopyProcessMemDataList, hProcess, value1, value2, errorRange, scanType, nFastScanAlignment, &vResultList, &vErrorList, spMtxThread, spnThreadStarted]()->void
 		{
 			std::lock_guard<std::mutex> mlock(*spMtxThread);
-			spnThreadStarted->store(1);
+			spnThreadStarted->store(true);
 
 			//cout << "我 " << upVecThreadJob->size() << endl;
 			std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
-			COPY_MEM_INFO memSecInfo;
-			while (vCopyProcessMemDataList.get_val(memSecInfo))
+
+
+			//一个一个job拿会拖慢速度
+			std::vector<COPY_MEM_INFO> vTempJobMemSecInfo;
+			while (vTempJobMemSecInfo.size() || vCopyProcessMemDataList.get_vals(GET_JOB_COUNT, vTempJobMemSecInfo) || vCopyProcessMemDataList.get_vals(1, vTempJobMemSecInfo))
 			{
+				COPY_MEM_INFO memSecInfo = vTempJobMemSecInfo[vTempJobMemSecInfo.size() - 1];
+				vTempJobMemSecInfo.pop_back();
+
 				//寻找数值
 				std::vector<size_t >vFindAddr;
 				std::shared_ptr<unsigned char> spMemBuf = nullptr;
@@ -938,7 +1171,7 @@ template<typename T> static void SearchCopyProcessMemThread(
 	//等待所有搜索线程结束汇总
 	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		while (spnThreadStarted->load() == 0) {
+		while (!spnThreadStarted->load()) {
 #ifdef __linux__
 			sleep(0);
 #else
@@ -1112,16 +1345,16 @@ static void SearchMemoryBytesThread2(
 
 
 	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
-	std::vector<std::shared_ptr<std::atomic<int>>> vbThreadStarted;
+	std::vector<std::shared_ptr<std::atomic<bool>>> vbThreadStarted;
 	for (int i = 0; i < nThreadCount; ++i) {
 		vspMtxThreadExist.push_back(std::make_shared<std::mutex>());
-		vbThreadStarted.push_back(std::make_shared<std::atomic<int>>(0));
+		vbThreadStarted.push_back(std::make_shared<std::atomic<bool>>(false));
 	}
 	//开始分配线程搜索内存
 	for (int i = 0; i < nThreadCount; i++)
 	{
 		std::shared_ptr<std::mutex> spMtxThread = vspMtxThreadExist[i];
-		std::shared_ptr<std::atomic<int>> spnThreadStarted = vbThreadStarted[i];
+		std::shared_ptr<std::atomic<bool>> spnThreadStarted = vbThreadStarted[i];
 
 	
 		//内存搜索线程
@@ -1130,16 +1363,21 @@ static void SearchMemoryBytesThread2(
 		{
 			//cout << "我 " << upVecThreadJob->size() << endl;
 			std::lock_guard<std::mutex> mlock(*spMtxThread);
-			spnThreadStarted->store(1);
+			spnThreadStarted->store(true);
 
 			//是否启用特征码容错搜索
 			int isSimpleSearch = (spStrFuzzyCode->find("?") == -1) ? 1 : 0;
 
 			std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
 
-			MEM_SECTION_INFO memSecInfo;
-			while (vScanMemMapsList.get_val(memSecInfo))
+
+			//一个一个job拿会拖慢速度
+			std::vector<MEM_SECTION_INFO> vTempJobMemSecInfo;
+			while (vTempJobMemSecInfo.size() || vScanMemMapsList.get_vals(GET_JOB_COUNT, vTempJobMemSecInfo) || vScanMemMapsList.get_vals(1, vTempJobMemSecInfo))
 			{
+				MEM_SECTION_INFO memSecInfo = vTempJobMemSecInfo[vTempJobMemSecInfo.size() - 1];
+				vTempJobMemSecInfo.pop_back();
+
 				//当前内存区域块大小超过了最大内存申请的限制，所以跳过
 				if (memSecInfo.nSectionSize > nMaxMemSize)
 				{
@@ -1197,7 +1435,7 @@ static void SearchMemoryBytesThread2(
 	//等待所有搜索线程结束汇总
 	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		while (spnThreadStarted->load() == 0) {
+		while (!spnThreadStarted->load()) {
 #ifdef __linux__
 			sleep(0);
 #else
@@ -1350,10 +1588,10 @@ static void SearchNextMemoryBytesThread2(
 	}
 
 	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
-	std::vector<std::shared_ptr<std::atomic<int>>> vbThreadStarted;
+	std::vector<std::shared_ptr<std::atomic<bool>>> vbThreadStarted;
 	for (int i = 0; i < nThreadCount; ++i) {
 		vspMtxThreadExist.push_back(std::make_shared<std::mutex>());
-		vbThreadStarted.push_back(std::make_shared<std::atomic<int>>(0));
+		vbThreadStarted.push_back(std::make_shared<std::atomic<bool>>(false));
 	}
 
 	//内存搜索线程
@@ -1367,7 +1605,7 @@ static void SearchNextMemoryBytesThread2(
 	{
 
 		 std::shared_ptr<std::mutex> spMtxThread = vspMtxThreadExist[i];
-		std::shared_ptr<std::atomic<int>> spnThreadStarted = vbThreadStarted[i];
+		std::shared_ptr<std::atomic<bool>> spnThreadStarted = vbThreadStarted[i];
 
 
 		//内存搜索线程
@@ -1376,16 +1614,21 @@ static void SearchNextMemoryBytesThread2(
 		{
 			//cout << "我 " << upVecThreadJob->size() << endl;
 			std::lock_guard<std::mutex> mlock(*spMtxThread);
-			spnThreadStarted->store(1);
+			spnThreadStarted->store(true);
 
 			//是否启用特征码容错搜索
 			int isSimpleSearch = (spStrFuzzyCode->find("?") == -1) ? 1 : 0;
 
 
 			std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
-			ADDR_RESULT_INFO memAddrJob;
-			while (vScanMemAddrList.get_val(memAddrJob))
+
+			//一个一个job拿会拖慢速度
+			std::vector<ADDR_RESULT_INFO> vTempJobMemAddrInfo;
+			while (vTempJobMemAddrInfo.size() || vScanMemAddrList.get_vals(GET_JOB_COUNT, vTempJobMemAddrInfo) || vScanMemAddrList.get_vals(1, vTempJobMemAddrInfo))
 			{
+				ADDR_RESULT_INFO memAddrJob = vTempJobMemAddrInfo[vTempJobMemAddrInfo.size() - 1];
+				vTempJobMemAddrInfo.pop_back();
+
 				size_t memBufSize = spStrFuzzyCode->length() / 2;
 				unsigned char *pnew = new (std::nothrow) unsigned char[memBufSize];
 				if (!pnew)
@@ -1445,7 +1688,7 @@ static void SearchNextMemoryBytesThread2(
 	//等待所有搜索线程结束汇总
 	for (auto spnThreadStarted : vbThreadStarted)
 	{
-		while (spnThreadStarted->load() == 0) {
+		while (!spnThreadStarted->load()) {
 #ifdef __linux__
 			sleep(0);
 #else
@@ -1661,7 +1904,7 @@ template<typename T> static inline void FindBetween(size_t dwAddr, size_t dwLen,
 		T* pData = (T*)(dwAddr + i);
 		T cData = *pData;
 
-		if (cData > value1 && cData < value2)
+		if (cData >= value1 && cData <= value2)
 		{
 			vOutputAddr.push_back((size_t)((size_t)dwAddr + (size_t)i));
 		}

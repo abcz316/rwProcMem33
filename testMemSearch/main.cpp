@@ -8,6 +8,7 @@
 #include <cinttypes>
 #include "MapRegionHelper.h"
 #include "MemSearchHelper.h"
+#include "ReverseSearchAddrLinkMapHelper.h"
 
 
 
@@ -91,6 +92,7 @@ int main(int argc, char *argv[])
 	}
 
 
+
 	//获取目标进程PID
 	const char *name = "com.miui.calculator";
 	pid_t pid = findPID(name, &rwDriver);
@@ -159,7 +161,7 @@ int main(int argc, char *argv[])
 
 		printf("共搜索出%zu个地址\n", vSearchResult.size());
 	}
-
+	//再次搜索
 	while (vSearchResult.size()) {
 		//将每个地址往后偏移20
 		SafeVector<ADDR_RESULT_INFO> vWaitSearchAddr; //待搜索的内存地址列表
@@ -189,37 +191,7 @@ int main(int argc, char *argv[])
 		break;
 	}
 
-
-	while (vSearchResult.size()) {
-		//将每个地址往后偏移76
-		SafeVector<ADDR_RESULT_INFO> vWaitSearchAddr; //待搜索的内存地址列表
-
-		ADDR_RESULT_INFO addr;
-		while (vSearchResult.get_val(addr))
-		{
-			addr.addr += 76;
-			vWaitSearchAddr.push_back(addr);
-		}
-
-		//再次搜索
-		vSearchResult.clear();
-
-		SafeVector<ADDR_RESULT_INFO> vSearcAddrError;
-		SearchNextMemoryThread<float>(
-			&rwDriver,
-			hProcess,
-			vWaitSearchAddr, //待搜索的内存地址列表
-			-50.00500106812f, //搜索数值
-			0.0f,
-			0.01f, //误差范围
-			SCAN_TYPE::ACCURATE_VAL, //搜索类型: 精确搜索
-			std::thread::hardware_concurrency() - 1, //搜索线程数
-			vSearchResult,  //搜索后的结果
-			vSearcAddrError);
-		break;
-	}
-
-
+	//再次搜索
 	while(vSearchResult.size()) {
 		//将每个地址往后偏移952
 		SafeVector<ADDR_RESULT_INFO> vWaitSearchAddr; //待搜索的内存地址列表
@@ -249,25 +221,188 @@ int main(int argc, char *argv[])
 		break;
 	}
 
-
-
-	ADDR_RESULT_INFO addr;
 	size_t count = 0;
-	while(vSearchResult.get_val(addr))
-	{
+	for (size_t i = 0; i < vSearchResult.size(); i++) {
+		ADDR_RESULT_INFO addr = vSearchResult.at(i);
 		printf("addr:%p\n", (void*)addr.addr);
 		count++;
-		if (count > 100)
-		{
+		if (count > 100) {
 			printf("只显示前100个地址\n");
 			break;
 		}
 	}
 	printf("共偏移搜索出%zu个地址\n", vSearchResult.size());
-	if (vSearchResult.size())
-	{
+	if (vSearchResult.size()) {
 		printf("第一个地址为:%p\n", (void*)vSearchResult.at(0).addr);
 	}
+
+
+	//反向搜索演示
+	std::map<uint64_t, std::shared_ptr<baseOffsetInfo>> baseAddrOffsetRecordMap; //记录搜索到的地址偏移
+
+	SafeVector<BATCH_BETWEEN_VAL_ADDR_RESULT<uint64_t>> vBetweenValSearchResult; //反向搜索结果
+	while (vSearchResult.size()) {
+
+		SafeVector<MEM_SECTION_INFO> vScanMemMapsList(vScanMemMaps);
+
+		std::vector<BATCH_BETWEEN_VAL<uint64_t>> vWaitSearchBetweenVal; //待搜索的两值之间的数值数组
+
+		//开始填充待搜索的两值之间的数值数组
+		std::vector<ADDR_RESULT_INFO> vLastAddrResult;
+		vSearchResult.get_vals(vSearchResult.size(), vLastAddrResult);
+		for (auto & addrResult : vLastAddrResult) {
+			BATCH_BETWEEN_VAL<uint64_t> newBeteenVal;
+			memset(&newBeteenVal, 0, sizeof(newBeteenVal));
+			newBeteenVal.val1 = addrResult.addr - 0x300;
+			newBeteenVal.val2 = addrResult.addr + 0x300;
+			newBeteenVal.markContext.u64Ctx = addrResult.addr;//传递保存一个标值地址
+			vWaitSearchBetweenVal.push_back(newBeteenVal);
+		}
+
+		SafeVector<MEM_SECTION_INFO> vSearcMemSecError; //错误内存段
+		//阻塞模式
+		SearchMemoryBatchBetweenValThread<uint64_t>(
+			&rwDriver,
+			1,
+			vScanMemMapsList, //待搜索的内存区域
+			vWaitSearchBetweenVal, //待搜索的两值之间的数值数组
+			std::thread::hardware_concurrency() - 1, //搜索线程数
+			4, //快速扫描的对齐位数，CE默认为4
+			vBetweenValSearchResult, //搜索后的结果
+			vSearcMemSecError);
+
+
+		//记录搜索到的偏移
+		for (size_t i = 0; i < vBetweenValSearchResult.size(); i++) {
+			auto & addrResult = vBetweenValSearchResult.at(i);
+
+			uint64_t curAddrVal = *(uint64_t*)addrResult.addrInfo.spSaveData.get();
+
+			std::shared_ptr<baseOffsetInfo> spBaseOffset = std::make_shared<baseOffsetInfo>();
+			memset(spBaseOffset.get(), 0, sizeof(baseOffsetInfo));
+			spBaseOffset->addrId = addrResult.addrInfo.addr;
+			spBaseOffset->offset = addrResult.markContext.u64Ctx - curAddrVal;
+			baseAddrOffsetRecordMap[spBaseOffset->addrId] = spBaseOffset;
+		}
+		break;
+	}
+	//再次反向搜索
+	while (vBetweenValSearchResult.size()) {
+
+		SafeVector<MEM_SECTION_INFO> vScanMemMapsList(vScanMemMaps);
+
+		std::vector<BATCH_BETWEEN_VAL<uint64_t>> vWaitSearchBetweenVal; //待搜索的两值之间的数值数组
+
+
+		std::vector<BATCH_BETWEEN_VAL_ADDR_RESULT<uint64_t>> vLastAddrResult;
+		vBetweenValSearchResult.get_vals(vBetweenValSearchResult.size(), vLastAddrResult);
+		for (auto & addrResult : vLastAddrResult) {
+			BATCH_BETWEEN_VAL<uint64_t> newBeteenVal;
+			memset(&newBeteenVal, 0, sizeof(newBeteenVal));
+			newBeteenVal.val1 = addrResult.addrInfo.addr - 0x300;
+			newBeteenVal.val2 = addrResult.addrInfo.addr + 0x300;
+			newBeteenVal.markContext.u64Ctx = addrResult.addrInfo.addr;//传递保存一个标值地址
+			vWaitSearchBetweenVal.push_back(newBeteenVal);
+		}
+
+		vBetweenValSearchResult.clear();
+		SafeVector<MEM_SECTION_INFO> vSearcMemSecError;
+
+		//阻塞模式
+		SearchMemoryBatchBetweenValThread<uint64_t>(
+			&rwDriver,
+			1,
+			vScanMemMapsList, //待搜索的内存区域
+			vWaitSearchBetweenVal, //待搜索的两值之间的数值数组
+			std::thread::hardware_concurrency() - 1, //搜索线程数
+			4, //快速扫描的对齐位数，CE默认为4
+			vBetweenValSearchResult, //搜索后的结果
+			vSearcMemSecError);
+
+		//记录搜索到的偏移
+		for (size_t i = 0; i < vBetweenValSearchResult.size(); i++) {
+			auto & addrResult = vBetweenValSearchResult.at(i);
+
+			uint64_t curAddrVal = *(uint64_t*)addrResult.addrInfo.spSaveData.get();
+
+			std::shared_ptr<baseOffsetInfo> spBaseOffset = std::make_shared<baseOffsetInfo>();
+			memset(spBaseOffset.get(), 0, sizeof(baseOffsetInfo));
+			spBaseOffset->addrId = addrResult.addrInfo.addr;
+			spBaseOffset->offset = addrResult.markContext.u64Ctx - curAddrVal;
+			baseAddrOffsetRecordMap[spBaseOffset->addrId] = spBaseOffset;
+
+			//将反向搜索到的地址偏移串联起来
+			auto spLastAddrNode = baseAddrOffsetRecordMap[addrResult.markContext.u64Ctx];
+			spLastAddrNode->vwpNextNode.push_back(spBaseOffset);
+			spBaseOffset->vwpLastNode.push_back(spLastAddrNode);
+		}
+
+		break;
+	}
+	//再次反向搜索
+	while (vBetweenValSearchResult.size()) {
+
+		SafeVector<MEM_SECTION_INFO> vScanMemMapsList(vScanMemMaps);
+
+		std::vector<BATCH_BETWEEN_VAL<uint64_t>> vWaitSearchBetweenVal; //待搜索的两值之间的数值数组
+
+		std::vector<BATCH_BETWEEN_VAL_ADDR_RESULT<uint64_t>> vTempAddrResult;
+		vBetweenValSearchResult.get_vals(vBetweenValSearchResult.size(), vTempAddrResult);
+		for (auto & addrResult : vTempAddrResult) {
+			BATCH_BETWEEN_VAL<uint64_t> newBeteenVal;
+			memset(&newBeteenVal, 0, sizeof(newBeteenVal));
+			newBeteenVal.val1 = addrResult.addrInfo.addr - 0x300;
+			newBeteenVal.val2 = addrResult.addrInfo.addr + 0x300;
+			newBeteenVal.markContext.u64Ctx = addrResult.addrInfo.addr;//传递保存一个标值地址
+			vWaitSearchBetweenVal.push_back(newBeteenVal);
+		}
+
+		vBetweenValSearchResult.clear();
+		SafeVector<MEM_SECTION_INFO> vSearcMemSecError;
+
+		//阻塞模式
+		SearchMemoryBatchBetweenValThread<uint64_t>(
+			&rwDriver,
+			1,
+			vScanMemMapsList, //待搜索的内存区域
+			vWaitSearchBetweenVal, //待搜索的两值之间的数值数组
+			std::thread::hardware_concurrency() - 1, //搜索线程数
+			4, //快速扫描的对齐位数，CE默认为4
+			vBetweenValSearchResult, //搜索后的结果
+			vSearcMemSecError);
+
+
+		//记录搜索到的偏移
+		for (size_t i = 0; i < vBetweenValSearchResult.size(); i++) {
+			auto & addrResult = vBetweenValSearchResult.at(i);
+
+			uint64_t curAddrVal = *(uint64_t*)addrResult.addrInfo.spSaveData.get();
+
+			std::shared_ptr<baseOffsetInfo> spBaseOffset = std::make_shared<baseOffsetInfo>();
+			memset(spBaseOffset.get(), 0, sizeof(baseOffsetInfo));
+			spBaseOffset->addrId = addrResult.addrInfo.addr;
+			spBaseOffset->offset = addrResult.markContext.u64Ctx - curAddrVal;
+			baseAddrOffsetRecordMap[spBaseOffset->addrId] = spBaseOffset;
+
+			//将反向搜索到的地址偏移串联起来
+			auto spLastAddrNode = baseAddrOffsetRecordMap[addrResult.markContext.u64Ctx];
+			spLastAddrNode->vwpNextNode.push_back(spBaseOffset);
+			spBaseOffset->vwpLastNode.push_back(spLastAddrNode);
+		}
+
+		//打印整个链路
+		std::string strOffsetLink;
+		for (auto iter = baseAddrOffsetRecordMap.begin(); iter != baseAddrOffsetRecordMap.end(); iter++) {
+			auto spBaseAddrOffsetInfo = iter->second;
+			if (spBaseAddrOffsetInfo->vwpLastNode.size()) {
+				continue; //不是头部节点
+			}
+			strOffsetLink += PrintfAddrOffsetLinkMap(baseAddrOffsetRecordMap, spBaseAddrOffsetInfo->addrId);
+		}
+		printf("OffsetLink:\n%s\n", strOffsetLink.c_str());
+		break;
+	}
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//关闭进程
 	rwDriver.CloseHandle(hProcess);
