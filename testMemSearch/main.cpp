@@ -12,7 +12,6 @@
 
 
 
-
 int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver)
 {
 	int nTargetPid = 0;
@@ -449,23 +448,24 @@ void loop_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVector<A
 		return;
 	}
 	uint64_t startAddr = 0; //遍历起始位置
-	uint64_t endOffset = 0; //遍历结束位置
+	uint64_t endAddr = 0; //遍历结束位置
 
 	for (auto sec : vLibxxx_so) {
 		if (startAddr == 0 && is_r0xp(&sec)) {
 			startAddr = sec.baseaddress; //设置起始位置
 		}
 		uint64_t tmpEndAddr = sec.baseaddress + sec.size;
-		if (tmpEndAddr > endOffset) {
-			endOffset = tmpEndAddr + startAddr; //遍历一个so模块的大小区域
+		if (tmpEndAddr > endAddr) {
+			endAddr = tmpEndAddr + startAddr; //遍历一个so模块的大小区域，请务必再三确认此值范围是否在你所要的目标范围内，否则搜索不到难查出问题
 		}
+		
 	}
-	if (!startAddr || !endOffset) {
+	if (!startAddr || !endAddr) {
 		printf("startAddr失败");
 		return;
 	}
 
-	std::atomic<uint64_t> curIndexOffset{ startAddr }; //全局当前遍历位置
+	std::atomic<uint64_t> curIndexAddr{ startAddr }; //全局当前遍历位置
 
 	struct OffsetResultInfo {
 		uint64_t offset[5] = { 0 };
@@ -474,21 +474,21 @@ void loop_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVector<A
 
 	
 	MultiThreadExecuteTask(std::thread::hardware_concurrency(),
-		[pRwDriver, &vSearchResult, &curIndexOffset, startAddr, endOffset, &vResultInfo](size_t thread_id)->void
+		[pRwDriver, &vSearchResult, &curIndexAddr, startAddr, endAddr, &vResultInfo](size_t thread_id)->void
 	{
 		std::vector<ADDR_RESULT_INFO> vLastAddrResult;
 		vSearchResult.copy_vals(vLastAddrResult);
 
 		std::vector<OffsetResultInfo> vThreadOutput; //存放当前线程的搜索结果
 
-		uint64_t curWorkOffset = 0;
+		uint64_t curWorkAddr = 0;
 		while (1) {
-			curWorkOffset = curWorkOffset = curIndexOffset.fetch_add(4);
-			if (curWorkOffset >= endOffset) {
+			curWorkAddr = curWorkAddr = curIndexAddr.fetch_add(4);
+			if (curWorkAddr >= endAddr) {
 				break;
 			}
 			uint64_t addr1 = 0;
-			if (!pRwDriver->ReadProcessMemory(1, curWorkOffset, &addr1, 8, NULL)) {
+			if (!pRwDriver->ReadProcessMemory(1, curWorkAddr, &addr1, 8, NULL)) {
 				continue;
 			}
 
@@ -549,7 +549,7 @@ void loop_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVector<A
 						}
 
 						OffsetResultInfo newOffset = { 0 };
-						newOffset.offset[0] = curWorkOffset - startAddr;
+						newOffset.offset[0] = curWorkAddr - startAddr;
 						newOffset.offset[1] = x2;
 						newOffset.offset[2] = x3;
 						newOffset.offset[3] = x4;
@@ -559,7 +559,7 @@ void loop_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVector<A
 				}
 			}
 
-			curWorkOffset = curIndexOffset.fetch_add(8);
+			curWorkAddr = curIndexAddr.fetch_add(8);
 		}
 		//将当前线程的搜索结果，汇总到父线程的全部搜索结果数组里
 		for (auto & item : vThreadOutput) {
@@ -631,6 +631,7 @@ int main(int argc, char *argv[])
 		fflush(stdout);
 		return 0;
 	}
+
 
 	//获取目标进程PID
 	const char *name = "com.miui.calculator";
