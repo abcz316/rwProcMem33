@@ -17,6 +17,7 @@ template<typename T> struct SafeVector
 		std::lock_guard<std::mutex> mlock(m_taskPoolLock);
 		m_vPool.clear();
 		m_vPool.assign(vPool.begin(), vPool.end());
+		m_nTaskCnt = m_vPool.size();
 		return;
 	}
 	void clear()
@@ -48,6 +49,33 @@ template<typename T> struct SafeVector
 		out = m_vPool.back();
 		m_vPool.pop_back();
 		m_nTaskCnt--;
+		return true;
+	}
+
+	bool get_vals(size_t get_cnt, std::vector<T> & vOut)
+	{
+		std::lock_guard<std::mutex> mlock(m_taskPoolLock);
+		if (get_cnt > m_vPool.size()) {
+			return false;
+		}
+		vOut.clear();
+		for (; get_cnt > 0; get_cnt--) {
+			if (!m_vPool.size()) {
+				break;
+			}
+			auto out_obj = m_vPool.back();
+			m_vPool.pop_back();
+			vOut.push_back(out_obj);
+			m_nTaskCnt--;
+		}
+		return true;
+	}
+
+	bool copy_vals(std::vector<T> & vOut)
+	{
+		std::lock_guard<std::mutex> mlock(m_taskPoolLock);
+		vOut.clear();
+		vOut.assign(m_vPool.begin(), m_vPool.end());
 		return true;
 	}
 

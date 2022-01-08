@@ -10,37 +10,37 @@
 
 enum Range
 {
-	ALL,        //ËùÓĞÄÚ´æ
-	B_BAD,      //BÄÚ´æ
-	C_ALLOC,    //CaÄÚ´æ
-	C_BSS,      //CbÄÚ´æ
-	C_DATA,     //CdÄÚ´æ
-	C_HEAP,     //ChÄÚ´æ
-	JAVA_HEAP,  //JhÄÚ´æ
-	A_ANONMYOUS,//AÄÚ´æ
-	CODE_SYSTEM,//XsÄÚ´æ r-xp
+	ALL,        //æ‰€æœ‰å†…å­˜
+	B_BAD,      //Bå†…å­˜
+	C_ALLOC,    //Caå†…å­˜
+	C_BSS,      //Cbå†…å­˜
+	C_DATA,     //Cdå†…å­˜
+	C_HEAP,     //Chå†…å­˜
+	JAVA_HEAP,  //Jhå†…å­˜
+	A_ANONMYOUS,//Aå†…å­˜
+	CODE_SYSTEM,//Xså†…å­˜ r-xp
 	//CODE_APP /data/ r-xp
 
-	STACK,      //SÄÚ´æ
-	ASHMEM,      //AsÄÚ´æ
-	X      //Ö´ĞĞÃüÁîÄÚ´æ r0xp
+	STACK,      //Så†…å­˜
+	ASHMEM,      //Aså†…å­˜
+	X      //æ‰§è¡Œå‘½ä»¤å†…å­˜ r0xp
 };
 
-//»ñÈ¡½ø³ÌµÄÄÚ´æ¿éÇøÓò
+//è·å–è¿›ç¨‹çš„å†…å­˜å—åŒºåŸŸ
 static BOOL GetMemRegion(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, int type, BOOL showPhy, std::vector<MEM_SECTION_INFO> & vOutput)
 {
-	//Çı¶¯_»ñÈ¡½ø³ÌÄÚ´æ¿éµØÖ·ÁĞ±í
+	//é©±åŠ¨_è·å–è¿›ç¨‹å†…å­˜å—åœ°å€åˆ—è¡¨
 	std::vector<DRIVER_REGION_INFO> vMapsList;
 	BOOL bOutListCompleted;
 	IReadWriteProxy->VirtualQueryExFull(hProcess, showPhy, vMapsList, bOutListCompleted);
 	if (vMapsList.size() == 0)
 	{
-		//ÎŞÄÚ´æ
+		//æ— å†…å­˜
 		return FALSE;
 	}
 
 
-	//´æ·Å¼´½«ÒªËÑË÷µÄÄÚ´æÇøÓò
+	//å­˜æ”¾å³å°†è¦æœç´¢çš„å†…å­˜åŒºåŸŸ
 	int vaild = 0;
 	vOutput.clear();
 	for (DRIVER_REGION_INFO rinfo : vMapsList)
@@ -106,15 +106,15 @@ static BOOL GetMemRegion(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProce
 	return TRUE;
 }
 
-//»ñÈ¡½ø³ÌÄ£¿éµØÖ·
-static BOOL GetMemModuleAddr(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, std::string moduleName,
-	MEM_SECTION_INFO &out) {
-	//Çı¶¯_»ñÈ¡½ø³ÌÄÚ´æ¿éµØÖ·ÁĞ±í
+//è·å–è¿›ç¨‹æ¨¡å—åœ°å€
+static BOOL GetMemModuleStartAddr(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName,
+	MEM_SECTION_INFO & out) {
+	//é©±åŠ¨_è·å–è¿›ç¨‹å†…å­˜å—åœ°å€åˆ—è¡¨
 	std::vector<DRIVER_REGION_INFO> vMapsList;
 	BOOL bOutListCompleted;
 	IReadWriteProxy->VirtualQueryExFull(hProcess, TRUE, vMapsList, bOutListCompleted);
 	if (vMapsList.size() == 0) {
-		//ÎŞÄÚ´æ
+		//æ— å†…å­˜
 		return FALSE;
 	}
 
@@ -129,6 +129,24 @@ static BOOL GetMemModuleAddr(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hP
 		}
 	}
 	return FALSE;
+}
+static BOOL GetMemModuleAddr(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName,
+	std::vector<DRIVER_REGION_INFO> &vOut) {
+	//é©±åŠ¨_è·å–è¿›ç¨‹å†…å­˜å—åœ°å€åˆ—è¡¨
+	std::vector<DRIVER_REGION_INFO> vMapsList;
+	BOOL bOutListCompleted;
+	IReadWriteProxy->VirtualQueryExFull(hProcess, TRUE, vMapsList, bOutListCompleted);
+	if (vMapsList.size() == 0) {
+		//æ— å†…å­˜
+		return FALSE;
+	}
+
+	for (DRIVER_REGION_INFO rinfo : vMapsList) {
+		if (std::string(rinfo.name).find(moduleName) != -1) {
+			vOut.push_back(rinfo);
+		}
+	}
+	return TRUE;
 }
 
 #endif //MEMSEARCHER_MAPREGIONHELPER_H

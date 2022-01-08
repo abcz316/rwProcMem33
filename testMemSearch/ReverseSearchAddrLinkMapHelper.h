@@ -14,17 +14,18 @@
 struct baseOffsetInfo
 {
 	std::vector<std::weak_ptr<baseOffsetInfo>> vwpLastNode;
-	uint64_t addrId = 0;
+	uint64_t addr = 0;
 
 #ifdef __linux__
-	ssize_t offset = 0;
+	ssize_t offset;
 #else
-	SSIZE_T offset = 0;
+	SSIZE_T offset;
 #endif
 	std::vector<std::weak_ptr<baseOffsetInfo>> vwpNextNode;
 };
 
-static std::string PrintfAddrOffsetLinkMap(const std::map<uint64_t, std::shared_ptr<baseOffsetInfo>> & baseAddrOffsetRecordMap, uint64_t startAddr) {
+static void PrintfAddrOffsetLinkMap(std::shared_ptr<baseOffsetInfo> startNode,
+	std::function<void(const std::string & newSinglePath, size_t deepIndex/*start from zero*/)> OnShowNewSinglePath) {
 
 	struct DeepStackIndexInfo {
 		size_t nCurStackObjNextNodeIndexNum = 0; //当前栈对象里的对象NextNode纵向深度坐标
@@ -33,15 +34,12 @@ static std::string PrintfAddrOffsetLinkMap(const std::map<uint64_t, std::shared_
 	} oDeepStackIndexInfo;
 	std::vector<std::shared_ptr<DeepStackIndexInfo>> vspDeepStackIndexInfo; //路径栈
 
-	if (baseAddrOffsetRecordMap.find(startAddr) == baseAddrOffsetRecordMap.end()) {
-		return std::string();
-	}
 
-	std::shared_ptr<baseOffsetInfo> spCurItem = baseAddrOffsetRecordMap.at(startAddr);
-	std::string strTotalShow; //显示的文本总路径
+	std::shared_ptr<baseOffsetInfo> spCurItem = startNode;
 	std::stringstream sstrTempShowAddrOffset;
 	while (spCurItem) {
 
+		sstrTempShowAddrOffset << " 0x" << std::hex << spCurItem->addr;
 		if (spCurItem->offset < 0) {
 			sstrTempShowAddrOffset << "-0x";
 			sstrTempShowAddrOffset << std::hex << -spCurItem->offset << "]";
@@ -51,7 +49,8 @@ static std::string PrintfAddrOffsetLinkMap(const std::map<uint64_t, std::shared_
 			sstrTempShowAddrOffset << std::hex << spCurItem->offset << "]";
 		}
 
-		strTotalShow += sstrTempShowAddrOffset.str() + "\n";
+		OnShowNewSinglePath(sstrTempShowAddrOffset.str(), vspDeepStackIndexInfo.size());
+	
 		if (spCurItem->vwpNextNode.size()) {
 
 			std::shared_ptr<DeepStackIndexInfo> spLastStack = std::make_shared<DeepStackIndexInfo>();
@@ -87,9 +86,6 @@ static std::string PrintfAddrOffsetLinkMap(const std::map<uint64_t, std::shared_
 		}
 
 	}
-
-	return strTotalShow;
-
 }
 static void test_PrintfAddrOffsetLinkMap() {
 	std::shared_ptr<baseOffsetInfo> demo1 = std::make_shared<baseOffsetInfo>();
@@ -104,33 +100,27 @@ static void test_PrintfAddrOffsetLinkMap() {
 	std::shared_ptr<baseOffsetInfo> demo42 = std::make_shared<baseOffsetInfo>();
 	std::shared_ptr<baseOffsetInfo> demo43 = std::make_shared<baseOffsetInfo>();
 	std::shared_ptr<baseOffsetInfo> demo44 = std::make_shared<baseOffsetInfo>();
-	demo1->addrId = 1;
-
-	demo21->addrId = 21;
-	demo22->addrId = 22;
-	demo23->addrId = 23;
-
-	demo31->addrId = 31;
-	demo32->addrId = 32;
-	demo33->addrId = 33;
-	demo34->addrId = 34;
-
-	demo41->addrId = 41;
-	demo42->addrId = 42;
-	demo43->addrId = 43;
-	demo44->addrId = 43;
-
+	demo1->addr = 1;
+	demo21->addr = 21;
+	demo22->addr = 22;
+	demo23->addr = 23;
+	demo31->addr = 31;
+	demo32->addr = 32;
+	demo33->addr = 33;
+	demo34->addr = 34;
+	demo41->addr = 41;
+	demo42->addr = 42;
+	demo43->addr = 43;
+	demo44->addr = 44;
+	
 	demo1->offset = 1;
-
 	demo21->offset = 21;
 	demo22->offset = 22;
 	demo23->offset = 23;
-
 	demo31->offset = 31;
 	demo32->offset = 32;
 	demo33->offset = 33;
 	demo34->offset = 34;
-
 	demo41->offset = 41;
 	demo42->offset = 42;
 	demo43->offset = 43;
@@ -182,7 +172,10 @@ static void test_PrintfAddrOffsetLinkMap() {
 	baseAddrOffsetRecordMap.insert({ 43, demo43 });
 	baseAddrOffsetRecordMap.insert({ 44, demo44 });
 
-	std::string result = PrintfAddrOffsetLinkMap(baseAddrOffsetRecordMap, 99);
+	std::string result;
+	PrintfAddrOffsetLinkMap(demo1, [&result](const std::string & newSinglePath, size_t deepIndex/*start from zero*/)->void {
+		result += newSinglePath + "\n";
+	});
 	assert(result.length());
 }
 #endif //REVERSE_SEARCH_ADDR_LINK_MAP_HELPER_H
