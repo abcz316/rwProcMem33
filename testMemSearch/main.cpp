@@ -453,12 +453,13 @@ void loop_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVector<A
 	for (auto sec : vLibxxx_so) {
 		if (startAddr == 0 && is_r0xp(&sec)) {
 			startAddr = sec.baseaddress; //设置起始位置
+			endAddr = startAddr + 0x7FFFFFFF; //设置结束位置，通常2G够用了
+			break;
 		}
-		uint64_t tmpEndAddr = sec.baseaddress + sec.size;
-		if (tmpEndAddr > endAddr) {
-			endAddr = tmpEndAddr + startAddr; //遍历一个so模块的大小区域，请务必再三确认此值范围是否在你所要的目标范围内，否则搜索不到难查出问题
-		}
-		
+		//uint64_t tmpEndAddr = sec.baseaddress + sec.size;
+		//if (tmpEndAddr > endAddr) {
+		//	endAddr = tmpEndAddr + startAddr; //遍历一个so模块的大小区域，请务必再三确认此值范围是否在你所要的目标范围内，否则搜索不到难查出问题
+		//}
 	}
 	if (!startAddr || !endAddr) {
 		printf("startAddr失败");
