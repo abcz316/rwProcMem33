@@ -111,7 +111,8 @@ template<typename T> static void SearchMemoryThread(
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<MEM_SECTION_INFO> & vErrorList);
+	SafeVector<MEM_SECTION_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal = nullptr);
 
 
 /*
@@ -142,7 +143,8 @@ template<typename T> static void SearchNextMemoryThread(
 	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<ADDR_RESULT_INFO> & vErrorList);
+	SafeVector<ADDR_RESULT_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal = nullptr);
 
 /*
 内存批量搜索值在两值之间的内存地址
@@ -161,7 +163,8 @@ template<typename T> static void SearchMemoryBatchBetweenValThread(
 	const std::vector<BATCH_BETWEEN_VAL<T>> & betweenValueList, int nThreadCount,
 	size_t nFastScanAlignment,
 	SafeVector<BATCH_BETWEEN_VAL_ADDR_RESULT<T>> & vResultList,
-	SafeVector<MEM_SECTION_INFO> & vErrorList);
+	SafeVector<MEM_SECTION_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal = nullptr);
 
 
 /*
@@ -187,7 +190,8 @@ template<typename T> static void SearchCopyProcessMemThread(
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<ADDR_RESULT_INFO> & vErrorList);
+	SafeVector<ADDR_RESULT_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal = nullptr);
 
 
 /*
@@ -208,7 +212,8 @@ static void SearchMemoryBytesThread(
 	int nThreadCount,
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<ADDR_RESULT_INFO> & vErrorList);
+	SafeVector<ADDR_RESULT_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal = nullptr);
 
 
 /*
@@ -233,7 +238,8 @@ static void SearchMemoryBytesThread2(
 	int nThreadCount,
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<MEM_SECTION_INFO> & vErrorList);
+	SafeVector<MEM_SECTION_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal = nullptr);
 
 /*
 再次搜索内存（搜索文本特征码）
@@ -253,7 +259,8 @@ static void SearchNextMemoryBytesThread(
 	int nThreadCount,
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<ADDR_RESULT_INFO> & vErrorList);
+	SafeVector<ADDR_RESULT_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal = nullptr);
 
 /*
 再次搜索内存（搜索内存特征码）
@@ -277,7 +284,8 @@ static void SearchNextMemoryBytesThread2(
 	int nThreadCount,
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<ADDR_RESULT_INFO> & vErrorList);
+	SafeVector<ADDR_RESULT_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal = nullptr);
 
 
 /*
@@ -293,15 +301,19 @@ static void CopyProcessMemDataThread(
 	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
 	int scanValueType,
 	SafeVector<COPY_MEM_INFO> & vOutputMemCopyList,
-	SafeVector<MEM_SECTION_INFO> & vErrorMemCopyList);
+	SafeVector<MEM_SECTION_INFO> & vErrorMemCopyList,
+	std::atomic<bool> * pForceStopSignal = nullptr);
 
 /*
 多线程执行任务
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
+void OnThreadExecute(size_t thread_id，std::atomic<bool> *pForceStopSignal)：每条线程要执行的任务回调（线程ID号，中止信号）
+std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 static void MultiThreadExecuteTask(
 	int nThreadCount,
-	std::function<void(size_t thread_id)> OnThreadExecut);
+	std::function<void(size_t thread_id, std::atomic<bool> *pForceStopSignal)> OnThreadExecut,
+	std::atomic<bool> * pForceStopSignal = nullptr);
 
 
 
@@ -471,6 +483,7 @@ nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
+std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 template<typename T> static void SearchMemoryThread(
 	IMemReaderWriterProxy* IReadWriteProxy, 
@@ -479,7 +492,8 @@ template<typename T> static void SearchMemoryThread(
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
 	size_t nFastScanAlignment, 
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<MEM_SECTION_INFO> & vErrorList)
+	SafeVector<MEM_SECTION_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
 {
 	//获取当前系统内存大小
 #ifdef __linux__
@@ -496,7 +510,7 @@ template<typename T> static void SearchMemoryThread(
 
 	MultiThreadExecuteTask(nThreadCount, [IReadWriteProxy, nMaxMemSize, hProcess,
 		&vScanMemMapsJobList, &vErrorList, value1, value2, errorRange, scanType,
-		&vResultList, nFastScanAlignment](size_t thread_id)->void {
+		&vResultList, nFastScanAlignment](size_t thread_id, std::atomic<bool> * pForceStopSignal)->void {
 
 		std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
 
@@ -573,7 +587,7 @@ template<typename T> static void SearchMemoryThread(
 			vResultList.push_back(newAddr);
 		}
 
-	});
+	}, pForceStopSignal);
 	vResultList.sort([](const ADDR_RESULT_INFO & a, const ADDR_RESULT_INFO & b) -> bool { return a.addr < b.addr; });
 	return;
 }
@@ -600,6 +614,7 @@ scanType：搜索类型：
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
+std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 template<typename T> static void SearchNextMemoryThread(
 	IMemReaderWriterProxy* IReadWriteProxy,
@@ -607,12 +622,13 @@ template<typename T> static void SearchNextMemoryThread(
 	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<ADDR_RESULT_INFO> & vErrorList)
+	SafeVector<ADDR_RESULT_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
 {
 	//内存搜索线程
 	MultiThreadExecuteTask(nThreadCount,
 		[IReadWriteProxy, hProcess, &vScanMemAddrList, &vErrorList,
-		value1, value2, errorRange, scanType, &vResultList](size_t thread_id)->void {
+		value1, value2, errorRange, scanType, &vResultList](size_t thread_id, std::atomic<bool> * pForceStopSignal)->void {
 
 		std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
 
@@ -775,7 +791,7 @@ template<typename T> static void SearchNextMemoryThread(
 			vResultList.push_back(newAddr);
 		}
 
-	});
+	}, pForceStopSignal);
 	vResultList.sort([](const ADDR_RESULT_INFO & a, const ADDR_RESULT_INFO & b) -> bool { return a.addr < b.addr; });
 	return;
 }
@@ -790,6 +806,7 @@ nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
+std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 template<typename T> static void SearchMemoryBatchBetweenValThread(
 	IMemReaderWriterProxy* IReadWriteProxy,
@@ -798,7 +815,8 @@ template<typename T> static void SearchMemoryBatchBetweenValThread(
 	const std::vector<BATCH_BETWEEN_VAL<T>> & betweenValueList, int nThreadCount,
 	size_t nFastScanAlignment,
 	SafeVector<BATCH_BETWEEN_VAL_ADDR_RESULT<T>> & vResultList,
-	SafeVector<MEM_SECTION_INFO> & vErrorList)
+	SafeVector<MEM_SECTION_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
 {
 	//获取当前系统内存大小
 #ifdef __linux__
@@ -815,7 +833,7 @@ template<typename T> static void SearchMemoryBatchBetweenValThread(
 
 	MultiThreadExecuteTask(nThreadCount,
 		[IReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsJobList,
-		&vErrorList, &betweenValueList, &vResultList, nFastScanAlignment](size_t thread_id)->void {
+		&vErrorList, &betweenValueList, &vResultList, nFastScanAlignment](size_t thread_id, std::atomic<bool> * pForceStopSignal)->void {
 
 		std::vector<BATCH_BETWEEN_VAL_ADDR_RESULT<T>> vThreadOutput; //存放当前线程的搜索结果
 
@@ -874,7 +892,7 @@ template<typename T> static void SearchMemoryBatchBetweenValThread(
 		for (BATCH_BETWEEN_VAL_ADDR_RESULT<T> & newAddr : vThreadOutput) {
 			vResultList.push_back(newAddr);
 		}
-	});
+	}, pForceStopSignal);
 
 	vResultList.sort([](const BATCH_BETWEEN_VAL_ADDR_RESULT<T> & a, const BATCH_BETWEEN_VAL_ADDR_RESULT<T> & b) -> bool { return a.addrInfo.addr < b.addrInfo.addr; });
 	return;
@@ -894,6 +912,7 @@ scanType：搜索类型：
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
+std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 template<typename T> static void SearchCopyProcessMemThread(
 	IMemReaderWriterProxy* IReadWriteProxy, 
@@ -902,12 +921,13 @@ template<typename T> static void SearchCopyProcessMemThread(
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
 	size_t nFastScanAlignment, 
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<COPY_MEM_INFO> & vErrorList)
+	SafeVector<COPY_MEM_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
 {
 
 	MultiThreadExecuteTask(nThreadCount,
 		[IReadWriteProxy, &vCopyProcessMemDataList, hProcess, value1, value2, errorRange,
-		scanType, nFastScanAlignment, &vResultList, &vErrorList](size_t thread_id)->void {
+		scanType, nFastScanAlignment, &vResultList, &vErrorList](size_t thread_id, std::atomic<bool> * pForceStopSignal)->void {
 
 		std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
 
@@ -1018,7 +1038,7 @@ template<typename T> static void SearchCopyProcessMemThread(
 		{
 			vResultList.push_back(newAddr);
 		}
-	});
+	}, pForceStopSignal);
 	vResultList.sort([](ADDR_RESULT_INFO & a, ADDR_RESULT_INFO & b) -> bool { return a.addr < b.addr; });
 	return;
 
@@ -1124,6 +1144,7 @@ nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
+std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 static void SearchMemoryBytesThread2(
 	IMemReaderWriterProxy* IReadWriteProxy,
@@ -1135,7 +1156,8 @@ static void SearchMemoryBytesThread2(
 	int nThreadCount,
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<MEM_SECTION_INFO> & vErrorList)
+	SafeVector<MEM_SECTION_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
 {
 	//获取当前系统内存大小
 #ifdef __linux__
@@ -1176,7 +1198,7 @@ static void SearchMemoryBytesThread2(
 
 	//内存搜索线程
 	MultiThreadExecuteTask(nThreadCount,
-		[IReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsList, vFeaturesByte, strFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList](size_t thread_id)->void
+		[IReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsList, vFeaturesByte, strFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList](size_t thread_id, std::atomic<bool> * pForceStopSignal)->void
 	{
 		std::string spStrFuzzyCode = strFuzzyCode;
 
@@ -1243,7 +1265,7 @@ static void SearchMemoryBytesThread2(
 			vResultList.push_back(newAddr);
 		}
 		return;
-	});
+	}, pForceStopSignal);
 	vResultList.sort([](const ADDR_RESULT_INFO & a, const ADDR_RESULT_INFO & b) -> bool { return a.addr < b.addr; });
 	return;
 }
@@ -1347,6 +1369,7 @@ nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
+std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 static void SearchNextMemoryBytesThread2(
 	IMemReaderWriterProxy* IReadWriteProxy,
@@ -1358,7 +1381,8 @@ static void SearchNextMemoryBytesThread2(
 	int nThreadCount,
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<ADDR_RESULT_INFO> & vErrorList)
+	SafeVector<ADDR_RESULT_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
 {
 
 	//生成特征码容错文本
@@ -1386,7 +1410,7 @@ static void SearchNextMemoryBytesThread2(
 
 	//内存搜索线程
 	MultiThreadExecuteTask(nThreadCount,
-		[IReadWriteProxy, &vScanMemAddrList, hProcess, vFeaturesByte, strFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList](size_t thread_id)->void
+		[IReadWriteProxy, &vScanMemAddrList, hProcess, vFeaturesByte, strFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList](size_t thread_id, std::atomic<bool> * pForceStopSignal)->void
 	{
 		std::string spStrFuzzyCode = strFuzzyCode;
 		//是否启用特征码容错搜索
@@ -1453,7 +1477,7 @@ static void SearchNextMemoryBytesThread2(
 			vResultList.push_back(newAddr);
 		}
 
-	});
+	}, pForceStopSignal);
 		
 	vResultList.sort([](const ADDR_RESULT_INFO & a, const ADDR_RESULT_INFO & b) -> bool { return a.addr < b.addr; });
 	return;
@@ -1466,6 +1490,7 @@ vScanMemMapsList: 被拷贝的进程内存区域
 nThreadCount：用于拷贝内存的线程数，推荐设置为CPU数量
 vOutputMemCopyList：拷贝进程内存数据的存放区域
 vErrorMemCopyList：拷贝进程内存数据失败的存放区域
+std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 static void CopyProcessMemDataThread(
 	IMemReaderWriterProxy* IReadWriteProxy,
@@ -1473,7 +1498,8 @@ static void CopyProcessMemDataThread(
 	SafeVector<MEM_SECTION_INFO> & vScanMemMapsList,
 	int nThreadCount,
 	SafeVector<COPY_MEM_INFO> & vOutputMemCopyList,
-	SafeVector<MEM_SECTION_INFO> & vErrorMemCopyList)
+	SafeVector<MEM_SECTION_INFO> & vErrorMemCopyList,
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
 {
 
 	//获取当前系统内存大小
@@ -1490,14 +1516,13 @@ static void CopyProcessMemDataThread(
 #endif
 
 	MultiThreadExecuteTask(nThreadCount,
-		[IReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsList, &vErrorMemCopyList, &vOutputMemCopyList](size_t thread_id)->void
+		[IReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsList, &vErrorMemCopyList, &vOutputMemCopyList](size_t thread_id, std::atomic<bool> * pForceStopSignal)->void
 	{
 		std::vector<COPY_MEM_INFO> vThreadOutput; //存放当前线程的搜索结果
 
 		//一个一个job拿会拖慢速度
 		std::vector<MEM_SECTION_INFO> vTempJobMemSecInfo;
-		while (vTempJobMemSecInfo.size() || vScanMemMapsList.get_vals(GET_JOB_COUNT, vTempJobMemSecInfo) || vScanMemMapsList.get_vals(1, vTempJobMemSecInfo))
-		{
+		while (vTempJobMemSecInfo.size() || vScanMemMapsList.get_vals(GET_JOB_COUNT, vTempJobMemSecInfo) || vScanMemMapsList.get_vals(1, vTempJobMemSecInfo)) {
 			MEM_SECTION_INFO memSecInfo = vTempJobMemSecInfo.back();
 			vTempJobMemSecInfo.pop_back();
 			//当前内存区域块大小超过了最大内存申请的限制，所以跳过
@@ -1526,12 +1551,15 @@ static void CopyProcessMemDataThread(
 			copyMem.nSectionSize = dwRead;
 			copyMem.spSaveMemBuf = spMemBuf;
 			vThreadOutput.push_back(copyMem);
+			if (pForceStopSignal && *pForceStopSignal) {
+				break;
+			}
 		}
 		//将当前线程的搜索结果，汇总到父线程的全部搜索结果数组里
 		for (auto & item : vThreadOutput) {
 			vOutputMemCopyList.push_back(item);
 		}
-	});
+	}, pForceStopSignal);
 
 	//vOutputMemCopyList.sort([](const COPY_MEM_INFO & a, const COPY_MEM_INFO & b) -> bool { return a.npSectionAddr < b.npSectionAddr; });
 }
@@ -1541,11 +1569,13 @@ static void CopyProcessMemDataThread(
 /*
 多线程执行任务
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
-void OnThreadExecute(size_t thread_id)：每条线程要执行的任务
+void OnThreadExecute(size_t thread_id，std::atomic<bool> *pForceStopSignal)：每条线程要执行的任务回调（线程ID号，中止信号）
+std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 static void MultiThreadExecuteTask(
 	int nThreadCount,
-	std::function<void(size_t thread_id)> OnThreadExecute)
+	std::function<void(size_t thread_id, std::atomic<bool> *pForceStopSignal)> OnThreadExecute,
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
 {
 
 	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
@@ -1562,10 +1592,10 @@ static void MultiThreadExecuteTask(
 		std::shared_ptr<std::atomic<bool>> spnThreadStarted = vbThreadStarted[i];
 		//工作线程
 		std::thread td(
-			[i, OnThreadExecute, spMtxThread, spnThreadStarted]()->void {
+			[i, OnThreadExecute, spMtxThread, spnThreadStarted, pForceStopSignal]()->void {
 			std::lock_guard<std::mutex> mlock(*spMtxThread);
 			spnThreadStarted->store(true);
-			OnThreadExecute(i);
+			OnThreadExecute(i, pForceStopSignal);
 		});
 		td.detach();
 	}
