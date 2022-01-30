@@ -7,7 +7,6 @@
 #include "../testKo/MemoryReaderWriter37.h"
 #include "MemSearchHelper.h"
 #include "MapRegionType.h"
-#include <string_view>
 
 enum RangeType
 {
