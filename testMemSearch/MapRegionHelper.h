@@ -7,8 +7,9 @@
 #include "../testKo/MemoryReaderWriter37.h"
 #include "MemSearchHelper.h"
 #include "MapRegionType.h"
+#include <string_view>
 
-enum Range
+enum RangeType
 {
 	ALL,        //所有内存
 	B_BAD,      //B内存
@@ -23,11 +24,13 @@ enum Range
 
 	STACK,      //S内存
 	ASHMEM,      //As内存
-	X      //执行命令内存 r0xp
+	X,      //执行命令内存 r0xp
+	R0_0,      //可读非执行内存 r0_0
+	RW_0       //可读可写非执行内存 rw_0
 };
 
 //获取进程的内存块区域
-static BOOL GetMemRegion(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, int type, BOOL showPhy, std::vector<MEM_SECTION_INFO> & vOutput)
+static BOOL GetMemRegion(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, RangeType type, BOOL showPhy, std::vector<MEM_SECTION_INFO> & vOutput)
 {
 	//驱动_获取进程内存块地址列表
 	std::vector<DRIVER_REGION_INFO> vMapsList;
@@ -39,57 +42,63 @@ static BOOL GetMemRegion(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProce
 		return FALSE;
 	}
 
-
 	//存放即将要搜索的内存区域
-	int vaild = 0;
 	vOutput.clear();
-	for (DRIVER_REGION_INFO rinfo : vMapsList)
-	{
-		if (type == Range::X)
+	for (DRIVER_REGION_INFO rinfo : vMapsList) {
+		int vaild = 0;
+		if (type == RangeType::X)
 		{
 			if (is_r0xp(&rinfo)) { vaild = 1; }
 		}
-		else if (type == Range::ALL) { vaild = 1; }
+		else if (type == RangeType::R0_0)
+		{
+			if (is_r0_0(&rinfo)) { vaild = 1; }
+		}
+		else if (type == RangeType::RW_0)
+		{
+			if (is_rw_0(&rinfo)) { vaild = 1; }
+		}
+		else if (type == RangeType::ALL) { vaild = 1; }
 
 		else if (!is_rw00(&rinfo)) { continue; }
 
-		else if (type == Range::B_BAD)
+		else if (type == RangeType::B_BAD)
 		{
 			if (is_B(&rinfo)) { vaild = 1; }
 		}
-		else if (type == Range::C_ALLOC)
+		else if (type == RangeType::C_ALLOC)
 		{
 			if (strstr(rinfo.name, "[anon:libc_malloc]")) { vaild = 1; }
 		}
-		else if (type == Range::C_BSS)
+		else if (type == RangeType::C_BSS)
 		{
 			if (strstr(rinfo.name, "[anon:.bss]")) { vaild = 1; }
 		}
-		else if (type == Range::C_DATA)
+		else if (type == RangeType::C_DATA)
 		{
 			if (strstr(rinfo.name, "/data/app/")) { vaild = 1; }
 		}
-		else if (type == Range::C_HEAP)
+		else if (type == RangeType::C_HEAP)
 		{
 			if (is_Ch(&rinfo)) { vaild = 1; }
 		}
-		else if (type == Range::JAVA_HEAP)
+		else if (type == RangeType::JAVA_HEAP)
 		{
 			if (is_Jh(&rinfo)) { vaild = 1; }
 		}
-		else if (type == Range::A_ANONMYOUS)
+		else if (type == RangeType::A_ANONMYOUS)
 		{
 			if (is_A(&rinfo)) { vaild = 1; }
 		}
-		else if (type == Range::CODE_SYSTEM)
+		else if (type == RangeType::CODE_SYSTEM)
 		{
 			if (strstr(rinfo.name, "/system")) { vaild = 1; }
 		}
-		else if (type == Range::STACK)
+		else if (type == RangeType::STACK)
 		{
 			if (is_S(&rinfo)) { vaild = 1; }
 		}
-		else if (type == Range::ASHMEM)
+		else if (type == RangeType::ASHMEM)
 		{
 			if (strstr(rinfo.name, "/dev/ashmem/") && !strstr(rinfo.name, "dalvik")) { vaild = 1; }
 		}
@@ -106,8 +115,8 @@ static BOOL GetMemRegion(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProce
 	return TRUE;
 }
 
-//获取进程模块地址
-static BOOL GetMemModuleStartAddr(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName,
+//获取进程模块执行内存起始地址
+static BOOL GetMemModuleExecStartAddr(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName,
 	MEM_SECTION_INFO & out) {
 	//驱动_获取进程内存块地址列表
 	std::vector<DRIVER_REGION_INFO> vMapsList;
@@ -117,21 +126,23 @@ static BOOL GetMemModuleStartAddr(IMemReaderWriterProxy *IReadWriteProxy, uint64
 		//无内存
 		return FALSE;
 	}
-
+	const char* targetModuleName = moduleName.c_str();
 	for (DRIVER_REGION_INFO rinfo : vMapsList) {
 		if (!is_r0xp(&rinfo)) {
 			continue;
 		}
-		if (std::string(rinfo.name).find(moduleName) != -1) {
+		if (strstr(rinfo.name, targetModuleName)) {
 			out.npSectionAddr = rinfo.baseaddress;
 			out.nSectionSize = rinfo.size;
-			return TRUE;
+			break;
 		}
 	}
-	return FALSE;
+	return TRUE;
 }
-static BOOL GetMemModuleAddr(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName,
-	std::vector<DRIVER_REGION_INFO> &vOut) {
+
+//获取进程模块执行区域内存地址
+static BOOL GetMemModuleExecAreaSection(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName,
+	std::vector<MEM_SECTION_INFO> & vOut) {
 	//驱动_获取进程内存块地址列表
 	std::vector<DRIVER_REGION_INFO> vMapsList;
 	BOOL bOutListCompleted;
@@ -140,13 +151,69 @@ static BOOL GetMemModuleAddr(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hP
 		//无内存
 		return FALSE;
 	}
-
+	const char* targetModuleName = moduleName.c_str();
 	for (DRIVER_REGION_INFO rinfo : vMapsList) {
-		if (std::string(rinfo.name).find(moduleName) != -1) {
-			vOut.push_back(rinfo);
+		if (!is_r0xp(&rinfo)) {
+			continue;
+		}
+		if (strstr(rinfo.name, targetModuleName)) {
+			MEM_SECTION_INFO newSec;
+			newSec.npSectionAddr = rinfo.baseaddress;
+			newSec.nSectionSize = rinfo.size;
+			vOut.push_back(newSec);
 		}
 	}
 	return TRUE;
 }
+
+
+//获取进程模块数据区域内存地址
+static BOOL GetMemModuleDataAreaSection(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName,
+	std::vector<MEM_SECTION_INFO> & vOut) {
+	//1.获取进程内存块地址列表
+	std::vector<DRIVER_REGION_INFO> vMapsList;
+	BOOL bOutListCompleted;
+	IReadWriteProxy->VirtualQueryExFull(1, TRUE, vMapsList, bOutListCompleted);
+	if (vMapsList.size() == 0) {
+		//无内存
+		return FALSE;
+	}
+
+	std::vector<DRIVER_REGION_INFO> vLibUE4_so;
+	uint64_t startExecuteAddr = 0;
+	uint64_t startAddr = 0; //遍历起始位置
+	uint64_t endAddr = 0; //遍历结束位置
+	const char* targetModuleName = moduleName.c_str();
+	for (DRIVER_REGION_INFO rinfo : vMapsList) {
+		if (startExecuteAddr == 0 && strstr(rinfo.name, targetModuleName) && is_r0xp(&rinfo)) {
+			startExecuteAddr = rinfo.baseaddress; //记录模块起始位置
+		}
+		else if (startExecuteAddr && startAddr == 0 && is_rw00(&rinfo)) {
+			startAddr = rinfo.baseaddress; //设置遍历起始位置
+
+			MEM_SECTION_INFO newSec;
+			newSec.npSectionAddr = rinfo.baseaddress;
+			newSec.nSectionSize = rinfo.size;
+			vOut.push_back(newSec);
+
+		}
+		else if (startExecuteAddr && startAddr && is_rw00(&rinfo)) {
+			endAddr = rinfo.baseaddress + rinfo.size; //设置遍历结束位置，一个so模块的区域，包括后面无名内存
+
+			MEM_SECTION_INFO newSec;
+			newSec.npSectionAddr = rinfo.baseaddress;
+			newSec.nSectionSize = rinfo.size;
+			vOut.push_back(newSec);
+		}
+		else if (startExecuteAddr && startAddr && endAddr && is_r0xp(&rinfo)) {
+			break;
+		}
+	}
+	if (!startAddr || !endAddr) {
+		return FALSE;
+	}
+	return TRUE;
+}
+
 
 #endif //MEMSEARCHER_MAPREGIONHELPER_H

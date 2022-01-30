@@ -93,7 +93,7 @@ hProcess：被搜索的进程句柄
 vScanMemMapsJobList: 被搜索的进程内存区域
 value1: 要搜索的数值1
 value2: 要搜索的数值2
-errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
+errorRange: 误差范围（当搜索的数值为float或者double时此值有效，其余情况请填写0）
 scanType：搜索类型：
 				ACCURATE_VAL精确数值（value1生效）、
 				LARGER_THAN_VAL值大于（value1生效）、
@@ -121,7 +121,7 @@ hProcess：被搜索的进程句柄
 vScanMemAddrList: 需要再次搜索的内存地址列表
 value1: 要搜索数值1
 value2: 要搜索数值2
-errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
+errorRange: 误差范围（当搜索的数值为float或者double时此值有效，其余情况请填写0）
 scanType：搜索类型：
 				ACCURATE_VAL精确数值（value1生效）、
 				LARGER_THAN_VAL值大于（value1生效）、
@@ -172,7 +172,7 @@ template<typename T> static void SearchMemoryBatchBetweenValThread(
 vCopyProcessMemDataList: 需要再次搜索的已拷贝的进程内存列表
 value1: 要搜索的数值1
 value2: 要搜索的数值2
-errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
+errorRange: 误差范围（当搜索的数值为float或者double时此值有效，其余情况请填写0）
 scanType：搜索类型：
 				ACCURATE_VAL精确数值（value1生效）、
 				LARGER_THAN_VAL值大于（value1生效）、
@@ -203,6 +203,7 @@ nThreadCount: 用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
+std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 static void SearchMemoryBytesThread(
 	IMemReaderWriterProxy* IReadWriteProxy,
@@ -323,11 +324,10 @@ static void MultiThreadExecuteTask(
 dwAddr：要搜索的缓冲区地址
 dwLen：要搜索的缓冲区大小
 value: 要搜索的数值
-errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
-template<typename T> static inline void FindValue(size_t dwAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
+template<typename T> static inline void FindValue(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr);
 
 /*
 寻找大于的数值
@@ -381,7 +381,7 @@ dwOldAddr：要搜索的旧数据缓冲区地址
 dwNewAddr：要搜索的新数据缓冲区地址
 dwLen：要搜索的缓冲区大小
 value: 要搜索增加的已知值
-errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
+errorRange: 误差范围（当搜索的数值为float或者double时此值有效，其余情况请填写0）
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
@@ -405,7 +405,7 @@ dwOldAddr：要搜索的旧数据缓冲区地址
 dwNewAddr：要搜索的新数据缓冲区地址
 dwLen：要搜索的缓冲区大小
 value: 要搜索减少的已知值
-errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
+errorRange: 误差范围（当搜索的数值为float或者double时此值有效，其余情况请填写0）
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
@@ -473,7 +473,7 @@ hProcess：被搜索的进程句柄
 vScanMemMapsJobList: 被搜索的进程内存区域
 value1: 要搜索的数值1
 value2: 要搜索的数值2
-errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
+errorRange: 误差范围（当搜索的数值为float或者double时此值有效，其余情况请填写0）
 scanType：搜索类型：
 				ACCURATE_VAL精确数值（value1生效）、
 				LARGER_THAN_VAL值大于（value1生效）、
@@ -514,6 +514,8 @@ template<typename T> static void SearchMemoryThread(
 
 		std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
 
+		bool isFloatVal = typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0));
+
 		//一个一个job拿会拖慢速度
 		std::vector<MEM_SECTION_INFO> vTempJobMemSecInfo;
 		while (vTempJobMemSecInfo.size() || vScanMemMapsJobList.get_vals(GET_JOB_COUNT, vTempJobMemSecInfo) || vScanMemMapsJobList.get_vals(1, vTempJobMemSecInfo)) {
@@ -537,7 +539,7 @@ template<typename T> static void SearchMemoryThread(
 
 			std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 			size_t dwRead = 0;
-			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
+			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead))
 			{
 				vErrorList.push_back(memSecInfo);
 				continue;
@@ -549,7 +551,14 @@ template<typename T> static void SearchMemoryThread(
 			{
 			case SCAN_TYPE::ACCURATE_VAL:
 				//精确数值
-				FindValue<T>((size_t)spMemBuf.get(), dwRead, value1, errorRange, nFastScanAlignment, vFindAddr);
+				if (isFloatVal) {
+					FindBetween<T>((size_t)(spMemBuf.get()),
+						dwRead, value1 - errorRange, value1 + errorRange, nFastScanAlignment, vFindAddr);
+				}
+				else {
+					FindValue<T>((size_t)spMemBuf.get(), dwRead, value1, nFastScanAlignment, vFindAddr);
+				}
+				
 				break;
 			case SCAN_TYPE::LARGER_THAN_VAL:
 				//值大于
@@ -599,7 +608,7 @@ hProcess：被搜索的进程句柄
 vScanMemAddrList: 需要再次搜索的内存地址列表
 value1: 要搜索数值1
 value2: 要搜索数值2
-errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
+errorRange: 误差范围（当搜索的数值为float或者double时此值有效，其余情况请填写0）
 scanType：搜索类型：
 				ACCURATE_VAL精确数值（value1生效）、
 				LARGER_THAN_VAL值大于（value1生效）、
@@ -632,6 +641,8 @@ template<typename T> static void SearchNextMemoryThread(
 
 		std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
 
+		bool isFloatVal = typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0));
+
 		//一个一个job拿会拖慢速度
 		std::vector<ADDR_RESULT_INFO> vTempJobMemAddrInfo;
 		while (vTempJobMemAddrInfo.size() || vScanMemAddrList.get_vals(GET_JOB_COUNT, vTempJobMemAddrInfo) || vScanMemAddrList.get_vals(1, vTempJobMemAddrInfo))
@@ -641,7 +652,7 @@ template<typename T> static void SearchNextMemoryThread(
 
 			T temp = 0;
 			size_t dwRead = 0;
-			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, &temp, sizeof(temp), &dwRead, FALSE))
+			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, &temp, sizeof(temp), &dwRead))
 			{
 				vErrorList.push_back(memAddrJob);
 				continue;
@@ -657,13 +668,11 @@ template<typename T> static void SearchNextMemoryThread(
 			switch (scanType)
 			{
 			case SCAN_TYPE::ACCURATE_VAL:
-				if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
-				{
+				if (isFloatVal) {
 					//当是float、double数值的情况
 					if ((value1 - errorRange) > temp || temp > (value1 + errorRange)) { continue; }
 				}
-				else
-				{
+				else {
 					//精确数值
 					if (temp != value1) { continue; }
 				}
@@ -692,16 +701,14 @@ template<typename T> static void SearchNextMemoryThread(
 				if (temp <= *(T*)(memAddrJob.spSaveData.get())) { continue; }
 				break;
 			case SCAN_TYPE::ADD_ACCURATE_VAL:
-				if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
-				{
+				if (isFloatVal) {
 					//float、double数值增加了的结果保留
 					T* pOldData = (T*)&(*memAddrJob.spSaveData);
 					T add = (temp)-(*pOldData);
 
 					if ((value1 - errorRange) > add || add > (value1 + errorRange)) { continue; }
 				}
-				else
-				{
+				else {
 					//数值增加了的结果保留
 					if ( ((temp)-(*(T*)(memAddrJob.spSaveData.get()))) != value1) { continue; }
 
@@ -712,8 +719,7 @@ template<typename T> static void SearchNextMemoryThread(
 				if (temp >= *(T*)(memAddrJob.spSaveData.get())) { continue; }
 				break;
 			case SCAN_TYPE::SUB_ACCURATE_VAL:
-				if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
-				{
+				if (isFloatVal) {
 					//float、double数值减少了的结果保留
 					T* pOldData = (T*)&(*memAddrJob.spSaveData);
 					T sum = (*pOldData) - (temp);
@@ -721,15 +727,13 @@ template<typename T> static void SearchNextMemoryThread(
 					if ((value1 - errorRange) > sum || sum > (value1 + errorRange)) { continue; }
 
 				}
-				else
-				{
+				else {
 					//数值减少了的结果保留
 					if (((*(T*)(memAddrJob.spSaveData.get())) - (temp)) != value1) { continue; }
 				}
 				break;
 			case SCAN_TYPE::CHANGED_VAL:
-				if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
-				{
+				if (isFloatVal) {
 					//float、double变动的数值的结果保留
 					T* pOldData = (T*)memAddrJob.spSaveData.get();
 					if (temp > (*pOldData))
@@ -742,15 +746,13 @@ template<typename T> static void SearchNextMemoryThread(
 					}
 
 				}
-				else
-				{
+				else {
 					//变动的数值的结果保留
 					if (temp == *(T*)(memAddrJob.spSaveData.get())) { continue; }
 				}
 				break;
 			case SCAN_TYPE::UNCHANGED_VAL:
-				if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
-				{
+				if (isFloatVal) {
 					//float、double未变动的数值的结果保留
 					T* pOldData = (T*)memAddrJob.spSaveData.get();
 
@@ -764,8 +766,7 @@ template<typename T> static void SearchNextMemoryThread(
 					}
 
 				}
-				else
-				{
+				else {
 					//未变动的数值的结果保留
 					if (temp != *(T*)(memAddrJob.spSaveData.get())) { continue; }
 				}
@@ -858,7 +859,7 @@ template<typename T> static void SearchMemoryBatchBetweenValThread(
 
 			std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 			size_t dwRead = 0;
-			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
+			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead))
 			{
 				vErrorList.push_back(memSecInfo);
 				continue;
@@ -902,7 +903,7 @@ template<typename T> static void SearchMemoryBatchBetweenValThread(
 vCopyProcessMemDataList: 需要再次搜索的已拷贝的进程内存列表
 value1: 要搜索的数值1
 value2: 要搜索的数值2
-errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
+errorRange: 误差范围（当搜索的数值为float或者double时此值有效，其余情况请填写0）
 scanType：搜索类型：
 				ACCURATE_VAL精确数值（value1生效）、
 				LARGER_THAN_VAL值大于（value1生效）、
@@ -931,6 +932,9 @@ template<typename T> static void SearchCopyProcessMemThread(
 
 		std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
 
+
+		bool isFloatVal = typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0));
+
 		//一个一个job拿会拖慢速度
 		std::vector<COPY_MEM_INFO> vTempJobMemSecInfo;
 		while (vTempJobMemSecInfo.size() || vCopyProcessMemDataList.get_vals(GET_JOB_COUNT, vTempJobMemSecInfo) || vCopyProcessMemDataList.get_vals(1, vTempJobMemSecInfo))
@@ -946,8 +950,15 @@ template<typename T> static void SearchCopyProcessMemThread(
 			{
 			case SCAN_TYPE::ACCURATE_VAL:
 				//精确数值
-				FindValue<T>((size_t)(memSecInfo.spSaveMemBuf.get()),
-					memSecInfo.nSectionSize, value1, errorRange, nFastScanAlignment, vFindAddr);
+				if (isFloatVal) {
+					FindBetween<T>((size_t)(memSecInfo.spSaveMemBuf.get()),
+						memSecInfo.nSectionSize, value1 - errorRange, value1 + errorRange, nFastScanAlignment, vFindAddr);
+				}
+				else {
+					FindValue<T>((size_t)(memSecInfo.spSaveMemBuf.get()),
+						memSecInfo.nSectionSize, value1, nFastScanAlignment, vFindAddr);
+				}
+				
 				break;
 			case SCAN_TYPE::LARGER_THAN_VAL:
 				//值大于
@@ -981,7 +992,7 @@ template<typename T> static void SearchCopyProcessMemThread(
 
 				std::shared_ptr<unsigned char> sp(pnew, std::default_delete<unsigned char[]>());
 
-				if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, sp.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
+				if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, sp.get(), memSecInfo.nSectionSize, &dwRead))
 				{
 					vErrorList.push_back(memSecInfo);
 					continue;
@@ -1055,6 +1066,7 @@ nThreadCount: 用于搜索内存的线程数，推荐设置为CPU数量
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vResultList：存放实时搜索完成的结果地址
 vErrorList：存放实时搜索失败的结果地址
+std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 static void SearchMemoryBytesThread(
 	IMemReaderWriterProxy* IReadWriteProxy,
@@ -1064,7 +1076,8 @@ static void SearchMemoryBytesThread(
 	int nThreadCount,
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<MEM_SECTION_INFO> & vErrorList)
+	SafeVector<MEM_SECTION_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
 {
 
 
@@ -1130,7 +1143,8 @@ static void SearchMemoryBytesThread(
 		nThreadCount,
 		nFastScanAlignment,
 		vResultList,
-		vErrorList);
+		vErrorList,
+		pForceStopSignal);
 }
 
 /*
@@ -1227,7 +1241,7 @@ static void SearchMemoryBytesThread2(
 
 			std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 			size_t dwRead = 0;
-			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE))
+			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead))
 			{
 				vErrorList.push_back(memSecInfo);
 				continue;
@@ -1289,7 +1303,8 @@ static void SearchNextMemoryBytesThread(
 	int nThreadCount,
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
-	SafeVector<ADDR_RESULT_INFO> & vErrorList)
+	SafeVector<ADDR_RESULT_INFO> & vErrorList,
+	std::atomic<bool> * pForceStopSignal)
 {
 	//预处理特征码
 	replace_all_distinct(strFeaturesByte, " ", "");//去除空格
@@ -1354,7 +1369,8 @@ static void SearchNextMemoryBytesThread(
 		nThreadCount,
 		nFastScanAlignment,
 		vResultList,
-		vErrorList);
+		vErrorList,
+		pForceStopSignal);
 
 }
 
@@ -1438,7 +1454,7 @@ static void SearchNextMemoryBytesThread2(
 
 			std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 			size_t dwRead = 0;
-			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, spMemBuf.get(), memBufSize, &dwRead, FALSE))
+			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, spMemBuf.get(), memBufSize, &dwRead))
 			{
 				vErrorList.push_back(memAddrJob);
 				continue;
@@ -1542,7 +1558,7 @@ static void CopyProcessMemDataThread(
 
 			std::shared_ptr<unsigned char>spMemBuf(pnew, std::default_delete<unsigned char[]>());
 			size_t dwRead = 0;
-			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead, FALSE)) {
+			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead)) {
 				vErrorMemCopyList.push_back(memSecInfo);
 				continue;
 			}
@@ -1624,39 +1640,29 @@ static void MultiThreadExecuteTask(
 dwAddr：要搜索的缓冲区地址
 dwLen：要搜索的缓冲区大小
 value: 要搜索的数值
-errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
-template<typename T> static inline void FindValue(size_t dwAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
+template<typename T> static inline void FindValue(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
 {
-	if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
-	{
-		FindBetween(dwAddr, dwLen, value - errorRange, value + errorRange, nFastScanAlignment, vOutputAddr);
-	}
-	else
-	{
-		vOutputAddr.clear();
+	vOutputAddr.clear();
 
-		for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
+	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
+	{
+		if ((dwLen - i) < sizeof(T))
 		{
-			if ((dwLen - i) < sizeof(T))
-			{
-				//要搜索的数据已经小于T的长度了
-				break;
-			}
-
-			T* pData = (T*)(dwAddr + i);
-
-			if (*pData == value)
-			{
-				vOutputAddr.push_back((size_t)((size_t)dwAddr + (size_t)i));
-			}
-			continue;
+			//要搜索的数据已经小于T的长度了
+			break;
 		}
-	}
-	return;
 
+		T* pData = (T*)(dwAddr + i);
+
+		if (*pData == value)
+		{
+			vOutputAddr.push_back((size_t)((size_t)dwAddr + (size_t)i));
+		}
+		continue;
+	}
 }
 
 /*
@@ -1795,7 +1801,7 @@ dwOldAddr：要搜索的旧数据缓冲区地址
 dwNewAddr：要搜索的新数据缓冲区地址
 dwLen：要搜索的缓冲区大小
 value: 要搜索增加的已知值
-errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
+errorRange: 误差范围（当搜索的数值为float或者double时此值有效，其余情况请填写0）
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
@@ -1804,7 +1810,7 @@ template<typename T> static inline void FindAdd(size_t dwOldAddr, size_t dwNewAd
 	vOutputAddr.clear();
 
 	float value1, value2;
-	if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
+	if (errorRange)
 	{
 		value1 = value - errorRange;
 		value2 = value + errorRange;
@@ -1821,7 +1827,7 @@ template<typename T> static inline void FindAdd(size_t dwOldAddr, size_t dwNewAd
 		T* pNewData = (T*)(dwNewAddr + i);
 		T myAdd = ((*pNewData) - (*pOldData));
 
-		if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
+		if (errorRange)
 		{
 			if (myAdd >= value1 && myAdd <= value2)
 			{
@@ -1880,7 +1886,7 @@ dwOldAddr：要搜索的旧数据缓冲区地址
 dwNewAddr：要搜索的新数据缓冲区地址
 dwLen：要搜索的缓冲区大小
 value: 要搜索减少的已知值
-errorRange: 误差范围（当搜索的数值为float或者double时此值生效）
+errorRange: 误差范围（当搜索的数值为float或者double时此值有效，其余情况请填写0）
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
@@ -1889,7 +1895,7 @@ template<typename T> static inline void FindSum(size_t dwOldAddr, size_t dwNewAd
 	vOutputAddr.clear();
 
 	float value1, value2;
-	if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
+	if (errorRange)
 	{
 		value1 = value - errorRange;
 		value2 = value + errorRange;
@@ -1907,7 +1913,7 @@ template<typename T> static inline void FindSum(size_t dwOldAddr, size_t dwNewAd
 		T* pNewData = (T*)(dwNewAddr + i);
 		T mySum = ((*pOldData) - (*pNewData));
 
-		if (typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0)))
+		if (errorRange)
 		{
 			if (mySum >= value1 && mySum <= value2)
 			{

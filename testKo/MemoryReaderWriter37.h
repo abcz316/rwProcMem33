@@ -1081,7 +1081,7 @@ static inline BOOL rwProcMemDriver_GetProcessCmdline(int nDriverLink, uint64_t h
 		len = bufSize;
 	}
 	memset(lpOutCmdlineBuf, 0, bufSize);
-	return rwProcMemDriver_ReadProcessMemory(nDriverLink, hProcess, arg_start, lpOutCmdlineBuf, len, NULL, false);
+	return rwProcMemDriver_ReadProcessMemory(nDriverLink, hProcess, arg_start, lpOutCmdlineBuf, len, NULL, FALSE);
 }
 #endif /*__linux__*/
 

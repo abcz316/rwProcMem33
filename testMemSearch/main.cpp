@@ -51,7 +51,7 @@ void normal_val_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVe
 	//获取进程ANONMYOUS内存区域
 	std::vector<MEM_SECTION_INFO> vScanMemMaps;
 	GetMemRegion(pRwDriver, hProcess,
-		A_ANONMYOUS,
+		R0_0,
 		TRUE/*FALSE为全部内存，TRUE为只在物理内存中的内存*/,
 		vScanMemMaps);
 	if (!vScanMemMaps.size())
@@ -180,7 +180,7 @@ void reverse_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVecto
 	//获取进程ANONMYOUS内存区域
 	std::vector<MEM_SECTION_INFO> vScanMemMaps;
 	GetMemRegion(pRwDriver, hProcess,
-		A_ANONMYOUS,
+		R0_0,
 		TRUE/*FALSE为全部内存，TRUE为只在物理内存中的内存*/,
 		vScanMemMaps);
 	if (!vScanMemMaps.size())
@@ -478,7 +478,7 @@ void loop_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVector<A
 
 	
 	MultiThreadExecuteTask(std::thread::hardware_concurrency(),
-		[pRwDriver, &vSearchResult, &curWorkAddr, startAddr, endAddr, &vResultInfo](size_t thread_id, std::atomic<bool> *pFroceStopSignal)->void
+		[pRwDriver, &vSearchResult, &curWorkAddr, startAddr, endAddr, &vResultInfo](size_t thread_id, std::atomic<bool> *pForceStopSignal)->void
 	{
 		std::vector<ADDR_RESULT_INFO> vLastAddrResult;
 		vSearchResult.copy_vals(vLastAddrResult);
@@ -486,7 +486,7 @@ void loop_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVector<A
 		std::vector<OffsetResultInfo> vThreadOutput; //存放当前线程的搜索结果
 
 		uint64_t curThreadAddr = 0;
-		while (!pFroceStopSignal || !*pFroceStopSignal) {
+		while (!pForceStopSignal || !*pForceStopSignal) {
 			curThreadAddr = curWorkAddr.fetch_add(4);
 			if (curThreadAddr >= endAddr) {
 				break;

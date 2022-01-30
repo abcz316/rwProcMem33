@@ -11,7 +11,10 @@
 #ifdef __linux__
 #include <unistd.h>
 #include <sys/sysinfo.h>
+#else
+#include <windows.h>
 #endif
+
 
 class IMemReaderWriterProxy
 {

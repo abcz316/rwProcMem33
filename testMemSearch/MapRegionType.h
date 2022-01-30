@@ -108,6 +108,14 @@ static inline int is_rw00(const DRIVER_REGION_INFO * rInfo)
 	}
 	return 0;
 }
+static inline int is_rw_0(const DRIVER_REGION_INFO * rInfo)
+{
+	if (rInfo->protection == PAGE_READWRITE)
+	{
+		return 1;
+	}
+	return 0;
+}
 static inline int is_r__p(const DRIVER_REGION_INFO * rInfo)
 {
     if(rInfo->protection == PAGE_READONLY)
