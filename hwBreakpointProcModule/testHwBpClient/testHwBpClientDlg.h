@@ -6,9 +6,8 @@
 #include "Global.h"
 
 // CtestHwBpClientDlg 对话框
-class CtestHwBpClientDlg : public CDialogEx
-{
-// 构造
+class CtestHwBpClientDlg : public CDialogEx {
+	// 构造
 public:
 	CtestHwBpClientDlg(CWnd* pParent = nullptr);	// 标准构造函数
 
@@ -17,7 +16,7 @@ public:
 	enum { IDD = IDD_TESTHWBPCLIENT_DIALOG };
 #endif
 
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 支持
 
 

@@ -11,8 +11,7 @@
 #include <sstream>
 #include <assert.h>
 
-struct baseOffsetInfo
-{
+struct baseOffsetInfo {
 	std::vector<std::weak_ptr<baseOffsetInfo>> vwpLastNode;
 	uint64_t addr = 0;
 
@@ -43,14 +42,13 @@ static void PrintfAddrOffsetLinkMap(std::shared_ptr<baseOffsetInfo> startNode,
 		if (spCurItem->offset < 0) {
 			sstrTempShowAddrOffset << "-0x";
 			sstrTempShowAddrOffset << std::hex << -spCurItem->offset << "]";
-		}
-		else {
+		} else {
 			sstrTempShowAddrOffset << "+0x";
 			sstrTempShowAddrOffset << std::hex << spCurItem->offset << "]";
 		}
 
 		OnShowNewSinglePath(sstrTempShowAddrOffset.str(), vspDeepStackIndexInfo.size());
-	
+
 		if (spCurItem->vwpNextNode.size()) {
 
 			std::shared_ptr<DeepStackIndexInfo> spLastStack = std::make_shared<DeepStackIndexInfo>();
@@ -60,8 +58,7 @@ static void PrintfAddrOffsetLinkMap(std::shared_ptr<baseOffsetInfo> startNode,
 			vspDeepStackIndexInfo.push_back(spLastStack);
 
 			spCurItem = spCurItem->vwpNextNode[0].lock();
-		}
-		else {
+		} else {
 			while (vspDeepStackIndexInfo.size()) {
 
 				std::shared_ptr<DeepStackIndexInfo> spLastStack = vspDeepStackIndexInfo.back();
@@ -74,8 +71,7 @@ static void PrintfAddrOffsetLinkMap(std::shared_ptr<baseOffsetInfo> startNode,
 					sstrTempShowAddrOffset.str("");
 					sstrTempShowAddrOffset << spLastStack->strStackName;
 					break;
-				}
-				else {
+				} else {
 					vspDeepStackIndexInfo.pop_back();
 				}
 			}
@@ -112,7 +108,7 @@ static void test_PrintfAddrOffsetLinkMap() {
 	demo42->addr = 42;
 	demo43->addr = 43;
 	demo44->addr = 44;
-	
+
 	demo1->offset = 1;
 	demo21->offset = 21;
 	demo22->offset = 22;

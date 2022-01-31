@@ -21,7 +21,7 @@ typedef int32_t DWORD;
 #define TRUE 1
 #define FALSE 0
 
-typedef enum { 
+typedef enum {
 	htEmpty = 0,
 	htProcesHandle,
 	htThreadHandle,
@@ -33,8 +33,7 @@ typedef enum {
 typedef int BOOL;
 
 
-class CPortHelper
-{
+class CPortHelper {
 public:
 	static HANDLE CreateHandleFromPointer(uint64_t p, handleType type);
 	static handleType GetHandleType(HANDLE handle);

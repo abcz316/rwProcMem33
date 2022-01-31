@@ -15,24 +15,18 @@
 #include "../testMemSearch/MapRegionType.h"
 
 
-std::string& replace_all_distinct(std::string& str, const std::string& old_value, const std::string& new_value)
-{
-	for (std::string::size_type pos(0); pos != std::string::npos; pos += new_value.length())
-	{
-		if ((pos = str.find(old_value, pos)) != std::string::npos)
-		{
+std::string& replace_all_distinct(std::string& str, const std::string& old_value, const std::string& new_value) {
+	for (std::string::size_type pos(0); pos != std::string::npos; pos += new_value.length()) {
+		if ((pos = str.find(old_value, pos)) != std::string::npos) {
 			str.replace(pos, old_value.length(), new_value);
-		}
-		else
-		{
+		} else {
 			break;
 		}
 	}
 	return str;
 }
 
-int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver)
-{
+int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver) {
 	int nTargetPid = 0;
 
 	//驱动_获取进程PID列表
@@ -42,8 +36,7 @@ int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver)
 	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
 
 	//打印进程列表信息
-	for (int pid : vPID)
-	{
+	for (int pid : vPID) {
 		//驱动_打开进程
 		uint64_t hProcess = pDriver->OpenProcess(pid);
 		if (!hProcess) { continue; }
@@ -55,8 +48,7 @@ int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver)
 		//驱动_关闭进程
 		pDriver->CloseHandle(hProcess);
 
-		if (strcmp(lpszCmdline, cmdline) == 0)
-		{
+		if (strcmp(lpszCmdline, cmdline) == 0) {
 			nTargetPid = pid;
 			break;
 		}
@@ -66,8 +58,7 @@ int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver)
 
 
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 	printf(
 		"======================================================\n"
 		"本驱动名称: Linux ARM64 硬件读写进程内存驱动37\n"
@@ -92,8 +83,7 @@ int main(int argc, char *argv[])
 
 	//驱动默认文件名
 	std::string devFileName = RWPROCMEM_FILE_NODE;
-	if (argc > 1)
-	{
+	if (argc > 1) {
 		//如果用户自定义输入驱动名
 		devFileName = argv[1];
 	}
@@ -102,8 +92,7 @@ int main(int argc, char *argv[])
 
 	//连接驱动
 	int err = 0;
-	if (!rwDriver.ConnectDriver(devFileName.c_str(), err))
-	{
+	if (!rwDriver.ConnectDriver(devFileName.c_str(), err)) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return 0;
@@ -113,8 +102,7 @@ int main(int argc, char *argv[])
 	//获取目标进程PID
 	const char *name = "com.miui.calculator";
 	pid_t pid = findPID(name, &rwDriver);
-	if (pid == 0)
-	{
+	if (pid == 0) {
 		printf("找不到进程\n");
 		return 0;
 	}
@@ -123,8 +111,7 @@ int main(int argc, char *argv[])
 	//打开进程
 	uint64_t hProcess = rwDriver.OpenProcess(pid);
 	printf("调用驱动 OpenProcess 返回值:%" PRIu64 "\n", hProcess);
-	if (!hProcess)
-	{
+	if (!hProcess) {
 		printf("调用驱动 OpenProcess 失败\n");
 		fflush(stdout);
 		return 0;
@@ -137,8 +124,7 @@ int main(int argc, char *argv[])
 	//新建压缩包文件
 	err = 0;
 	zip *z = zip_open(lpszOutFilePath, ZIP_CREATE | ZIP_EXCL, &err);
-	if (!z)
-	{
+	if (!z) {
 		printf("zip_open failed.\n");
 		return 0;
 	}
@@ -149,8 +135,7 @@ int main(int argc, char *argv[])
 	BOOL bOutListCompleted;
 	BOOL b = rwDriver.VirtualQueryExFull(hProcess, TRUE, vMaps, bOutListCompleted);
 	printf("调用驱动 VirtualQueryExFull(只显示在物理内存中的内存) 返回值:%d\n", b);
-	if (!vMaps.size())
-	{
+	if (!vMaps.size()) {
 		printf("VirtualQueryExFull 失败\n");
 
 		//关闭进程
@@ -164,8 +149,7 @@ int main(int argc, char *argv[])
 	//开始生成指针映射集
 	std::vector<std::shared_ptr<char>> vspMemData;
 	size_t total_size = 0;
-	for (DRIVER_REGION_INFO rinfo : vMaps)
-	{
+	for (DRIVER_REGION_INFO rinfo : vMaps) {
 		printf("[%.2f%%][%zd Mb] +++Start:%p,Size:%" PRIu64 ",Type:%s,Name:%s\n",
 			(float)((float)vspMemData.size() * 100 / vMaps.size()),
 			total_size / 1024 / 1024,
@@ -180,7 +164,7 @@ int main(int argc, char *argv[])
 		}
 		memset(spMem.get(), 0, rinfo.size);
 		total_size += rinfo.size;
-		
+
 
 		//读取进程内存
 		size_t real_read;
@@ -194,8 +178,7 @@ int main(int argc, char *argv[])
 		ssfilename << rinfo.size;
 		ssfilename << "_";
 		ssfilename << MapsTypeToString(&rinfo);
-		if (rinfo.name[0] != '\0')
-		{
+		if (rinfo.name[0] != '\0') {
 			//替换斜杠
 			std::string specialFileName = rinfo.name;
 			specialFileName = replace_all_distinct(specialFileName, "/", "／");
@@ -204,8 +187,7 @@ int main(int argc, char *argv[])
 
 		//添加进压缩包
 		struct zip_source *s = zip_source_buffer(z, spMem.get(), rinfo.size, 0);
-		if (!s)
-		{
+		if (!s) {
 			printf("zip_source_buffer failed.\n");
 			continue;
 		}
@@ -225,7 +207,7 @@ int main(int argc, char *argv[])
 	struct zip_source *s = zip_source_buffer(z, &empty, sizeof(empty), 0);
 	if (s) {
 		std::stringstream ssfilename;
-		ssfilename << "/0x0_" << std::hex << getpagesize() <<"_----_pagesize";
+		ssfilename << "/0x0_" << std::hex << getpagesize() << "_----_pagesize";
 		zip_file_add(z, ssfilename.str().c_str(), s,
 			ZIP_FL_OVERWRITE | ZIP_FL_ENC_GUESS);
 	}

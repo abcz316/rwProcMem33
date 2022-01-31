@@ -13,29 +13,22 @@
 
 int g_value = 0;
 
-BOOL GetProcessTask(int pid, std::vector<int> & vOutput)
-{
+BOOL GetProcessTask(int pid, std::vector<int> & vOutput) {
 	DIR *dir = NULL;
 	struct dirent *ptr = NULL;
 	char szTaskPath[256] = { 0 };
 	sprintf(szTaskPath, "/proc/%d/task", pid);
 
 	dir = opendir(szTaskPath);
-	if (NULL != dir)
-	{
+	if (NULL != dir) {
 		while ((ptr = readdir(dir)) != NULL)   // 循环读取路径下的每一个文件/文件夹
 		{
 			// 如果读取到的是"."或者".."则跳过，读取到的不是文件夹名字也跳过
-			if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0))
-			{
+			if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0)) {
 				continue;
-			}
-			else if (ptr->d_type != DT_DIR)
-			{
+			} else if (ptr->d_type != DT_DIR) {
 				continue;
-			}
-			else if (strspn(ptr->d_name, "1234567890") != strlen(ptr->d_name))
-			{
+			} else if (strspn(ptr->d_name, "1234567890") != strlen(ptr->d_name)) {
 				continue;
 			}
 
@@ -49,10 +42,8 @@ BOOL GetProcessTask(int pid, std::vector<int> & vOutput)
 }
 
 
-void AddValueThread()
-{
-	while (1)
-	{
+void AddValueThread() {
+	while (1) {
 		g_value++;
 		printf("pid:%d, g_value addr:0x%llx, g_value: %d\n", getpid(), &g_value, g_value);
 		fflush(stdout);
@@ -62,8 +53,7 @@ void AddValueThread()
 }
 
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 	printf(
 		"======================================================\n"
 		"本驱动名称: Linux ARM64 硬件断点进程调试驱动1\n"
@@ -90,8 +80,7 @@ int main(int argc, char *argv[])
 	CHwBreakpointManager driver;
 	//连接驱动
 	int err = 0;
-	if (!driver.ConnectDriver( err))
-	{
+	if (!driver.ConnectDriver(err)) {
 		printf("连接驱动失败\n");
 		return 0;
 	}
@@ -109,8 +98,7 @@ int main(int argc, char *argv[])
 	//获取当前进程所有的task
 	std::vector<int> vTask;
 	GetProcessTask(pid, vTask);
-	if (vTask.size() == 0)
-	{
+	if (vTask.size() == 0) {
 		printf("获取当前进程task失败\n");
 		return 0;
 	}
@@ -119,13 +107,11 @@ int main(int argc, char *argv[])
 	//设置进程硬件断点
 	std::vector<uint64_t> vHwBpHandle;
 
-	for (int task : vTask)
-	{
+	for (int task : vTask) {
 		//打开task
 		uint64_t hProcess = driver.OpenProcess(task);
 		printf("调用驱动 OpenProcess(%d) 返回值:%" PRIu64 "\n", task, hProcess);
-		if (!hProcess)
-		{
+		if (!hProcess) {
 			printf("调用驱动 OpenProcess 失败\n");
 			fflush(stdout);
 			continue;
@@ -137,8 +123,7 @@ int main(int argc, char *argv[])
 		printf("调用驱动 AddProcessHwBp(%p) 返回值:%" PRIu64 "\n", &g_value, hwBpHandle);
 
 
-		if (hwBpHandle)
-		{
+		if (hwBpHandle) {
 			vHwBpHandle.push_back(hwBpHandle);
 		}
 		//关闭task
@@ -148,30 +133,26 @@ int main(int argc, char *argv[])
 	sleep(5);
 	printf("==========================================================================\n");
 	//删除进程硬件断点
-	for (uint64_t hwBpHandle : vHwBpHandle)
-	{
+	for (uint64_t hwBpHandle : vHwBpHandle) {
 		driver.DelProcessHwBp(hwBpHandle);
 		printf("调用驱动 DelProcessHwBp(%" PRIu64 ")\n", hwBpHandle);
 	}
 	//读取硬件断点命中信息
-	for (uint64_t hwBpHandle : vHwBpHandle)
-	{
+	for (uint64_t hwBpHandle : vHwBpHandle) {
 		std::vector<USER_HIT_INFO> vHit;
 		BOOL b = driver.ReadHwBpInfo(hwBpHandle, vHit);
 		printf("==========================================================================\n");
 		printf("调用驱动 ReadProcessHwBp(%" PRIu64 ") 返回值:%d\n", hwBpHandle, b);
-		for (USER_HIT_INFO userhInfo : vHit)
-		{
+		for (USER_HIT_INFO userhInfo : vHit) {
 			printf("==========================================================================\n");
 			printf("硬件断点命中地址:%p,命中次数:%zu\n", userhInfo.hit_addr, userhInfo.hit_count);
-			for (int r = 0; r<30; r+=5)
-			{
+			for (int r = 0; r < 30; r += 5) {
 				printf("\tX%-2d=%-12llx X%-2d=%-12llx X%-2d=%-12llx X%-2d=%-12llx X%-2d=%-12llx\n",
 					r, userhInfo.regs.regs[r],
-					r+1, userhInfo.regs.regs[r+1],
-					r+2, userhInfo.regs.regs[r+2],
-					r+3, userhInfo.regs.regs[r+3],
-					r+4, userhInfo.regs.regs[r+4]);
+					r + 1, userhInfo.regs.regs[r + 1],
+					r + 2, userhInfo.regs.regs[r + 2],
+					r + 3, userhInfo.regs.regs[r + 3],
+					r + 4, userhInfo.regs.regs[r + 4]);
 			}
 			printf("\tLR=%-12llx SP=%-12llx PC=%-12llx\n",
 				userhInfo.regs.regs[30],

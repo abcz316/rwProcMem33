@@ -10,8 +10,7 @@
 #include "../testMemSearch/MapRegionType.h"
 
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 	printf(
 		"======================================================\n"
 		"本驱动名称: Linux ARM64 硬件读写进程内存驱动37\n"
@@ -49,8 +48,7 @@ int main(int argc, char *argv[])
 
 	//驱动默认文件名
 	std::string devFileName = RWPROCMEM_FILE_NODE;
-	if (argc > 1)
-	{
+	if (argc > 1) {
 		//如果用户自定义输入驱动名
 		devFileName = argv[1];
 	}
@@ -59,8 +57,7 @@ int main(int argc, char *argv[])
 
 	//连接驱动
 	int err = 0;
-	if (!rwDriver.ConnectDriver(devFileName.c_str(), err))
-	{
+	if (!rwDriver.ConnectDriver(devFileName.c_str(), err)) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return 0;
@@ -70,7 +67,7 @@ int main(int argc, char *argv[])
 	BOOL b = rwDriver.SetMaxDevFileOpen(1);
 	printf("调用驱动 SetMaxDevFileOpen 返回值:%d\n", b);
 
-	
+
 	/*
 	//驱动_隐藏驱动（卸载驱动需重启机器）
 	b = rwDriver.HideKernelModule();
@@ -80,8 +77,7 @@ int main(int argc, char *argv[])
 	//驱动_打开进程
 	uint64_t hProcess = rwDriver.OpenProcess(pid);
 	printf("调用驱动 OpenProcess 返回值:%" PRIu64 "\n", hProcess);
-	if (!hProcess)
-	{
+	if (!hProcess) {
 		printf("调用驱动 OpenProcess 失败\n");
 		fflush(stdout);
 		return 0;
@@ -113,11 +109,10 @@ int main(int argc, char *argv[])
 	printf("调用驱动 VirtualQueryExFull(显示全部内存) 返回值:%d\n", b);
 
 	//显示进程内存块地址列表
-	for (DRIVER_REGION_INFO rinfo : vMaps)
-	{
+	for (DRIVER_REGION_INFO rinfo : vMaps) {
 		printf("---Start:%p,Size:%" PRIu64 ",Type:%s,Name:%s\n", (void*)rinfo.baseaddress, rinfo.size, MapsTypeToString(&rinfo).c_str(), rinfo.name);
 	}
-	
+
 
 	//驱动_获取进程内存块列表（只显示在物理内存中的内存）
 	vMaps.clear();
@@ -125,18 +120,17 @@ int main(int argc, char *argv[])
 	printf("调用驱动 VirtualQueryExFull(只显示在物理内存中的内存) 返回值:%d\n", b);
 
 	//显示进程内存块地址列表
-	for (DRIVER_REGION_INFO rinfo : vMaps)
-	{
+	for (DRIVER_REGION_INFO rinfo : vMaps) {
 		printf("+++Start:%p,Size:%" PRIu64 ",Type:%s,Name:%s\n", (void*)rinfo.baseaddress, rinfo.size, MapsTypeToString(&rinfo).c_str(), rinfo.name);
 	}
-	
-	
+
+
 
 	//驱动_获取进程占用物理内存大小
 	uint64_t outRss = 0;
 	b = rwDriver.GetProcessRSS(hProcess, outRss);
 	printf("调用驱动 GetProcessRSS 返回值:%d,当前进程占用物理内存大小:%" PRIu64 "KB\n", b, outRss);
-	
+
 
 	//驱动_获取进程命令行
 	char cmdline[100] = { 0 };
@@ -165,8 +159,7 @@ int main(int argc, char *argv[])
 	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
 
 	//打印进程列表信息
-	for (int pid : vPID)
-	{
+	for (int pid : vPID) {
 		//驱动_打开进程
 		uint64_t hProcess = rwDriver.OpenProcess(pid);
 		if (!hProcess) { continue; }
@@ -180,7 +173,7 @@ int main(int argc, char *argv[])
 		char cmdline[100] = { 0 };
 		rwDriver.GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
 
-		if (!!strstr(cmdline,"calc")) //将计算器进程提升至ROOT
+		if (!!strstr(cmdline, "calc")) //将计算器进程提升至ROOT
 		{
 			//驱动_提升进程权限到Root
 			BOOL b = rwDriver.SetProcessRoot(hProcess);

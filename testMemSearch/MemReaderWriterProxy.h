@@ -15,8 +15,7 @@
 
 #include "../testKo/MemoryReaderWriter37.h"
 
-class CMemReaderWriterProxy
-{
+class CMemReaderWriterProxy {
 public:
 	CMemReaderWriterProxy() {}
 	CMemReaderWriterProxy(CMemoryReaderWriter* pDriver) {
@@ -48,8 +47,7 @@ public:
 		uint64_t hProcess,
 		BOOL showPhy,
 		std::vector<DRIVER_REGION_INFO> & vOutput,
-		BOOL & bOutListCompleted)
-	{
+		BOOL & bOutListCompleted) {
 		if (!m_spDriver) { return FALSE; }
 		return m_spDriver->VirtualQueryExFull(hProcess, showPhy, vOutput, bOutListCompleted);
 	}

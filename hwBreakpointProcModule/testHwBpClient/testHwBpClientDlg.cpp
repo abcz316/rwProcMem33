@@ -19,17 +19,16 @@
 
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
 
-class CAboutDlg : public CDialogEx
-{
+class CAboutDlg : public CDialogEx {
 public:
 	CAboutDlg();
 
-// 对话框数据
+	// 对话框数据
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_ABOUTBOX };
 #endif
 
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV 支持
 
 // 实现
@@ -37,12 +36,10 @@ protected:
 	DECLARE_MESSAGE_MAP()
 };
 
-CAboutDlg::CAboutDlg() : CDialogEx(IDD_ABOUTBOX)
-{
+CAboutDlg::CAboutDlg() : CDialogEx(IDD_ABOUTBOX) {
 }
 
-void CAboutDlg::DoDataExchange(CDataExchange* pDX)
-{
+void CAboutDlg::DoDataExchange(CDataExchange* pDX) {
 	CDialogEx::DoDataExchange(pDX);
 }
 
@@ -84,13 +81,11 @@ CtestHwBpClientDlg::CtestHwBpClientDlg(CWnd* pParent /*=nullptr*/)
 	, m_checkbox_x17(FALSE)
 	, m_checkbox_x18(FALSE)
 	, m_checkbox_x19(FALSE)
-	, m_edit_x0(_T(""))
-{
+	, m_edit_x0(_T("")) {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
 
-void CtestHwBpClientDlg::DoDataExchange(CDataExchange* pDX)
-{
+void CtestHwBpClientDlg::DoDataExchange(CDataExchange* pDX) {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_LIST_RESULT, m_list_result);
 	DDX_Text(pDX, IDC_EDIT_PID, m_edit_pid);
@@ -194,8 +189,7 @@ END_MESSAGE_MAP()
 
 // CtestHwBpClientDlg 消息处理程序
 
-BOOL CtestHwBpClientDlg::OnInitDialog()
-{
+BOOL CtestHwBpClientDlg::OnInitDialog() {
 	CDialogEx::OnInitDialog();
 
 	// 将“关于...”菜单项添加到系统菜单中。
@@ -205,14 +199,12 @@ BOOL CtestHwBpClientDlg::OnInitDialog()
 	ASSERT(IDM_ABOUTBOX < 0xF000);
 
 	CMenu* pSysMenu = GetSystemMenu(FALSE);
-	if (pSysMenu != nullptr)
-	{
+	if (pSysMenu != nullptr) {
 		BOOL bNameValid;
 		CString strAboutMenu;
 		bNameValid = strAboutMenu.LoadString(IDS_ABOUTBOX);
 		ASSERT(bNameValid);
-		if (!strAboutMenu.IsEmpty())
-		{
+		if (!strAboutMenu.IsEmpty()) {
 			pSysMenu->AppendMenu(MF_SEPARATOR);
 			pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strAboutMenu);
 		}
@@ -266,15 +258,11 @@ BOOL CtestHwBpClientDlg::OnInitDialog()
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
-void CtestHwBpClientDlg::OnSysCommand(UINT nID, LPARAM lParam)
-{
-	if ((nID & 0xFFF0) == IDM_ABOUTBOX)
-	{
+void CtestHwBpClientDlg::OnSysCommand(UINT nID, LPARAM lParam) {
+	if ((nID & 0xFFF0) == IDM_ABOUTBOX) {
 		CAboutDlg dlgAbout;
 		dlgAbout.DoModal();
-	}
-	else
-	{
+	} else {
 		CDialogEx::OnSysCommand(nID, lParam);
 	}
 }
@@ -283,10 +271,8 @@ void CtestHwBpClientDlg::OnSysCommand(UINT nID, LPARAM lParam)
 //  来绘制该图标。  对于使用文档/视图模型的 MFC 应用程序，
 //  这将由框架自动完成。
 
-void CtestHwBpClientDlg::OnPaint()
-{
-	if (IsIconic())
-	{
+void CtestHwBpClientDlg::OnPaint() {
+	if (IsIconic()) {
 		CPaintDC dc(this); // 用于绘制的设备上下文
 
 		SendMessage(WM_ICONERASEBKGND, reinterpret_cast<WPARAM>(dc.GetSafeHdc()), 0);
@@ -301,43 +287,28 @@ void CtestHwBpClientDlg::OnPaint()
 
 		// 绘制图标
 		dc.DrawIcon(x, y, m_hIcon);
-	}
-	else
-	{
+	} else {
 		CDialogEx::OnPaint();
 	}
 }
 
 //当用户拖动最小化窗口时系统调用此函数取得光标
 //显示。
-HCURSOR CtestHwBpClientDlg::OnQueryDragIcon()
-{
+HCURSOR CtestHwBpClientDlg::OnQueryDragIcon() {
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
 
 
-void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
-{
+void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions) {
 	std::stringstream ssConvert;
-	if (m_checkbox_x0)
-	{
+	if (m_checkbox_x0) {
 		ssConvert << ws2s(m_edit_x0.GetBuffer(0));
 
 		hitConditions.enable_regs[0] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[0];
 	}
-	if (m_checkbox_x1)
-	{
-		ssConvert.clear();
-		ssConvert.str("");
-		ssConvert << ws2s(m_edit_x1.GetBuffer(0));
-
-		hitConditions.enable_regs[1] = '\x01';
-		ssConvert >> std::hex >> hitConditions.regs.regs[1];
-	} 
-	if (m_checkbox_x1)
-	{
+	if (m_checkbox_x1) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x1.GetBuffer(0));
@@ -345,8 +316,15 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[1] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[1];
 	}
-	if (m_checkbox_x2)
-	{
+	if (m_checkbox_x1) {
+		ssConvert.clear();
+		ssConvert.str("");
+		ssConvert << ws2s(m_edit_x1.GetBuffer(0));
+
+		hitConditions.enable_regs[1] = '\x01';
+		ssConvert >> std::hex >> hitConditions.regs.regs[1];
+	}
+	if (m_checkbox_x2) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x2.GetBuffer(0));
@@ -354,8 +332,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[2] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[2];
 	}
-	if (m_checkbox_x3)
-	{
+	if (m_checkbox_x3) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x3.GetBuffer(0));
@@ -363,8 +340,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[3] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[3];
 	}
-	if (m_checkbox_x4)
-	{
+	if (m_checkbox_x4) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x4.GetBuffer(0));
@@ -372,8 +348,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[4] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[4];
 	}
-	if (m_checkbox_x5)
-	{
+	if (m_checkbox_x5) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x4.GetBuffer(0));
@@ -381,8 +356,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[5] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[5];
 	}
-	if (m_checkbox_x6)
-	{
+	if (m_checkbox_x6) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x6.GetBuffer(0));
@@ -390,8 +364,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[6] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[6];
 	}
-	if (m_checkbox_x7)
-	{
+	if (m_checkbox_x7) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x7.GetBuffer(0));
@@ -399,8 +372,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[7] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[7];
 	}
-	if (m_checkbox_x8)
-	{
+	if (m_checkbox_x8) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x8.GetBuffer(0));
@@ -408,8 +380,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[8] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[8];
 	}
-	if (m_checkbox_x9)
-	{
+	if (m_checkbox_x9) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x9.GetBuffer(0));
@@ -417,8 +388,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[9] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[9];
 	}
-	if (m_checkbox_x10)
-	{
+	if (m_checkbox_x10) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x10.GetBuffer(0));
@@ -426,8 +396,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[10] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[10];
 	}
-	if (m_checkbox_x11)
-	{
+	if (m_checkbox_x11) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x11.GetBuffer(0));
@@ -435,8 +404,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[11] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[11];
 	}
-	if (m_checkbox_x12)
-	{
+	if (m_checkbox_x12) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x12.GetBuffer(0));
@@ -444,8 +412,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[12] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[12];
 	}
-	if (m_checkbox_x13)
-	{
+	if (m_checkbox_x13) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x13.GetBuffer(0));
@@ -453,8 +420,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[13] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[13];
 	}
-	if (m_checkbox_x14)
-	{
+	if (m_checkbox_x14) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x14.GetBuffer(0));
@@ -462,8 +428,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[14] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[14];
 	}
-	if (m_checkbox_x15)
-	{
+	if (m_checkbox_x15) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x15.GetBuffer(0));
@@ -471,8 +436,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[15] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[15];
 	}
-	if (m_checkbox_x16)
-	{
+	if (m_checkbox_x16) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x16.GetBuffer(0));
@@ -480,8 +444,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[16] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[16];
 	}
-	if (m_checkbox_x17)
-	{
+	if (m_checkbox_x17) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x17.GetBuffer(0));
@@ -489,8 +452,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[17] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[17];
 	}
-	if (m_checkbox_x18)
-	{
+	if (m_checkbox_x18) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x18.GetBuffer(0));
@@ -498,8 +460,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[18] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[18];
 	}
-	if (m_checkbox_x19)
-	{
+	if (m_checkbox_x19) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x19.GetBuffer(0));
@@ -507,8 +468,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[19] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[19];
 	}
-	if (m_checkbox_x20)
-	{
+	if (m_checkbox_x20) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x20.GetBuffer(0));
@@ -516,8 +476,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[20] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[20];
 	}
-	if (m_checkbox_x21)
-	{
+	if (m_checkbox_x21) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x21.GetBuffer(0));
@@ -525,8 +484,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[21] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[21];
 	}
-	if (m_checkbox_x22)
-	{
+	if (m_checkbox_x22) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x22.GetBuffer(0));
@@ -534,8 +492,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[22] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[22];
 	}
-	if (m_checkbox_x23)
-	{
+	if (m_checkbox_x23) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x23.GetBuffer(0));
@@ -543,8 +500,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[23] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[23];
 	}
-	if (m_checkbox_x24)
-	{
+	if (m_checkbox_x24) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x24.GetBuffer(0));
@@ -552,8 +508,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[24] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[24];
 	}
-	if (m_checkbox_x25)
-	{
+	if (m_checkbox_x25) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x25.GetBuffer(0));
@@ -561,8 +516,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[25] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[25];
 	}
-	if (m_checkbox_x26)
-	{
+	if (m_checkbox_x26) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x26.GetBuffer(0));
@@ -570,8 +524,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[26] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[26];
 	}
-	if (m_checkbox_x27)
-	{
+	if (m_checkbox_x27) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x27.GetBuffer(0));
@@ -579,8 +532,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[27] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[27];
 	}
-	if (m_checkbox_x28)
-	{
+	if (m_checkbox_x28) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x28.GetBuffer(0));
@@ -588,8 +540,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[28] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[28];
 	}
-	if (m_checkbox_x29)
-	{
+	if (m_checkbox_x29) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x29.GetBuffer(0));
@@ -597,8 +548,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[29] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[29];
 	}
-	if (m_checkbox_x30)
-	{
+	if (m_checkbox_x30) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_x30.GetBuffer(0));
@@ -606,8 +556,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_regs[30] = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.regs[30];
 	}
-	if (m_checkbox_sp)
-	{
+	if (m_checkbox_sp) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_sp.GetBuffer(0));
@@ -615,8 +564,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_sp = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.sp;
 	}
-	if (m_checkbox_pc)
-	{
+	if (m_checkbox_pc) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_pc.GetBuffer(0));
@@ -624,8 +572,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_pc = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.pc;
 	}
-	if (m_checkbox_pstate)
-	{
+	if (m_checkbox_pstate) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_pstate.GetBuffer(0));
@@ -633,8 +580,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_pstate = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.pstate;
 	}
-	if (m_checkbox_orig_x0)
-	{
+	if (m_checkbox_orig_x0) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_orig_x0.GetBuffer(0));
@@ -642,8 +588,7 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 		hitConditions.enable_orig_x0 = '\x01';
 		ssConvert >> std::hex >> hitConditions.regs.orig_x0;
 	}
-	if (m_checkbox_syscallno)
-	{
+	if (m_checkbox_syscallno) {
 		ssConvert.clear();
 		ssConvert.str("");
 		ssConvert << ws2s(m_edit_syscallno.GetBuffer(0));
@@ -653,12 +598,10 @@ void CtestHwBpClientDlg::GetUserHitConditions(HIT_CONDITIONS & hitConditions)
 	}
 }
 
-void CtestHwBpClientDlg::OnBnClickedButtonAddHwbp()
-{
+void CtestHwBpClientDlg::OnBnClickedButtonAddHwbp() {
 	UpdateData(TRUE);
 
-	if (m_edit_pid.IsEmpty() || m_edit_addr.IsEmpty() || m_edit_keep_time.IsEmpty())
-	{
+	if (m_edit_pid.IsEmpty() || m_edit_addr.IsEmpty() || m_edit_keep_time.IsEmpty()) {
 		MessageBox(L"所填参数不能为空");
 		return;
 	}
@@ -667,12 +610,9 @@ void CtestHwBpClientDlg::OnBnClickedButtonAddHwbp()
 	std::stringstream ssConvert;
 
 	ssConvert << ws2s(m_edit_pid.GetBuffer(0));
-	if (m_checkbox_pid_hex)
-	{
+	if (m_checkbox_pid_hex) {
 		ssConvert >> std::hex >> pid;
-	}
-	else
-	{
+	} else {
 		ssConvert >> pid;
 	}
 
@@ -683,28 +623,23 @@ void CtestHwBpClientDlg::OnBnClickedButtonAddHwbp()
 
 
 	UINT64 address = 0;
-	if (m_checkbox_addr_hex)
-	{
+	if (m_checkbox_addr_hex) {
 		ssConvert >> std::hex >> address;
-	}
-	else
-	{
+	} else {
 		ssConvert >> address;
 	}
 
 
 
-	if (pid == 0 || address == 0)
-	{
+	if (pid == 0 || address == 0) {
 		MessageBox(L"所填参数有错误");
 		return;
 	}
-	if (!g_NetworkManager.Reconnect())
-	{
+	if (!g_NetworkManager.Reconnect()) {
 		MessageBox(L"与服务器已失去连接");
 		return;
 	}
-	
+
 	//硬件断点类型
 	uint32_t hwBpAddrLen = m_radio_len_4 == 0 ? HW_BREAKPOINT_LEN_4 : HW_BREAKPOINT_LEN_8;
 	uint32_t hwBpAddrType = m_radio_type_r == 0 ? HW_BREAKPOINT_R : m_radio_type_r == 1 ? HW_BREAKPOINT_W : m_radio_type_r == 2 ? HW_BREAKPOINT_RW : HW_BREAKPOINT_X;
@@ -718,8 +653,7 @@ void CtestHwBpClientDlg::OnBnClickedButtonAddHwbp()
 	//硬件断点命中记录条件
 	HIT_CONDITIONS hitConditions = { 0 };
 	GetUserHitConditions(hitConditions);
-	if (!g_NetworkManager.SetHwBpHitConditions(hitConditions))
-	{
+	if (!g_NetworkManager.SetHwBpHitConditions(hitConditions)) {
 		g_NetworkManager.Disconnect();
 		MessageBox(L"设置硬件断点命中记录条件失败");
 		return;
@@ -744,25 +678,21 @@ void CtestHwBpClientDlg::OnBnClickedButtonAddHwbp()
 
 	//将命中结果显示到列表框
 	int nIndex = m_list_result.GetItemCount();
-	for (USER_HIT_INFO h : vHitResult)
-	{
+	for (USER_HIT_INFO h : vHitResult) {
 
 		m_list_result.InsertItem(nIndex, m_edit_pid);
 
 		std::wstringstream wssConvert;
-		if (m_checkbox_addr_hex)
-		{
+		if (m_checkbox_addr_hex) {
 			wssConvert << std::hex << m_edit_addr.GetBuffer(0);
-		}
-		else
-		{
+		} else {
 			wssConvert << m_edit_addr.GetBuffer(0);
 		}
 		std::wstring showAddr = wssConvert.str();
 		transform(showAddr.begin(), showAddr.end(), showAddr.begin(), ::toupper);
 
-		m_list_result.SetItemText(nIndex, 1, std::wstring(L"0x"+ showAddr).c_str());
-		m_list_result.SetItemText(nIndex, 2, m_radio_type_r ==0 ? L"R": m_radio_type_r ==1 ? L"W": m_radio_type_r ==2 ? L"RW": L"X");
+		m_list_result.SetItemText(nIndex, 1, std::wstring(L"0x" + showAddr).c_str());
+		m_list_result.SetItemText(nIndex, 2, m_radio_type_r == 0 ? L"R" : m_radio_type_r == 1 ? L"W" : m_radio_type_r == 2 ? L"RW" : L"X");
 		m_list_result.SetItemText(nIndex, 3, m_radio_len_4 == 0 ? L"4" : L"8");
 		m_list_result.SetItemText(nIndex, 4, m_radio_region_all_thread == 0 ? L"ALL" : m_radio_region_all_thread == 1 ? L"MAIN" : L"OTHER");
 
@@ -777,13 +707,12 @@ void CtestHwBpClientDlg::OnBnClickedButtonAddHwbp()
 
 		std::stringstream ssInfoText;
 		char info[4096] = { 0 };
-		sprintf(info,"命中地址: 0x%llX 命中次数:%zu \r\n\r\n", h.hit_addr, h.hit_count);
+		sprintf(info, "命中地址: 0x%llX 命中次数:%zu \r\n\r\n", h.hit_addr, h.hit_count);
 		ssInfoText << info;
 
-		for (int r = 0; r < 30; r += 5)
-		{
+		for (int r = 0; r < 30; r += 5) {
 			memset(info, 0, sizeof(info));
-			sprintf(info,"X%-2d=%-12llX X%-2d=%-12llX X%-2d=%-12llX X%-2d=%-12llX X%-2d=%-12llX\r\n",
+			sprintf(info, "X%-2d=%-12llX X%-2d=%-12llX X%-2d=%-12llX X%-2d=%-12llX X%-2d=%-12llX\r\n",
 				r, h.regs.regs[r],
 				r + 1, h.regs.regs[r + 1],
 				r + 2, h.regs.regs[r + 2],
@@ -792,14 +721,14 @@ void CtestHwBpClientDlg::OnBnClickedButtonAddHwbp()
 			ssInfoText << info;
 		}
 		memset(info, 0, sizeof(info));
-		sprintf(info,"\r\nLR= %-12llX SP= %-12llX PC= %-12llX\r\n\r\n",
+		sprintf(info, "\r\nLR= %-12llX SP= %-12llX PC= %-12llX\r\n\r\n",
 			h.regs.regs[30],
 			h.regs.sp,
 			h.regs.pc);
 		ssInfoText << info;
 
 		memset(info, 0, sizeof(info));
-		sprintf(info,"process status: %-12llX orig_x0: %-12llX\r\nsyscallno: %-12llX\r\n",
+		sprintf(info, "process status: %-12llX orig_x0: %-12llX\r\nsyscallno: %-12llX\r\n",
 			h.regs.pstate,
 			h.regs.orig_x0,
 			h.regs.syscallno);
@@ -813,12 +742,9 @@ void CtestHwBpClientDlg::OnBnClickedButtonAddHwbp()
 
 		nIndex++;
 	}
-	if (allTaskCount == 0)
-	{
+	if (allTaskCount == 0) {
 		MessageBox(L"目标进程的线程数为0");
-	}
-	else if (allTaskCount != insHwBpSuccessTaskCount)
-	{
+	} else if (allTaskCount != insHwBpSuccessTaskCount) {
 		std::wstringstream wssBuf;
 		wssBuf << L"发现有硬件断点安装失败的线程！目标进程的线程总数:" << allTaskCount << L",硬件断点安装成功线程数:" << insHwBpSuccessTaskCount;
 		MessageBox(wssBuf.str().c_str());
@@ -828,21 +754,17 @@ void CtestHwBpClientDlg::OnBnClickedButtonAddHwbp()
 }
 
 
-void CtestHwBpClientDlg::OnDblclkListResult(NMHDR *pNMHDR, LRESULT *pResult)
-{
+void CtestHwBpClientDlg::OnDblclkListResult(NMHDR *pNMHDR, LRESULT *pResult) {
 	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
 	// TODO: 在此添加控件通知处理程序代码
-	if (pNMItemActivate->iItem != -1)
-	{
+	if (pNMItemActivate->iItem != -1) {
 		//按下了列表
 		CString title = m_list_result.GetItemText(pNMItemActivate->iItem, 6);
 		int pos = title.Find(L"\r\n");
-		if (pos != -1)
-		{
+		if (pos != -1) {
 			title = title.Left(pos);
 		}
-		if (title.GetLength() > 100)
-		{
+		if (title.GetLength() > 100) {
 			title = title.Left(100);
 		}
 
@@ -850,7 +772,7 @@ void CtestHwBpClientDlg::OnDblclkListResult(NMHDR *pNMHDR, LRESULT *pResult)
 		text += "\r\n\r\n提示：\r\nR13寄存器（SP）：它是堆栈指针寄存器\r\nR14寄存器（LR）：它用于保存子程序的返回地址";
 
 		//显示窗口
-		std::thread td([](std::shared_ptr<std::wstring>title,std::shared_ptr<std::wstring>text)->void {
+		std::thread td([](std::shared_ptr<std::wstring>title, std::shared_ptr<std::wstring>text)->void {
 			CTextViewDlg dlg(title->c_str(), text->c_str());
 			dlg.DoModal();
 		}, std::make_shared<std::wstring>(title.GetBuffer(0)), std::make_shared<std::wstring>(text.GetBuffer(0)));
@@ -860,8 +782,7 @@ void CtestHwBpClientDlg::OnDblclkListResult(NMHDR *pNMHDR, LRESULT *pResult)
 }
 
 
-void CtestHwBpClientDlg::OnRclickListResult(NMHDR *pNMHDR, LRESULT *pResult)
-{
+void CtestHwBpClientDlg::OnRclickListResult(NMHDR *pNMHDR, LRESULT *pResult) {
 	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
 
 	//加载菜单
@@ -871,8 +792,7 @@ void CtestHwBpClientDlg::OnRclickListResult(NMHDR *pNMHDR, LRESULT *pResult)
 	CPoint ptMouse;
 	GetCursorPos(&ptMouse);
 
-	if (pNMItemActivate->iItem == -1)
-	{
+	if (pNMItemActivate->iItem == -1) {
 		m_Menu.GetSubMenu(0)->RemoveMenu(ID_MENUITEM_DELETE_SELECTED_COUNT, MF_BYCOMMAND);
 		m_Menu.GetSubMenu(0)->RemoveMenu(ID_MENUITEM_DELETE_OTHER_COUNT, MF_BYCOMMAND);
 		m_Menu.GetSubMenu(0)->RemoveMenu(ID_MENUITEM_DELETE_UP_COUNT, MF_BYCOMMAND);
@@ -890,30 +810,25 @@ void CtestHwBpClientDlg::OnRclickListResult(NMHDR *pNMHDR, LRESULT *pResult)
 }
 
 
-void CtestHwBpClientDlg::OnMenuitemCleanList()
-{
+void CtestHwBpClientDlg::OnMenuitemCleanList() {
 	// TODO: 在此添加命令处理程序代码
 	m_list_result.DeleteAllItems();
 }
 
 
-void CtestHwBpClientDlg::OnMenuitemDeleteSelectedCount()
-{
+void CtestHwBpClientDlg::OnMenuitemDeleteSelectedCount() {
 	// TODO: 在此添加命令处理程序代码
 	std::vector<int> vDeleteIndex;
 	POSITION pos = m_list_result.GetFirstSelectedItemPosition(); //返回第一个选中的行位置
-	if (pos != NULL)
-	{
-		while (pos)
-		{
+	if (pos != NULL) {
+		while (pos) {
 			int n = m_list_result.GetNextSelectedItem(pos);  //返回下一个选中的行数(返回值从0开始)
 			//做相应操作
 			vDeleteIndex.push_back(n);
 		}
 	}
 	int deleted = 0;
-	for (int n : vDeleteIndex)
-	{
+	for (int n : vDeleteIndex) {
 		n -= deleted;
 		m_list_result.DeleteItem(n);
 		deleted++;
@@ -922,15 +837,12 @@ void CtestHwBpClientDlg::OnMenuitemDeleteSelectedCount()
 }
 
 
-void CtestHwBpClientDlg::OnMenuitemDeleteOtherCount()
-{
+void CtestHwBpClientDlg::OnMenuitemDeleteOtherCount() {
 	// TODO: 在此添加命令处理程序代码
 	std::vector<int> vSaveIndex;
 	POSITION pos = m_list_result.GetFirstSelectedItemPosition(); //返回第一个选中的行位置
-	if (pos != NULL)
-	{
-		while (pos)
-		{
+	if (pos != NULL) {
+		while (pos) {
 			int n = m_list_result.GetNextSelectedItem(pos);  //返回下一个选中的行数(返回值从0开始)
 			//做相应操作
 			vSaveIndex.push_back(n);
@@ -938,25 +850,20 @@ void CtestHwBpClientDlg::OnMenuitemDeleteOtherCount()
 	}
 
 	std::vector<int> vDeleteIndex;
-	for (int i = 0; i < m_list_result.GetItemCount(); i++)
-	{
+	for (int i = 0; i < m_list_result.GetItemCount(); i++) {
 		bool bSave = false;
-		for (int saveIndex : vSaveIndex)
-		{
-			if (saveIndex == i)
-			{
+		for (int saveIndex : vSaveIndex) {
+			if (saveIndex == i) {
 				bSave = true;
 				break;
 			}
 		}
-		if (!bSave)
-		{
+		if (!bSave) {
 			vDeleteIndex.push_back(i);
 		}
 	}
 	int deleted = 0;
-	for (int n : vDeleteIndex)
-	{
+	for (int n : vDeleteIndex) {
 		n -= deleted;
 		m_list_result.DeleteItem(n);
 		deleted++;
@@ -965,50 +872,40 @@ void CtestHwBpClientDlg::OnMenuitemDeleteOtherCount()
 }
 
 
-void CtestHwBpClientDlg::OnMenuitemDeleteUpCount()
-{
+void CtestHwBpClientDlg::OnMenuitemDeleteUpCount() {
 	// TODO: 在此添加命令处理程序代码
 	int nFirstIndex = -1;
 	POSITION pos = m_list_result.GetFirstSelectedItemPosition(); //返回第一个选中的行位置
-	if (pos != NULL)
-	{
-		while (pos)
-		{
+	if (pos != NULL) {
+		while (pos) {
 			nFirstIndex = m_list_result.GetNextSelectedItem(pos);  //返回下一个选中的行数(返回值从0开始)
 			break;
 		}
 	}
-	if (nFirstIndex == -1)
-	{
+	if (nFirstIndex == -1) {
 		return;
 	}
-	for (int i = 0; i < nFirstIndex; i++)
-	{
+	for (int i = 0; i < nFirstIndex; i++) {
 		m_list_result.DeleteItem(0);
 	}
 }
 
 
-void CtestHwBpClientDlg::OnMenuitemDeleteDownCount()
-{
+void CtestHwBpClientDlg::OnMenuitemDeleteDownCount() {
 	// TODO: 在此添加命令处理程序代码
 	int nFirstIndex = -1;
 	POSITION pos = m_list_result.GetFirstSelectedItemPosition(); //返回第一个选中的行位置
-	if (pos != NULL)
-	{
-		while (pos)
-		{
+	if (pos != NULL) {
+		while (pos) {
 			nFirstIndex = m_list_result.GetNextSelectedItem(pos);  //返回下一个选中的行数(返回值从0开始)
 			break;
 		}
 	}
-	if (nFirstIndex == -1)
-	{
+	if (nFirstIndex == -1) {
 		return;
 	}
 	int deleteCount = m_list_result.GetItemCount() - 1 - nFirstIndex;
-	for (int i = 0; i < deleteCount; i++)
-	{
-		m_list_result.DeleteItem(nFirstIndex+1);
+	for (int i = 0; i < deleteCount; i++) {
+		m_list_result.DeleteItem(nFirstIndex + 1);
 	}
 }

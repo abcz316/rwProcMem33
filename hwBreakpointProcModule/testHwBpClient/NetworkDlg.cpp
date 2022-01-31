@@ -24,17 +24,14 @@ IMPLEMENT_DYNAMIC(CNetworkDlg, CDialogEx)
 CNetworkDlg::CNetworkDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_NETWORK_DIALOG, pParent)
 	, m_edit_ip(_T(""))
-	, m_edit_port(_T(""))
-{
+	, m_edit_port(_T("")) {
 
 }
 
-CNetworkDlg::~CNetworkDlg()
-{
+CNetworkDlg::~CNetworkDlg() {
 }
 
-void CNetworkDlg::DoDataExchange(CDataExchange* pDX)
-{
+void CNetworkDlg::DoDataExchange(CDataExchange* pDX) {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_LIST_FIND_SERVER, m_list_find_server);
 	DDX_Text(pDX, IDC_EDIT_IP, m_edit_ip);
@@ -58,8 +55,7 @@ END_MESSAGE_MAP()
 // CNetworkDlg 消息处理程序
 
 //测试服务器端口是否开放
-void TestIdentifierThread(std::unique_ptr<char[]> ip, HWND resultHwnd)
-{
+void TestIdentifierThread(std::unique_ptr<char[]> ip, HWND resultHwnd) {
 	SOCKET skServer = socket(PF_INET, SOCK_DGRAM, 0);
 	sockaddr_in addr;
 	addr.sin_family = PF_INET;
@@ -67,11 +63,9 @@ void TestIdentifierThread(std::unique_ptr<char[]> ip, HWND resultHwnd)
 	addr.sin_addr.S_un.S_addr = inet_addr(ip.get());
 	BOOL bSuccess = (connect(skServer, (sockaddr*)&addr, sizeof(sockaddr_in)) == 0) ? TRUE : FALSE;
 
-	if (bSuccess && IsWindow(resultHwnd))
-	{
+	if (bSuccess && IsWindow(resultHwnd)) {
 #pragma pack(1)
-		struct
-		{
+		struct {
 			uint32_t checksum;
 			uint16_t port;
 		} packet;
@@ -86,12 +80,9 @@ void TestIdentifierThread(std::unique_ptr<char[]> ip, HWND resultHwnd)
 
 		packet.checksum = 1;
 		packet.port = 3290;
-		if (sendto(skServer, (const char*)&packet, sizeof(packet), 0, (struct sockaddr *)&addr_client, (int)&clisize) > 0)
-		{
-			if (recvfrom(skServer, (char*)&packet, sizeof(packet), 0, (struct sockaddr *)&addr_client, &clisize) > 0)
-			{
-				if (packet.checksum == 0xce)
-				{
+		if (sendto(skServer, (const char*)&packet, sizeof(packet), 0, (struct sockaddr *)&addr_client, (int)&clisize) > 0) {
+			if (recvfrom(skServer, (char*)&packet, sizeof(packet), 0, (struct sockaddr *)&addr_client, &clisize) > 0) {
+				if (packet.checksum == 0xce) {
 					//找到testHwBpServer了，通知主界面显示
 					::PostMessage(resultHwnd, WM_ADD_FIND_SERVER, (WPARAM)ip.release(), packet.port);
 				}
@@ -103,8 +94,7 @@ void TestIdentifierThread(std::unique_ptr<char[]> ip, HWND resultHwnd)
 	return;
 }
 //探测可连接的服务器地址
-BOOL GetHwServerIP(HWND resultHwnd)
-{
+BOOL GetHwServerIP(HWND resultHwnd) {
 	//IP_ADAPTER_INFO结构体
 	PIP_ADAPTER_INFO pIpAdapterInfo = NULL;
 	pIpAdapterInfo = new IP_ADAPTER_INFO;
@@ -115,8 +105,7 @@ BOOL GetHwServerIP(HWND resultHwnd)
 	//获取适配器信息
 	int nRet = GetAdaptersInfo(pIpAdapterInfo, &ulSize);
 
-	if (ERROR_BUFFER_OVERFLOW == nRet)
-	{
+	if (ERROR_BUFFER_OVERFLOW == nRet) {
 		//空间不足，删除之前分配的空间
 		delete[]pIpAdapterInfo;
 
@@ -127,10 +116,8 @@ BOOL GetHwServerIP(HWND resultHwnd)
 		nRet = GetAdaptersInfo(pIpAdapterInfo, &ulSize);
 
 		//获取失败
-		if (ERROR_SUCCESS != nRet)
-		{
-			if (pIpAdapterInfo != NULL)
-			{
+		if (ERROR_SUCCESS != nRet) {
+			if (pIpAdapterInfo != NULL) {
 				delete[]pIpAdapterInfo;
 			}
 			return FALSE;
@@ -141,8 +128,7 @@ BOOL GetHwServerIP(HWND resultHwnd)
 	//char szMacAddr[20];
 	//赋值指针
 	PIP_ADAPTER_INFO pIterater = pIpAdapterInfo;
-	while (pIterater)
-	{
+	while (pIterater) {
 		//cout << "网卡名称：" << pIterater->AdapterName << endl;
 
 		//cout << "网卡描述：" << pIterater->Description << endl;
@@ -161,19 +147,16 @@ BOOL GetHwServerIP(HWND resultHwnd)
 
 			//指向IP地址列表
 		PIP_ADDR_STRING pIpAddr = &pIterater->IpAddressList;
-		while (pIpAddr)
-		{
+		while (pIpAddr) {
 			//cout << "IP地址：  " << pIpAddr->IpAddress.String << endl;
 			//cout << "子网掩码：" << pIpAddr->IpMask.String << endl;
 
 			//指向网关列表
 			PIP_ADDR_STRING pGateAwayList = &pIterater->GatewayList;
-			while (pGateAwayList)
-			{
+			while (pGateAwayList) {
 				//cout << "网关：    " << pGateAwayList->IpAddress.String << endl;
 
-				if (strcmp(pGateAwayList->IpAddress.String, "0.0.0.0") != 0)
-				{
+				if (strcmp(pGateAwayList->IpAddress.String, "0.0.0.0") != 0) {
 					//测试是否可连接
 					std::unique_ptr<char[]> temIP = std::make_unique<char[]>(256);
 					memset(temIP.get(), 0, 256);
@@ -194,8 +177,7 @@ BOOL GetHwServerIP(HWND resultHwnd)
 	}
 
 	//清理
-	if (pIpAdapterInfo)
-	{
+	if (pIpAdapterInfo) {
 		delete[]pIpAdapterInfo;
 	}
 
@@ -204,8 +186,7 @@ BOOL GetHwServerIP(HWND resultHwnd)
 	return TRUE;
 }
 
-BOOL CNetworkDlg::OnInitDialog()
-{
+BOOL CNetworkDlg::OnInitDialog() {
 	CDialogEx::OnInitDialog();
 
 	// TODO:  在此添加额外的初始化
@@ -233,57 +214,49 @@ BOOL CNetworkDlg::OnInitDialog()
 }
 
 
-BOOL CNetworkDlg::PreTranslateMessage(MSG* pMsg)
-{
+BOOL CNetworkDlg::PreTranslateMessage(MSG* pMsg) {
 	// TODO: 在此添加专用代码和/或调用基类
 
 	return CDialogEx::PreTranslateMessage(pMsg);
 }
 
 
-void CNetworkDlg::OnClose()
-{
+void CNetworkDlg::OnClose() {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
 
 	CDialogEx::OnClose();
 }
 
 
-void CNetworkDlg::OnDestroy()
-{
+void CNetworkDlg::OnDestroy() {
 	CDialogEx::OnDestroy();
 
 	// TODO: 在此处添加消息处理程序代码
 }
 
 
-void CNetworkDlg::OnSize(UINT nType, int cx, int cy)
-{
+void CNetworkDlg::OnSize(UINT nType, int cx, int cy) {
 	CDialogEx::OnSize(nType, cx, cy);
 
 	// TODO: 在此处添加消息处理程序代码
 }
 
 
-void CNetworkDlg::OnTimer(UINT_PTR nIDEvent)
-{
+void CNetworkDlg::OnTimer(UINT_PTR nIDEvent) {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
 
 	CDialogEx::OnTimer(nIDEvent);
 }
 
 
-void CNetworkDlg::OnBnClickedConnect()
-{
+void CNetworkDlg::OnBnClickedConnect() {
 	// TODO: 在此添加控件通知处理程序代码
 	UpdateData(TRUE);
-	if (m_edit_ip.IsEmpty() || m_edit_port.IsEmpty())
-	{
+	if (m_edit_ip.IsEmpty() || m_edit_port.IsEmpty()) {
 		MessageBox(L"IP或端口不能为空");
 		return;
 	}
-	if (!g_NetworkManager.ConnectHwBpServer(ws2s(m_edit_ip.GetBuffer(0)), _wtoi(m_edit_port.GetBuffer(0))))
-	{
+	if (!g_NetworkManager.ConnectHwBpServer(ws2s(m_edit_ip.GetBuffer(0)), _wtoi(m_edit_port.GetBuffer(0)))) {
 		MessageBox(L"连接失败");
 		return;
 	}
@@ -291,14 +264,12 @@ void CNetworkDlg::OnBnClickedConnect()
 }
 
 
-void CNetworkDlg::OnBnClickedCancel()
-{
+void CNetworkDlg::OnBnClickedCancel() {
 	// TODO: 在此添加控件通知处理程序代码
 	OnOK();
 }
 
-LRESULT CNetworkDlg::OnAddFindServer(WPARAM wParam, LPARAM lParam)
-{
+LRESULT CNetworkDlg::OnAddFindServer(WPARAM wParam, LPARAM lParam) {
 	std::unique_ptr<char[]> myMsgParam((char*)wParam);
 
 	//显示IP地址
@@ -314,19 +285,16 @@ LRESULT CNetworkDlg::OnAddFindServer(WPARAM wParam, LPARAM lParam)
 }
 
 
-void CNetworkDlg::OnItemclickListFindServer(NMHDR *pNMHDR, LRESULT *pResult)
-{
+void CNetworkDlg::OnItemclickListFindServer(NMHDR *pNMHDR, LRESULT *pResult) {
 	LPNMHEADER phdr = reinterpret_cast<LPNMHEADER>(pNMHDR);
 	// TODO: 在此添加控件通知处理程序代码
 	*pResult = 0;
 }
 
-	
-void CNetworkDlg::OnClickListFindServer(NMHDR *pNMHDR, LRESULT *pResult)
-{
+
+void CNetworkDlg::OnClickListFindServer(NMHDR *pNMHDR, LRESULT *pResult) {
 	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
-	if (pNMItemActivate->iItem != -1)
-	{
+	if (pNMItemActivate->iItem != -1) {
 		//按下了列表
 		m_edit_ip = m_list_find_server.GetItemText(pNMItemActivate->iItem, 0);
 		m_edit_port = m_list_find_server.GetItemText(pNMItemActivate->iItem, 1);
@@ -336,11 +304,9 @@ void CNetworkDlg::OnClickListFindServer(NMHDR *pNMHDR, LRESULT *pResult)
 }
 
 
-void CNetworkDlg::OnDblclkListFindServer(NMHDR *pNMHDR, LRESULT *pResult)
-{
+void CNetworkDlg::OnDblclkListFindServer(NMHDR *pNMHDR, LRESULT *pResult) {
 	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
-	if (pNMItemActivate->iItem != -1)
-	{
+	if (pNMItemActivate->iItem != -1) {
 		//按下了列表
 		m_edit_ip = m_list_find_server.GetItemText(pNMItemActivate->iItem, 0);
 		m_edit_port = m_list_find_server.GetItemText(pNMItemActivate->iItem, 1);

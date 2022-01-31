@@ -36,8 +36,7 @@ typedef struct pt_regs CONTEXT_REGS;
 typedef struct user_pt_regs CONTEXT_REGS;
 #endif
 
-struct CONTEXT
-{
+struct CONTEXT {
 	CONTEXT_REGS regs;
 };
 

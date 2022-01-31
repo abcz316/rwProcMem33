@@ -12,8 +12,7 @@
 
 
 
-int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver)
-{
+int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver) {
 	int nTargetPid = 0;
 
 	//驱动_获取进程PID列表
@@ -23,8 +22,7 @@ int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver)
 	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
 
 	//打印进程列表信息
-	for (int pid : vPID)
-	{
+	for (int pid : vPID) {
 		//驱动_打开进程
 		uint64_t hProcess = pDriver->OpenProcess(pid);
 		if (!hProcess) { continue; }
@@ -36,8 +34,7 @@ int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver)
 		//驱动_关闭进程
 		pDriver->CloseHandle(hProcess);
 
-		if (strcmp(lpszCmdline, cmdline) == 0)
-		{
+		if (strcmp(lpszCmdline, cmdline) == 0) {
 			nTargetPid = pid;
 			break;
 		}
@@ -54,8 +51,7 @@ void normal_val_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVe
 		R0_0,
 		TRUE/*FALSE为全部内存，TRUE为只在物理内存中的内存*/,
 		vScanMemMaps);
-	if (!vScanMemMaps.size())
-	{
+	if (!vScanMemMaps.size()) {
 		printf("无内存可搜索\n");
 		//关闭进程
 		pRwDriver->CloseHandle(hProcess);
@@ -99,8 +95,7 @@ void normal_val_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVe
 		SafeVector<ADDR_RESULT_INFO> vWaitSearchAddr; //待搜索的内存地址列表
 
 		ADDR_RESULT_INFO addr;
-		while (vSearchResult.get_val(addr))
-		{
+		while (vSearchResult.get_val(addr)) {
 			addr.addr += 20;
 			vWaitSearchAddr.push_back(addr);
 		}
@@ -129,8 +124,7 @@ void normal_val_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVe
 		SafeVector<ADDR_RESULT_INFO> vWaitSearchAddr; //待搜索的内存地址列表
 
 		ADDR_RESULT_INFO addr;
-		while (vSearchResult.get_val(addr))
-		{
+		while (vSearchResult.get_val(addr)) {
 			addr.addr += 952;
 			vWaitSearchAddr.push_back(addr);
 		}
@@ -159,16 +153,14 @@ void normal_val_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVe
 		ADDR_RESULT_INFO addr = vSearchResult.at(i);
 		printf("addr:%p\n", (void*)addr.addr);
 		count++;
-		if (count > 100)
-		{
+		if (count > 100) {
 			printf("只显示前100个地址\n");
 			break;
 		}
 
 	}
 	printf("共偏移搜索出%zu个地址\n", vSearchResult.size());
-	if (vSearchResult.size())
-	{
+	if (vSearchResult.size()) {
 		printf("第一个地址为:%p\n", (void*)vSearchResult.at(0).addr);
 	}
 
@@ -183,8 +175,7 @@ void reverse_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVecto
 		R0_0,
 		TRUE/*FALSE为全部内存，TRUE为只在物理内存中的内存*/,
 		vScanMemMaps);
-	if (!vScanMemMaps.size())
-	{
+	if (!vScanMemMaps.size()) {
 		printf("无内存可搜索\n");
 		//关闭进程
 		pRwDriver->CloseHandle(hProcess);
@@ -316,8 +307,7 @@ void reverse_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVecto
 				std::shared_ptr<std::vector<std::shared_ptr<baseOffsetInfo>>> spvBaseInfoObj = std::make_shared<std::vector<std::shared_ptr<baseOffsetInfo>>>();
 				spvBaseInfoObj->push_back(spBaseOffset);
 				linkAddrOffsetHelperMap[spBaseOffset->addr] = spvBaseInfoObj;
-			}
-			else {
+			} else {
 				linkAddrOffsetHelperMap[spBaseOffset->addr]->push_back(spBaseOffset);
 			}
 
@@ -389,8 +379,7 @@ void reverse_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVecto
 				std::shared_ptr<std::vector<std::shared_ptr<baseOffsetInfo>>> spvBaseInfoObj = std::make_shared<std::vector<std::shared_ptr<baseOffsetInfo>>>();
 				spvBaseInfoObj->push_back(spBaseOffset);
 				linkAddrOffsetHelperMap[spBaseOffset->addr] = spvBaseInfoObj;
-			}
-			else {
+			} else {
 				linkAddrOffsetHelperMap[spBaseOffset->addr]->push_back(spBaseOffset);
 			}
 
@@ -476,10 +465,9 @@ void loop_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVector<A
 	};
 	SafeVector<OffsetResultInfo> vResultInfo; //遍历结果
 
-	
+
 	MultiThreadExecuteTask(std::thread::hardware_concurrency(),
-		[pRwDriver, &vSearchResult, &curWorkAddr, startAddr, endAddr, &vResultInfo](size_t thread_id, std::atomic<bool> *pForceStopSignal)->void
-	{
+		[pRwDriver, &vSearchResult, &curWorkAddr, startAddr, endAddr, &vResultInfo](size_t thread_id, std::atomic<bool> *pForceStopSignal)->void {
 		std::vector<ADDR_RESULT_INFO> vLastAddrResult;
 		vSearchResult.copy_vals(vLastAddrResult);
 
@@ -589,8 +577,7 @@ void loop_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, SafeVector<A
 }
 
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 	printf(
 		"======================================================\n"
 		"本驱动名称: Linux ARM64 硬件读写进程内存驱动37\n"
@@ -617,8 +604,7 @@ int main(int argc, char *argv[])
 
 	//驱动默认文件名
 	std::string devFileName = RWPROCMEM_FILE_NODE;
-	if (argc > 1)
-	{
+	if (argc > 1) {
 		//如果用户自定义输入驱动名
 		devFileName = argv[1];
 	}
@@ -627,8 +613,7 @@ int main(int argc, char *argv[])
 
 	//连接驱动
 	int err = 0;
-	if (!rwDriver.ConnectDriver(devFileName.c_str(), err))
-	{
+	if (!rwDriver.ConnectDriver(devFileName.c_str(), err)) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return 0;
@@ -639,8 +624,7 @@ int main(int argc, char *argv[])
 	//获取目标进程PID
 	const char *name = "com.miui.calculator";
 	pid_t pid = findPID(name, &rwDriver);
-	if (pid == 0)
-	{
+	if (pid == 0) {
 		printf("找不到进程\n");
 		fflush(stdout);
 		return 0;
@@ -649,8 +633,7 @@ int main(int argc, char *argv[])
 	//打开进程
 	uint64_t hProcess = rwDriver.OpenProcess(pid);
 	printf("调用驱动 OpenProcess 返回值:%" PRIu64 "\n", hProcess);
-	if (!hProcess)
-	{
+	if (!hProcess) {
 		printf("调用驱动 OpenProcess 失败\n");
 		fflush(stdout);
 		return 0;

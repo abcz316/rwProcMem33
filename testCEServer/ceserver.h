@@ -175,7 +175,7 @@ struct CeResumeThreadOutput {
 	int result;
 };
 
-struct CeAllocInput{
+struct CeAllocInput {
 	HANDLE hProcess;
 	uint64_t preferedBase;
 	uint32_t size;

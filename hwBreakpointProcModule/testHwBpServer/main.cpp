@@ -33,10 +33,9 @@
 
 //默认驱动文件名
 #define DEV_FILEPATH "/dev/hwBreakpointProc1"
- 
+
 char versionstring[] = "HWBP Network 1.0";
-ssize_t recvall(int s, void *buf, size_t size, int flags)
-{
+ssize_t recvall(int s, void *buf, size_t size, int flags) {
 	ssize_t totalreceived = 0;
 	ssize_t sizeleft = size;
 	unsigned char *buffer = (unsigned char*)buf;
@@ -44,24 +43,18 @@ ssize_t recvall(int s, void *buf, size_t size, int flags)
 	// enter recvall
 	flags = flags | MSG_WAITALL;
 
-	while (sizeleft > 0)
-	{
+	while (sizeleft > 0) {
 		ssize_t i = recv(s, &buffer[totalreceived], sizeleft, flags);
-		if (i == 0)
-		{
+		if (i == 0) {
 			printf("recv returned 0\n");
 			return i;
 		}
-		if (i == -1)
-		{
+		if (i == -1) {
 			printf("recv returned -1\n");
-			if (errno == EINTR)
-			{
+			if (errno == EINTR) {
 				printf("errno = EINTR\n");
 				i = 0;
-			}
-			else
-			{
+			} else {
 				printf("Error during recvall: %d. errno=%d\n", (int)i, errno);
 				return i; //read error, or disconnected
 			}
@@ -73,29 +66,22 @@ ssize_t recvall(int s, void *buf, size_t size, int flags)
 	return totalreceived;
 }
 
-ssize_t sendall(int s, void *buf, size_t size, int flags)
-{
+ssize_t sendall(int s, void *buf, size_t size, int flags) {
 	ssize_t totalsent = 0;
 	ssize_t sizeleft = size;
 	unsigned char *buffer = (unsigned char*)buf;
 
-	while (sizeleft > 0)
-	{
+	while (sizeleft > 0) {
 		ssize_t i = send(s, &buffer[totalsent], sizeleft, flags);
 
-		if (i == 0)
-		{
+		if (i == 0) {
 			return i;
 		}
 
-		if (i == -1)
-		{
-			if (errno == EINTR)
-			{
+		if (i == -1) {
+			if (errno == EINTR) {
 				i = 0;
-			}
-			else
-			{
+			} else {
 				printf("Error during sendall: %d. errno=%d\n", (int)i, errno);
 				return i;
 			}
@@ -109,11 +95,9 @@ ssize_t sendall(int s, void *buf, size_t size, int flags)
 
 
 
-int DispatchCommand(int currentsocket, unsigned char command)
-{
+int DispatchCommand(int currentsocket, unsigned char command) {
 	int r;
-	switch (command)
-	{
+	switch (command) {
 	case CMD_GETVERSION:
 	{
 		HwBpVersion *v;
@@ -200,14 +184,11 @@ int DispatchCommand(int currentsocket, unsigned char command)
 		HIT_CONDITIONS params;
 
 		printf("CMD_SETHITCONDITIONS\n");
-		if (recvall(currentsocket, &params, sizeof(params), MSG_WAITALL) > 0)
-		{
+		if (recvall(currentsocket, &params, sizeof(params), MSG_WAITALL) > 0) {
 			int result = ProcessSetHwBpHitConditions(params);
 			fflush(stdout);
 			sendall(currentsocket, &result, sizeof(result), 0);
-		}
-		else
-		{
+		} else {
 			printf("Error during read for CMD_SETHITCONDITIONS\n");
 			fflush(stdout);
 			close(currentsocket);
@@ -221,10 +202,9 @@ int DispatchCommand(int currentsocket, unsigned char command)
 		AddProcessHwBpInfo params;
 
 		printf("CMD_ADDPROCESSHWBP\n");
-		if (recvall(currentsocket, &params, sizeof(AddProcessHwBpInfo), MSG_WAITALL) > 0)
-		{
-			printf("pid:%d,addr:%p,len:%d,type:%d,thread:%d,time:%d\n", 
-				params.pid, 
+		if (recvall(currentsocket, &params, sizeof(AddProcessHwBpInfo), MSG_WAITALL) > 0) {
+			printf("pid:%d,addr:%p,len:%d,type:%d,thread:%d,time:%d\n",
+				params.pid,
 				params.address,
 				params.hwBpAddrLen,
 				params.hwBpAddrType,
@@ -234,12 +214,11 @@ int DispatchCommand(int currentsocket, unsigned char command)
 			int allTaskCount = 0;
 			int insHwBpSuccessTaskCount = 0;
 			std::vector<USER_HIT_INFO> vHit;
-			ProcessAddProcessHwBp(params, allTaskCount, insHwBpSuccessTaskCount,vHit);
+			ProcessAddProcessHwBp(params, allTaskCount, insHwBpSuccessTaskCount, vHit);
 			fflush(stdout);
 
 #pragma pack(1)
-			struct  
-			{
+			struct {
 				uint32_t allTaskCount;
 				uint32_t insHwBpSuccessTaskCount;
 				uint32_t hitCount;
@@ -250,13 +229,10 @@ int DispatchCommand(int currentsocket, unsigned char command)
 			buf.hitCount = vHit.size();
 			sendall(currentsocket, &buf, sizeof(buf), 0);
 
-			for (USER_HIT_INFO h : vHit)
-			{
+			for (USER_HIT_INFO h : vHit) {
 				sendall(currentsocket, &h, sizeof(h), 0);
 			}
-		}
-		else
-		{
+		} else {
 			printf("Error during read for CMD_ADDPROCESSHWBP\n");
 			fflush(stdout);
 			close(currentsocket);
@@ -275,33 +251,25 @@ int DispatchCommand(int currentsocket, unsigned char command)
 
 
 
-void newConnectionThread(int s)
-{
+void newConnectionThread(int s) {
 	unsigned char command;
 
 	int currentsocket = s;
 
 	//printf("new connection. Using socket %d\n", s);
-	while (1)
-	{
+	while (1) {
 		int r = recvall(currentsocket, &command, 1, MSG_WAITALL);
 
-		if (r > 0)
-		{
+		if (r > 0) {
 			DispatchCommand(currentsocket, command);
-		}
-		else
-			if (r == -1)
-			{
+		} else
+			if (r == -1) {
 				printf("read error on socket %d (%d)\n", s, errno);
 				fflush(stdout);
 				close(currentsocket);
 				return;
-			}
-			else
-			{
-				if (r == 0)
-				{
+			} else {
+				if (r == 0) {
 					printf("Peer has disconnected\n");
 					fflush(stdout);
 					close(currentsocket);
@@ -313,14 +281,12 @@ void newConnectionThread(int s)
 	return;
 }
 
-void IdentifierThread()
-{
+void IdentifierThread() {
 	int i;
 	int s;
 	int v = 1;
 #pragma pack(1)
-	struct
-	{
+	struct {
 		uint32_t checksum;
 		uint16_t port;
 	} packet;
@@ -343,10 +309,8 @@ void IdentifierThread()
 	addr.sin_port = htons(3290);
 	i = bind(s, (struct sockaddr *)&addr, sizeof(addr));
 
-	if (i >= 0)
-	{
-		while (1)
-		{
+	if (i >= 0) {
+		while (1) {
 			memset(&addr_client, 0, sizeof(addr_client));
 			addr_client.sin_family = PF_INET;
 			addr_client.sin_addr.s_addr = INADDR_ANY;
@@ -357,8 +321,7 @@ void IdentifierThread()
 			i = recvfrom(s, &packet, sizeof(packet), 0, (struct sockaddr *)&addr_client, &clisize);
 
 			//i=recv(s, &v, sizeof(v), 0);
-			if (i >= 0)
-			{
+			if (i >= 0) {
 
 				printf("Identifier thread received a message :%d\n", v);
 				printf("sizeof(packet)=%ld\n", sizeof(packet));
@@ -374,17 +337,13 @@ void IdentifierThread()
 
 				i = sendto(s, &packet, sizeof(packet), 0, (struct sockaddr *)&addr_client, clisize);
 				printf("sendto returned %d\n", i);
-			}
-			else
-			{
+			} else {
 				printf("recvfrom failed\n");
 			}
 
 			fflush(stdout);
 		}
-	}
-	else
-	{
+	} else {
 		printf("IdentifierThread bind port failed\n");
 	}
 	printf("IdentifierThread exit\n");
@@ -392,14 +351,12 @@ void IdentifierThread()
 }
 
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 	printf("Connecting driver.\n");
 
 	//连接驱动
 	int err = 0;
-	if (!g_Driver.ConnectDriver(err))
-	{
+	if (!g_Driver.ConnectDriver(err)) {
 		printf("Connect driver failed.\n");
 		fflush(stdout);
 		return 0;
@@ -409,24 +366,18 @@ int main(int argc, char *argv[])
 #ifdef CONFIG_VERIFY
 	//驱动_设置密匙（如果驱动开启了密匙验证系统，则需要输入密匙才可读取其他进程内存，否则只能读取自身进程）
 	char identityBuf128[128] = { 0 };
-	if (g_Driver.SetKey((char*)&identityBuf128, 0))
-	{
+	if (g_Driver.SetKey((char*)&identityBuf128, 0)) {
 		printf("Driver verify identity:%" PRIu64 "\n", *(uint64_t*)&identityBuf128);
 
 		uint64_t key = GetVerifyKey((char*)&identityBuf128, sizeof(identityBuf128));
 		printf("Driver verify key:%" PRIu64 "\n", key);
 
-		if (g_Driver.SetKey(NULL, key))
-		{
+		if (g_Driver.SetKey(NULL, key)) {
 			printf("Driver verify key success.\n");
-		}
-		else
-		{
+		} else {
 			printf("Driver verify key failed.\n");
 		}
-	}
-	else
-	{
+	} else {
 		printf("Get driver verify question failed.\n");
 	}
 #endif
@@ -460,8 +411,7 @@ int main(int argc, char *argv[])
 	printf("bind=%d\n", b);
 
 
-	if (b != -1)
-	{
+	if (b != -1) {
 		int l = listen(s, 32);
 
 		printf("listen=%d\n", l);
@@ -471,8 +421,7 @@ int main(int argc, char *argv[])
 
 		fflush(stdout);
 
-		while (1)
-		{
+		while (1) {
 
 			int a = accept(s, (struct sockaddr *)&addr_client, &clisize);
 
@@ -482,8 +431,7 @@ int main(int argc, char *argv[])
 			int opt = 1;
 			setsockopt(a, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
 
-			if (a != -1)
-			{
+			if (a != -1) {
 				std::thread tdConnect(newConnectionThread, a);
 				tdConnect.detach();
 			}

@@ -19,22 +19,18 @@ static ssize_t g_arg_start_offset_proc_cmdline = 0; //mm_struct里arg_start的偏移
 static bool g_init_arg_start_offset_success = false; //是否初始化找到过arg_start的偏移位置
 
 
-static inline struct pid * get_proc_pid_struct(int pid)
-{
+static inline struct pid * get_proc_pid_struct(int pid) {
 	return find_get_pid(pid);
 }
 
 
-static inline int get_proc_pid(struct pid* proc_pid_struct)
-{
+static inline int get_proc_pid(struct pid* proc_pid_struct) {
 	return proc_pid_struct->numbers[0].nr;
 }
-static inline void release_proc_pid_struct(struct pid* proc_pid_struct)
-{
+static inline void release_proc_pid_struct(struct pid* proc_pid_struct) {
 	put_pid(proc_pid_struct);
 }
-static inline int init_proc_cmdline_offset(void)
-{
+static inline int init_proc_cmdline_offset(void) {
 	int is_find_cmdline_offset = 0;
 	size_t size = 4096;
 	char *lpOldCmdLineBuf = NULL;
@@ -42,8 +38,7 @@ static inline int init_proc_cmdline_offset(void)
 
 	struct file *fp_cmdline = filp_open("/proc/self/cmdline", O_RDONLY, 0);
 	mm_segment_t pold_fs;
-	if (IS_ERR(fp_cmdline))
-	{
+	if (IS_ERR(fp_cmdline)) {
 		return -ESRCH;
 	}
 	pold_fs = get_fs();
@@ -52,8 +47,7 @@ static inline int init_proc_cmdline_offset(void)
 
 	lpOldCmdLineBuf = (char*)kmalloc(size, GFP_KERNEL);
 	memset(lpOldCmdLineBuf, 0, size);
-	if (fp_cmdline->f_op->read(fp_cmdline, lpOldCmdLineBuf, size, &fp_cmdline->f_pos) <= 0)
-	{
+	if (fp_cmdline->f_op->read(fp_cmdline, lpOldCmdLineBuf, size, &fp_cmdline->f_pos) <= 0) {
 		printk_debug(KERN_INFO "Failed to do read!");
 		set_fs(pold_fs);
 		filp_close(fp_cmdline, NULL);
@@ -69,24 +63,20 @@ static inline int init_proc_cmdline_offset(void)
 	lpNewCmdLineBuf = (char*)kmalloc(size, GFP_KERNEL);
 
 	g_init_arg_start_offset_success = true;
-	for (g_arg_start_offset_proc_cmdline = -64; g_arg_start_offset_proc_cmdline <= 64; g_arg_start_offset_proc_cmdline += 1)
-	{
+	for (g_arg_start_offset_proc_cmdline = -64; g_arg_start_offset_proc_cmdline <= 64; g_arg_start_offset_proc_cmdline += 1) {
 		size_t arg_start = 0, arg_end = 0;
-		if (get_task_proc_cmdline_addr(current,  &arg_start, &arg_end) == 0)
-		{
+		if (get_task_proc_cmdline_addr(current, &arg_start, &arg_end) == 0) {
 			printk_debug(KERN_INFO "get_task_proc_cmdline_addr arg_start %p\n", (void*)arg_start);
 
 			//读取每个+4的arg_start内存地址的内容
-			if (arg_start > 0)
-			{
+			if (arg_start > 0) {
 
 				size_t read_size = 0;
 
 				//开始读取物理内存
 				memset(lpNewCmdLineBuf, 0, size);
 
-				while (read_size < size)
-				{
+				while (read_size < size) {
 					//获取进程虚拟内存地址对应的物理地址
 					size_t phy_addr;
 					size_t pfn_sz;
@@ -106,8 +96,7 @@ static inline int init_proc_cmdline_offset(void)
 					get_task_proc_phy_addr(&phy_addr, current, arg_start + read_size, &pte);
 #endif
 					printk_debug(KERN_INFO "phy_addr:0x%zx\n", phy_addr);
-					if (phy_addr == 0)
-					{
+					if (phy_addr == 0) {
 						break;
 					}
 
@@ -124,8 +113,7 @@ static inline int init_proc_cmdline_offset(void)
 
 				printk_debug(KERN_INFO "lpNewCmdLineBuf:%s, len:%ld\n", lpNewCmdLineBuf, strlen(lpNewCmdLineBuf));
 
-				if (strcmp(lpNewCmdLineBuf, lpOldCmdLineBuf) == 0)
-				{
+				if (strcmp(lpNewCmdLineBuf, lpOldCmdLineBuf) == 0) {
 					is_find_cmdline_offset = 1;
 					break;
 				}
@@ -139,8 +127,7 @@ static inline int init_proc_cmdline_offset(void)
 	kfree(lpOldCmdLineBuf);
 	kfree(lpNewCmdLineBuf);
 
-	if (!is_find_cmdline_offset)
-	{
+	if (!is_find_cmdline_offset) {
 		g_init_arg_start_offset_success = false;
 		printk_debug(KERN_INFO "find cmdline offset failed\n");
 		return -ESPIPE;
@@ -148,30 +135,25 @@ static inline int init_proc_cmdline_offset(void)
 	printk_debug(KERN_INFO "g_arg_start_offset_proc_cmdline:%zu\n", g_arg_start_offset_proc_cmdline);
 	return 0;
 }
-static inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t * arg_start, size_t * arg_end)
-{
+static inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t * arg_start, size_t * arg_end) {
 	int ret = 0;
 	struct task_struct *task = NULL;
-	
 
-	if (g_init_arg_start_offset_success == false)
-	{
-		if ( (ret = init_proc_cmdline_offset()) != 0)
-		{
+
+	if (g_init_arg_start_offset_success == false) {
+		if ((ret = init_proc_cmdline_offset()) != 0) {
 			return ret;
 		}
 	}
 
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
-	if (!task) { return -EFAULT;	}
+	if (!task) { return -EFAULT; }
 	ret = get_task_proc_cmdline_addr(task, arg_start, arg_end);
 	return ret;
 }
-static inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * arg_start, size_t * arg_end)
-{
-	if (g_init_arg_start_offset_success)
-	{
+static inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * arg_start, size_t * arg_end) {
+	if (g_init_arg_start_offset_success) {
 		struct mm_struct *mm;
 		ssize_t accurate_offset;
 		mm = get_task_mm(task);
@@ -180,8 +162,7 @@ static inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * 
 
 		//精确偏移
 		accurate_offset = (ssize_t)((size_t)&mm->arg_start - (size_t)mm + g_arg_start_offset_proc_cmdline);
-		if (accurate_offset >= sizeof(struct mm_struct) - sizeof(ssize_t))
-		{
+		if (accurate_offset >= sizeof(struct mm_struct) - sizeof(ssize_t)) {
 			mmput(mm);
 			return -EFAULT;
 		}

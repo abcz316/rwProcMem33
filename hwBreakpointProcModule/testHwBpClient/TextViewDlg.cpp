@@ -12,18 +12,15 @@
 IMPLEMENT_DYNAMIC(CTextViewDlg, CDialogEx)
 
 CTextViewDlg::CTextViewDlg(CString title, CString text)
-	: CDialogEx(IDD_TEXT_VIEW_DIALOG, GetDesktopWindow())
-{
+	: CDialogEx(IDD_TEXT_VIEW_DIALOG, GetDesktopWindow()) {
 	m_title = title;
 	m_edit_text = text;
 }
 
-CTextViewDlg::~CTextViewDlg()
-{
+CTextViewDlg::~CTextViewDlg() {
 }
 
-void CTextViewDlg::DoDataExchange(CDataExchange* pDX)
-{
+void CTextViewDlg::DoDataExchange(CDataExchange* pDX) {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Text(pDX, IDC_EDIT_TEXT, m_edit_text);
 }
@@ -39,8 +36,7 @@ END_MESSAGE_MAP()
 // CTextViewDlg 消息处理程序
 
 
-BOOL CTextViewDlg::OnInitDialog()
-{
+BOOL CTextViewDlg::OnInitDialog() {
 	CDialogEx::OnInitDialog();
 
 	// TODO:  在此添加额外的初始化
@@ -52,44 +48,39 @@ BOOL CTextViewDlg::OnInitDialog()
 		L"新宋体");
 
 	GetDlgItem(IDC_EDIT_TEXT)->SetFont(&m_font);
-	
+
 	SetWindowTextW(m_title);
 	return TRUE;  // return TRUE unless you set the focus to a control
 				  // 异常: OCX 属性页应返回 FALSE
 }
 
 
-BOOL CTextViewDlg::PreTranslateMessage(MSG* pMsg)
-{
+BOOL CTextViewDlg::PreTranslateMessage(MSG* pMsg) {
 	// TODO: 在此添加专用代码和/或调用基类
 
 	return CDialogEx::PreTranslateMessage(pMsg);
 }
 
 
-void CTextViewDlg::OnClose()
-{
+void CTextViewDlg::OnClose() {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
 
 	CDialogEx::OnClose();
 }
 
 
-void CTextViewDlg::OnDestroy()
-{
+void CTextViewDlg::OnDestroy() {
 	CDialogEx::OnDestroy();
 
 	// TODO: 在此处添加消息处理程序代码
 }
 
 
-void CTextViewDlg::OnSize(UINT nType, int cx, int cy)
-{
+void CTextViewDlg::OnSize(UINT nType, int cx, int cy) {
 	CDialogEx::OnSize(nType, cx, cy);
-	
+
 	CWnd * edit = GetDlgItem(IDC_EDIT_TEXT);
-	if (edit)
-	{
+	if (edit) {
 		::SetWindowPos(edit->m_hWnd, NULL, 0, 0, cx, cy, SWP_NOMOVE);
 	}
 	// TODO: 在此处添加消息处理程序代码

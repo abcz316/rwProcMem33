@@ -6,22 +6,19 @@
 #include <map>
 #include "api.h"
 
-struct HANDLE_INFO
-{
+struct HANDLE_INFO {
 	uint64_t p;//TODO：这里有空再搞成shared_ptr派生成各个基类，防止内存泄漏
 	handleType type;
 };
 std::map<HANDLE, HANDLE_INFO> m_HandlePointList;
 
 
-HANDLE CPortHelper::CreateHandleFromPointer(uint64_t p, handleType type)
-{
+HANDLE CPortHelper::CreateHandleFromPointer(uint64_t p, handleType type) {
 	std::random_device rd;
-	HANDLE handle= 10000 + rd()/1000;
+	HANDLE handle = 10000 + rd() / 1000;
 	handle = handle < 0 ? -handle : handle;
-	while (m_HandlePointList.find(handle) != m_HandlePointList.end())
-	{
-		handle = 10000 + rd()/1000;
+	while (m_HandlePointList.find(handle) != m_HandlePointList.end()) {
+		handle = 10000 + rd() / 1000;
 		handle = handle < 0 ? -handle : handle;
 	}
 
@@ -34,21 +31,17 @@ HANDLE CPortHelper::CreateHandleFromPointer(uint64_t p, handleType type)
 	return handle;
 }
 
-handleType CPortHelper::GetHandleType(HANDLE handle)
-{
+handleType CPortHelper::GetHandleType(HANDLE handle) {
 	auto iter = m_HandlePointList.find(handle);
-	if (iter == m_HandlePointList.end())
-	{
+	if (iter == m_HandlePointList.end()) {
 		return htEmpty;
 	}
 	return iter->second.type;
 }
 
-uint64_t CPortHelper::GetPointerFromHandle(HANDLE handle)
-{
+uint64_t CPortHelper::GetPointerFromHandle(HANDLE handle) {
 	auto iter = m_HandlePointList.find(handle);
-	if (iter == m_HandlePointList.end())
-	{
+	if (iter == m_HandlePointList.end()) {
 		return 0;
 	}
 	return iter->second.p;
@@ -56,11 +49,9 @@ uint64_t CPortHelper::GetPointerFromHandle(HANDLE handle)
 
 
 
-void CPortHelper::RemoveHandle(HANDLE handle)
-{
+void CPortHelper::RemoveHandle(HANDLE handle) {
 	auto iter = m_HandlePointList.find(handle);
-	if (iter == m_HandlePointList.end())
-	{
+	if (iter == m_HandlePointList.end()) {
 		return;
 	}
 	m_HandlePointList.erase(iter);
@@ -68,15 +59,11 @@ void CPortHelper::RemoveHandle(HANDLE handle)
 
 
 
-HANDLE CPortHelper::FindHandleByPID(DWORD pid)
-{
-	for (auto item = m_HandlePointList.begin(); item != m_HandlePointList.end(); item++)
-	{
-		if (item->second.type == htProcesHandle)
-		{
+HANDLE CPortHelper::FindHandleByPID(DWORD pid) {
+	for (auto item = m_HandlePointList.begin(); item != m_HandlePointList.end(); item++) {
+		if (item->second.type == htProcesHandle) {
 			CeOpenProcess *pCeOpenProcess = (CeOpenProcess*)item->second.p;
-			if (pCeOpenProcess->pid == pid)
-			{
+			if (pCeOpenProcess->pid == pid) {
 				return item->first;
 			}
 		}

@@ -53,14 +53,12 @@ struct my_user_pt_regs {
 	uint64_t syscallno;
 };
 
-struct USER_HIT_INFO
-{
+struct USER_HIT_INFO {
 	size_t hit_addr; //命中地址
 	size_t hit_count; //命中次数
 	struct my_user_pt_regs regs; //最后一次命中的寄存器数据
 };
-struct HIT_CONDITIONS
-{
+struct HIT_CONDITIONS {
 	char enable_regs[31];
 	char enable_sp;
 	char enable_pc;
@@ -141,44 +139,34 @@ static BOOL hwBreakpointProcDriver_CloseHandle(int nDriverLink, uint64_t handle)
 #ifdef __cplusplus
 #include <vector>
 #include <mutex>
-class CHwBreakpointManager
-{
+class CHwBreakpointManager {
 public:
 
-	CHwBreakpointManager()
-	{
+	CHwBreakpointManager() {
 
 	}
-	~CHwBreakpointManager()
-	{
+	~CHwBreakpointManager() {
 		DisconnectDriver();
 	}
 
 	//连接驱动（错误代码），返回值：驱动连接句柄，>=0代表成功
-	BOOL ConnectDriver(int & err)
-	{
-		if (m_nDriverLink >= 0)
-		{
+	BOOL ConnectDriver(int & err) {
+		if (m_nDriverLink >= 0) {
 			return TRUE;
 		}
 		m_nDriverLink = hwBreakpointProcDriver_Connect();
-		if (m_nDriverLink < 0)
-		{
+		if (m_nDriverLink < 0) {
 			err = m_nDriverLink;
 			return FALSE;
-		}
-		else
-		{
+		} else {
 			err = 0;
 		}
 		return TRUE;
 	}
 
 	//断开驱动，返回值：TRUE成功，FALSE失败
-	BOOL DisconnectDriver()
-	{
-		if (m_nDriverLink >= 0)
-		{
+	BOOL DisconnectDriver() {
+		if (m_nDriverLink >= 0) {
 			hwBreakpointProcDriver_Disconnect(m_nDriverLink);
 			m_nDriverLink = -1;
 			return TRUE;
@@ -187,31 +175,26 @@ public:
 	}
 
 	//驱动是否连接正常，返回值：TRUE已连接，FALSE未连接
-	BOOL IsDriverConnected()
-	{
+	BOOL IsDriverConnected() {
 		return m_nDriverLink >= 0 ? TRUE : FALSE;
 	}
 
 	//驱动_打开进程（进程PID），返回值：进程句柄，0为失败
-	uint64_t OpenProcess(uint64_t pid)
-	{
+	uint64_t OpenProcess(uint64_t pid) {
 		return hwBreakpointProcDriver_OpenProcess(m_nDriverLink, pid);
 	}
 
 	//驱动_获取CPU支持硬件执行断点的数量，返回值：TRUE成功，FALSE失败
-	int GetNumBRPS()
-	{
+	int GetNumBRPS() {
 		return hwBreakpointProcDriver_GetNumBRPS(m_nDriverLink);
 	}
 	//驱动_获取CPU支持硬件访问断点的数量，返回值：TRUE成功，FALSE失败
-	int GetNumWRPS()
-	{
+	int GetNumWRPS() {
 		return hwBreakpointProcDriver_GetNumWRPS(m_nDriverLink);
 	}
 
 	//驱动_设置硬件断点命中记录条件，返回值：TRUE成功，FALSE失败
-	BOOL SetHwBpHitConditions(HIT_CONDITIONS & hitConditions)
-	{
+	BOOL SetHwBpHitConditions(HIT_CONDITIONS & hitConditions) {
 		return hwBreakpointProcDriver_SetHwBpHitConditions(m_nDriverLink, &hitConditions);
 	}
 
@@ -221,25 +204,21 @@ public:
 		uint64_t lpBaseAddress,
 		uint64_t hwBreakpointLen,
 		unsigned int hwBreakpointType
-	)
-	{
+	) {
 		return hwBreakpointProcDriver_AddProcessHwBp(m_nDriverLink, hProcess, lpBaseAddress, hwBreakpointLen, hwBreakpointType);
 	}
 
 
 	//驱动_删除硬件断点，返回值：TRUE成功，FALSE失败
-	BOOL DelProcessHwBp(	uint64_t hHwBreakpointHandle)
-	{
+	BOOL DelProcessHwBp(uint64_t hHwBreakpointHandle) {
 		return hwBreakpointProcDriver_DelProcessHwBp(m_nDriverLink, hHwBreakpointHandle);
 	}
 
 	//驱动_读取硬件断点命中记录信息，返回值：TRUE成功，FALSE失败
-	BOOL ReadHwBpInfo(uint64_t hHwBreakpointHandle, std::vector<USER_HIT_INFO> & vOutput)
-	{
+	BOOL ReadHwBpInfo(uint64_t hHwBreakpointHandle, std::vector<USER_HIT_INFO> & vOutput) {
 		cvector cvOutput = cvector_create(sizeof(USER_HIT_INFO));
 		BOOL b = hwBreakpointProcDriver_ReadHwBpInfo(m_nDriverLink, hHwBreakpointHandle, cvOutput);
-		for (citerator iter = cvector_begin(cvOutput); iter != cvector_end(cvOutput); iter = cvector_next(cvOutput, iter))
-		{
+		for (citerator iter = cvector_begin(cvOutput); iter != cvector_end(cvOutput); iter = cvector_next(cvOutput, iter)) {
 			USER_HIT_INFO *rinfo = (USER_HIT_INFO*)iter;
 			vOutput.push_back(*rinfo);
 		}
@@ -250,15 +229,13 @@ public:
 
 
 	//驱动_清除硬件断点命中记录信息，返回值：TRUE成功，FALSE失败
-	BOOL CleanHwBpInfo()
-	{
+	BOOL CleanHwBpInfo() {
 		return hwBreakpointProcDriver_CleanHwBpInfo(m_nDriverLink);
 	}
 
 
 	//驱动_关闭进程，返回值：TRUE成功，FALSE失败
-	BOOL CloseHandle(uint64_t handle)
-	{
+	BOOL CloseHandle(uint64_t handle) {
 		return hwBreakpointProcDriver_CloseHandle(m_nDriverLink, handle);
 	}
 private:
@@ -270,38 +247,31 @@ private:
 //////////////////////////////////////////////////////////////////////////
 
 
-static int hwBreakpointProcDriver_Connect()
-{
+static int hwBreakpointProcDriver_Connect() {
 	int nDriverLink = open(DEV_FILENAME, O_RDWR);
-	if (nDriverLink < 0)
-	{
+	if (nDriverLink < 0) {
 		printf("open error():%s\n", strerror(errno));
 	}
 	return nDriverLink;
 }
 
-static BOOL hwBreakpointProcDriver_Disconnect(int nDriverLink)
-{
-	if (nDriverLink < 0)
-	{
+static BOOL hwBreakpointProcDriver_Disconnect(int nDriverLink) {
+	if (nDriverLink < 0) {
 		return FALSE;
 	}
 	//�Ͽ���������
 	close(nDriverLink);
 	return TRUE;
 }
-static uint64_t hwBreakpointProcDriver_OpenProcess(int nDriverLink, uint64_t pid)
-{
-	if (nDriverLink < 0)
-	{
+static uint64_t hwBreakpointProcDriver_OpenProcess(int nDriverLink, uint64_t pid) {
+	if (nDriverLink < 0) {
 		return 0;
 	}
 	char buf[8] = { 0 };
 	memcpy(buf, &pid, 8);
 
 	int res = ioctl(nDriverLink, IOCTL_OPEN_PROCESS, &buf);
-	if (res != 0)
-	{
+	if (res != 0) {
 		printf("OpenProcess ioctl():%s\n", strerror(errno));
 		return 0;
 	}
@@ -311,19 +281,15 @@ static uint64_t hwBreakpointProcDriver_OpenProcess(int nDriverLink, uint64_t pid
 }
 
 
-static int hwBreakpointProcDriver_GetNumBRPS(int nDriverLink)
-{
-	if (nDriverLink < 0)
-	{
+static int hwBreakpointProcDriver_GetNumBRPS(int nDriverLink) {
+	if (nDriverLink < 0) {
 		return 0;
 	}
 	int res = ioctl(nDriverLink, IOCTL_GET_NUM_BRPS, 0);
 	return res;
 }
-static int hwBreakpointProcDriver_GetNumWRPS(int nDriverLink)
-{
-	if (nDriverLink < 0)
-	{
+static int hwBreakpointProcDriver_GetNumWRPS(int nDriverLink) {
+	if (nDriverLink < 0) {
 		return 0;
 	}
 	int res = ioctl(nDriverLink, IOCTL_GET_NUM_WRPS, 0);
@@ -332,15 +298,12 @@ static int hwBreakpointProcDriver_GetNumWRPS(int nDriverLink)
 
 static BOOL hwBreakpointProcDriver_SetHwBpHitConditions(
 	int nDriverLink,
-	HIT_CONDITIONS * hitConditions)
-{
-	if (nDriverLink < 0)
-	{
+	HIT_CONDITIONS * hitConditions) {
+	if (nDriverLink < 0) {
 		return FALSE;
 	}
 	int res = ioctl(nDriverLink, IOCTL_SET_HWBP_HIT_CONDITIONS, hitConditions);
-	if (res != 0)
-	{
+	if (res != 0) {
 		printf("SetHwBpHitConditions ioctl():%s\n", strerror(errno));
 		return FALSE;
 	}
@@ -352,10 +315,8 @@ static uint64_t hwBreakpointProcDriver_AddProcessHwBp(
 	uint64_t lpBaseAddress,
 	uint64_t hwBreakpointLen,
 	unsigned int hwBreakpointType
-)
-{
-	if (nDriverLink < 0)
-	{
+) {
+	if (nDriverLink < 0) {
 		return 0;
 	}
 
@@ -367,8 +328,7 @@ static uint64_t hwBreakpointProcDriver_AddProcessHwBp(
 	memcpy((void*)((size_t)buf + (size_t)24), &hwBreakpointType, 4);
 
 	int res = ioctl(nDriverLink, IOCTL_ADD_PROCESS_HWBP, &buf);
-	if (res != 0)
-	{
+	if (res != 0) {
 		printf("AddProcessHwBp ioctl():%s\n", strerror(errno));
 		return 0;
 	}
@@ -380,14 +340,11 @@ static uint64_t hwBreakpointProcDriver_AddProcessHwBp(
 
 static BOOL hwBreakpointProcDriver_DelProcessHwBp(
 	int nDriverLink,
-	uint64_t hHwBreakpointHandle)
-{
-	if (nDriverLink < 0)
-	{
+	uint64_t hHwBreakpointHandle) {
+	if (nDriverLink < 0) {
 		return FALSE;
 	}
-	if (!hHwBreakpointHandle)
-	{
+	if (!hHwBreakpointHandle) {
 		return FALSE;
 	}
 
@@ -395,8 +352,7 @@ static BOOL hwBreakpointProcDriver_DelProcessHwBp(
 	memcpy(buf, &hHwBreakpointHandle, 8);
 
 	int res = ioctl(nDriverLink, IOCTL_DEL_PROCESS_HWBP, &buf);
-	if (res != 0)
-	{
+	if (res != 0) {
 		printf("DelProcessHwBp ioctl():%s\n", strerror(errno));
 		return FALSE;
 	}
@@ -409,14 +365,11 @@ static BOOL hwBreakpointProcDriver_ReadHwBpInfo(
 	int nDriverLink,
 	uint64_t hHwBreakpointHandle,
 	cvector vOutput
-)
-{
-	if (nDriverLink < 0)
-	{
+) {
+	if (nDriverLink < 0) {
 		return FALSE;
 	}
-	if (!hHwBreakpointHandle)
-	{
+	if (!hHwBreakpointHandle) {
 		return FALSE;
 	}
 
@@ -425,8 +378,7 @@ static BOOL hwBreakpointProcDriver_ReadHwBpInfo(
 	memcpy(buf, &hHwBreakpointHandle, 8);
 	int count = ioctl(nDriverLink, IOCTL_GET_HWBP_HIT_ADDR_COUNT, &buf);
 	//printf("count %d\n", count);
-	if (count <= 0)
-	{
+	if (count <= 0) {
 		//printf("ioctl():%s\n", strerror(errno));
 		return FALSE;
 	}
@@ -438,15 +390,13 @@ static BOOL hwBreakpointProcDriver_ReadHwBpInfo(
 
 	int res = read(nDriverLink, big_buf, big_buf_len);
 	//printf("res %d\n", res);
-	if (res <= 0)
-	{
+	if (res <= 0) {
 		free(big_buf);
 		return FALSE;
 	}
 	size_t copy_pos = (size_t)big_buf;
 
-	for (; res > 0; res--)
-	{
+	for (; res > 0; res--) {
 		struct USER_HIT_INFO hInfo = { 0 };
 		memcpy(&hInfo, (void*)copy_pos, sizeof(hInfo));
 		copy_pos += sizeof(hInfo);
@@ -458,15 +408,12 @@ static BOOL hwBreakpointProcDriver_ReadHwBpInfo(
 
 
 
-static BOOL hwBreakpointProcDriver_CleanHwBpInfo(int nDriverLink)
-{
-	if (nDriverLink < 0)
-	{
+static BOOL hwBreakpointProcDriver_CleanHwBpInfo(int nDriverLink) {
+	if (nDriverLink < 0) {
 		return FALSE;
 	}
 	int res = write(nDriverLink, (void*)1, 1);
-	if (res == 0)
-	{
+	if (res == 0) {
 		printf("CleanHwBpInfo write():%s\n", strerror(errno));
 		return FALSE;
 	}
@@ -474,14 +421,11 @@ static BOOL hwBreakpointProcDriver_CleanHwBpInfo(int nDriverLink)
 }
 
 
-static BOOL hwBreakpointProcDriver_CloseHandle(int nDriverLink, uint64_t handle)
-{
-	if (nDriverLink < 0)
-	{
+static BOOL hwBreakpointProcDriver_CloseHandle(int nDriverLink, uint64_t handle) {
+	if (nDriverLink < 0) {
 		return FALSE;
 	}
-	if (!handle)
-	{
+	if (!handle) {
 		return FALSE;
 	}
 
@@ -489,8 +433,7 @@ static BOOL hwBreakpointProcDriver_CloseHandle(int nDriverLink, uint64_t handle)
 	memcpy(buf, &handle, 8);
 
 	int res = ioctl(nDriverLink, IOCTL_CLOSE_HANDLE, &buf);
-	if (res != 0)
-	{
+	if (res != 0) {
 		printf("CloseHandle ioctl():%s\n", strerror(errno));
 		return FALSE;
 	}

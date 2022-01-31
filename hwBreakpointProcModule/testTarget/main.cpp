@@ -20,29 +20,22 @@
 
 int g_value = 0;
 
-BOOL GetProcessTask(int pid, std::vector<int> & vOutput)
-{
+BOOL GetProcessTask(int pid, std::vector<int> & vOutput) {
 	DIR *dir = NULL;
 	struct dirent *ptr = NULL;
 	char szTaskPath[256] = { 0 };
 	sprintf(szTaskPath, "/proc/%d/task", pid);
 
 	dir = opendir(szTaskPath);
-	if (NULL != dir)
-	{
+	if (NULL != dir) {
 		while ((ptr = readdir(dir)) != NULL)   // 循环读取路径下的每一个文件/文件夹
 		{
 			// 如果读取到的是"."或者".."则跳过，读取到的不是文件夹名字也跳过
-			if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0))
-			{
+			if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0)) {
 				continue;
-			}
-			else if (ptr->d_type != DT_DIR)
-			{
+			} else if (ptr->d_type != DT_DIR) {
 				continue;
-			}
-			else if (strspn(ptr->d_name, "1234567890") != strlen(ptr->d_name))
-			{
+			} else if (strspn(ptr->d_name, "1234567890") != strlen(ptr->d_name)) {
 				continue;
 			}
 
@@ -56,8 +49,7 @@ BOOL GetProcessTask(int pid, std::vector<int> & vOutput)
 }
 
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 	printf(
 		"======================================================\n"
 		"本驱动名称: Linux ARM64 硬件断点进程调试驱动1\n"
@@ -81,10 +73,8 @@ int main(int argc, char *argv[])
 	int argv_hwbp_len = 0;
 	int argv_hwbp_type = 0;
 
-	while ((opt = getopt(argc, argv, "p:a:l:t:")) != -1)
-	{
-		switch (opt)
-		{
+	while ((opt = getopt(argc, argv, "p:a:l:t:")) != -1) {
+		switch (opt) {
 		case 'p':
 			argv_pid = atoi(optarg);
 			break;
@@ -95,20 +85,13 @@ int main(int argc, char *argv[])
 			argv_hwbp_len = atoi(optarg);
 			break;
 		case 't':
-			if (strcmp(optarg,"r") == 0)
-			{
+			if (strcmp(optarg, "r") == 0) {
 				argv_hwbp_type = HW_BREAKPOINT_R;
-			}
-			else if (strcmp(optarg, "w") == 0)
-			{
+			} else if (strcmp(optarg, "w") == 0) {
 				argv_hwbp_type = HW_BREAKPOINT_W;
-			}
-			else if (strcmp(optarg, "rw") == 0)
-			{
+			} else if (strcmp(optarg, "rw") == 0) {
 				argv_hwbp_type = HW_BREAKPOINT_R | HW_BREAKPOINT_W;
-			}
-			else if (strcmp(optarg, "x") == 0)
-			{
+			} else if (strcmp(optarg, "x") == 0) {
 				argv_hwbp_type = HW_BREAKPOINT_X;
 			}
 			break;
@@ -119,8 +102,7 @@ int main(int argc, char *argv[])
 			break;
 		}
 	}
-	if (argv_pid == 0 || argv_hwbp_addr == 0 || argv_hwbp_len == 0 || argv_hwbp_type == 0)
-	{
+	if (argv_pid == 0 || argv_hwbp_addr == 0 || argv_hwbp_len == 0 || argv_hwbp_type == 0) {
 		printf("Error value.\n");
 		return 0;
 	}
@@ -130,8 +112,7 @@ int main(int argc, char *argv[])
 	CHwBreakpointManager driver;
 	//连接驱动
 	int err = 0;
-	if (!driver.ConnectDriver(err))
-	{
+	if (!driver.ConnectDriver(err)) {
 		printf("连接驱动失败\n");
 		return 0;
 	}
@@ -141,24 +122,18 @@ int main(int argc, char *argv[])
 #ifdef CONFIG_VERIFY
 	//驱动_设置密匙（如果驱动开启了密匙验证系统，则需要输入密匙才可读取其他进程内存，否则只能读取自身进程）
 	char identityBuf128[128] = { 0 };
-	if (driver.SetKey((char*)&identityBuf128, 0))
-	{
+	if (driver.SetKey((char*)&identityBuf128, 0)) {
 		printf("Driver verify identity:%" PRIu64 "\n", *(uint64_t*)&identityBuf128);
 
 		uint64_t key = GetVerifyKey((char*)&identityBuf128, sizeof(identityBuf128));
 		printf("Driver verify key:%" PRIu64 "\n", key);
 
-		if (driver.SetKey(NULL, key))
-		{
+		if (driver.SetKey(NULL, key)) {
 			printf("Driver verify key success.\n");
-		}
-		else
-		{
+		} else {
 			printf("Driver verify key failed.\n");
 		}
-	}
-	else
-	{
+	} else {
 		printf("Get driver verify question failed.\n");
 	}
 #endif
@@ -176,24 +151,21 @@ int main(int argc, char *argv[])
 	//获取当前进程所有的task
 	std::vector<int> vTask;
 	GetProcessTask(argv_pid, vTask);
-	if (vTask.size() == 0)
-	{
+	if (vTask.size() == 0) {
 		printf("获取目标进程task失败\n");
 		return 0;
 	}
-	printf("task count:%d\n", vTask.size()); 
+	printf("task count:%d\n", vTask.size());
 
 	//设置进程硬件断点
 	std::vector<uint64_t> vHwBpHandle;
 
-	for (int i=0; i < vTask.size(); i++)
-	{
+	for (int i = 0; i < vTask.size(); i++) {
 		//打开task
 		uint64_t hProcess = driver.OpenProcess(vTask.at(i));
 		printf("调用驱动 OpenProcess(%d) 返回值:%" PRIu64 "\n", vTask.at(i), hProcess);
-		if (!hProcess)
-		{
-			printf("调用驱动 OpenProcess 失败\n"); 
+		if (!hProcess) {
+			printf("调用驱动 OpenProcess 失败\n");
 			fflush(stdout);
 			continue;
 		}
@@ -203,8 +175,7 @@ int main(int argc, char *argv[])
 			argv_hwbp_len, argv_hwbp_type);
 		printf("调用驱动 AddProcessHwBp(%p) 返回值:%" PRIu64 "\n", &g_value, hwBpHandle);
 
-		if (hwBpHandle)
-		{
+		if (hwBpHandle) {
 			vHwBpHandle.push_back(hwBpHandle);
 		}
 		//关闭task
@@ -216,24 +187,20 @@ int main(int argc, char *argv[])
 	sleep(2);
 	printf("==========================================================================\n");
 	//删除进程硬件断点
-	for (uint64_t hwBpHandle : vHwBpHandle)
-	{
+	for (uint64_t hwBpHandle : vHwBpHandle) {
 		driver.DelProcessHwBp(hwBpHandle);
 		printf("调用驱动 DelProcessHwBp(%" PRIu64 ")\n", hwBpHandle);
 	}
 	//读取硬件断点命中信息
-	for (uint64_t hwBpHandle : vHwBpHandle)
-	{
+	for (uint64_t hwBpHandle : vHwBpHandle) {
 		std::vector<USER_HIT_INFO> vHit;
 		BOOL b = driver.ReadHwBpInfo(hwBpHandle, vHit);
 		printf("==========================================================================\n");
 		printf("Call ReadProcessHwBp(%" PRIu64 ") 返回值:%d\n", hwBpHandle, b);
-		for (USER_HIT_INFO userhInfo : vHit)
-		{
+		for (USER_HIT_INFO userhInfo : vHit) {
 			printf("==========================================================================\n");
 			printf("硬件断点命中地址:%p,命中次数:%zu\n", userhInfo.hit_addr, userhInfo.hit_count);
-			for (int r = 0; r < 30; r += 5)
-			{
+			for (int r = 0; r < 30; r += 5) {
 				printf("\tX%-2d=%-12llx X%-2d=%-12llx X%-2d=%-12llx X%-2d=%-12llx X%-2d=%-12llx\n",
 					r, userhInfo.regs.regs[r],
 					r + 1, userhInfo.regs.regs[r + 1],

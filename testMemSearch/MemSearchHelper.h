@@ -19,30 +19,25 @@
 
 #define GET_JOB_COUNT 3
 
-struct MEM_SECTION_INFO
-{
+struct MEM_SECTION_INFO {
 	uint64_t npSectionAddr = 0; //进程内存地址
 	uint64_t nSectionSize = 0; //区域大小
 };
-struct COPY_MEM_INFO
-{
+struct COPY_MEM_INFO {
 	uint64_t npSectionAddr = 0; //进程内存地址
 	uint64_t nSectionSize = 0; //区域大小
 	std::shared_ptr<unsigned char> spSaveMemBuf = nullptr; //保存到本地缓冲区的内存字节数据
 };
-struct ADDR_RESULT_INFO
-{
+struct ADDR_RESULT_INFO {
 	uint64_t addr = 0; //进程内存地址
 	uint64_t size = 0; //大小
 	std::shared_ptr<unsigned char> spSaveData = nullptr; //保存到本地缓冲区的内存字节数据
 };
 
-template<typename T> struct BATCH_BETWEEN_VAL
-{
+template<typename T> struct BATCH_BETWEEN_VAL {
 	T val1 = {}; //批量搜索值在两值之间的值1
 	T val2 = {}; //批量搜索值在两值之间的值2
-	union
-	{
+	union {
 		char chCtx;
 		short sCtx;
 		int nCtx;
@@ -57,14 +52,12 @@ template<typename T> struct BATCH_BETWEEN_VAL
 		int64_t i64Ctx = 0;
 	} markContext;  //附带的上下文，可传递消息
 };
-template<typename T> struct BATCH_BETWEEN_VAL_ADDR_RESULT
-{
+template<typename T> struct BATCH_BETWEEN_VAL_ADDR_RESULT {
 	ADDR_RESULT_INFO addrInfo; //结果地址
 	BATCH_BETWEEN_VAL<T> originalCondition; //原始搜索条件
 };
 
-enum SCAN_TYPE
-{
+enum SCAN_TYPE {
 	ACCURATE_VAL = 0,	//精确数值
 	LARGER_THAN_VAL,	//值大于
 	LESS_THAN_VAL,		//值小于
@@ -77,8 +70,7 @@ enum SCAN_TYPE
 	UNCHANGED_VAL,		//未变动的数值
 };
 
-enum SCAN_VALUE_TYPE
-{
+enum SCAN_VALUE_TYPE {
 	_1 = 0,			// 1字节
 	_2,				// 2字节
 	_4,				// 4字节
@@ -486,15 +478,14 @@ vErrorList：存放实时搜索失败的结果地址
 std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 template<typename T> static void SearchMemoryThread(
-	IMemReaderWriterProxy* IReadWriteProxy, 
-	uint64_t hProcess, 
+	IMemReaderWriterProxy* IReadWriteProxy,
+	uint64_t hProcess,
 	SafeVector<MEM_SECTION_INFO> & vScanMemMapsJobList,
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
-	size_t nFastScanAlignment, 
+	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
 	SafeVector<MEM_SECTION_INFO> & vErrorList,
-	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
-{
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/) {
 	//获取当前系统内存大小
 #ifdef __linux__
 	struct sysinfo si;
@@ -522,15 +513,13 @@ template<typename T> static void SearchMemoryThread(
 			MEM_SECTION_INFO memSecInfo = vTempJobMemSecInfo.back();
 			vTempJobMemSecInfo.pop_back();
 			//当前内存区域块大小超过了最大内存申请的限制，所以跳过
-			if (memSecInfo.nSectionSize > nMaxMemSize)
-			{
+			if (memSecInfo.nSectionSize > nMaxMemSize) {
 				vErrorList.push_back(memSecInfo);
 				continue;
 			}
 
 			unsigned char *pnew = new (std::nothrow) unsigned char[memSecInfo.nSectionSize];
-			if (!pnew)
-			{
+			if (!pnew) {
 				vErrorList.push_back(memSecInfo);
 				continue;
 			}
@@ -539,26 +528,23 @@ template<typename T> static void SearchMemoryThread(
 
 			std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 			size_t dwRead = 0;
-			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead))
-			{
+			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead)) {
 				vErrorList.push_back(memSecInfo);
 				continue;
 			}
 			//寻找数值
 			std::vector<size_t >vFindAddr;
 
-			switch (scanType)
-			{
+			switch (scanType) {
 			case SCAN_TYPE::ACCURATE_VAL:
 				//精确数值
 				if (isFloatVal) {
 					FindBetween<T>((size_t)(spMemBuf.get()),
 						dwRead, value1 - errorRange, value1 + errorRange, nFastScanAlignment, vFindAddr);
-				}
-				else {
+				} else {
 					FindValue<T>((size_t)spMemBuf.get(), dwRead, value1, nFastScanAlignment, vFindAddr);
 				}
-				
+
 				break;
 			case SCAN_TYPE::LARGER_THAN_VAL:
 				//值大于
@@ -575,8 +561,7 @@ template<typename T> static void SearchMemoryThread(
 			default:
 				break;
 			}
-			for (size_t addr : vFindAddr)
-			{
+			for (size_t addr : vFindAddr) {
 				ADDR_RESULT_INFO aInfo;
 				aInfo.addr = (uint64_t)((uint64_t)memSecInfo.npSectionAddr + (uint64_t)addr - (uint64_t)spMemBuf.get());
 				aInfo.size = sizeof(T);
@@ -627,13 +612,12 @@ std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 template<typename T> static void SearchNextMemoryThread(
 	IMemReaderWriterProxy* IReadWriteProxy,
-	uint64_t hProcess, 
+	uint64_t hProcess,
 	SafeVector<ADDR_RESULT_INFO> & vScanMemAddrList,
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
 	SafeVector<ADDR_RESULT_INFO> & vErrorList,
-	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
-{
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/) {
 	//内存搜索线程
 	MultiThreadExecuteTask(nThreadCount,
 		[IReadWriteProxy, hProcess, &vScanMemAddrList, &vErrorList,
@@ -645,34 +629,29 @@ template<typename T> static void SearchNextMemoryThread(
 
 		//一个一个job拿会拖慢速度
 		std::vector<ADDR_RESULT_INFO> vTempJobMemAddrInfo;
-		while (vTempJobMemAddrInfo.size() || vScanMemAddrList.get_vals(GET_JOB_COUNT, vTempJobMemAddrInfo) || vScanMemAddrList.get_vals(1, vTempJobMemAddrInfo))
-		{
+		while (vTempJobMemAddrInfo.size() || vScanMemAddrList.get_vals(GET_JOB_COUNT, vTempJobMemAddrInfo) || vScanMemAddrList.get_vals(1, vTempJobMemAddrInfo)) {
 			ADDR_RESULT_INFO memAddrJob = vTempJobMemAddrInfo.back();
 			vTempJobMemAddrInfo.pop_back();
 
 			T temp = 0;
 			size_t dwRead = 0;
-			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, &temp, sizeof(temp), &dwRead))
-			{
+			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, &temp, sizeof(temp), &dwRead)) {
 				vErrorList.push_back(memAddrJob);
 				continue;
 			}
-				
-			if (dwRead != sizeof(T))
-			{
+
+			if (dwRead != sizeof(T)) {
 				vErrorList.push_back(memAddrJob);
 				continue;
 			}
 
 			//寻找数值
-			switch (scanType)
-			{
+			switch (scanType) {
 			case SCAN_TYPE::ACCURATE_VAL:
 				if (isFloatVal) {
 					//当是float、double数值的情况
 					if ((value1 - errorRange) > temp || temp > (value1 + errorRange)) { continue; }
-				}
-				else {
+				} else {
 					//精确数值
 					if (temp != value1) { continue; }
 				}
@@ -687,12 +666,9 @@ template<typename T> static void SearchNextMemoryThread(
 				break;
 			case SCAN_TYPE::BETWEEN_VAL:
 				//值在两者之间的结果保留
-				if (value1 < value2)
-				{
+				if (value1 < value2) {
 					if (value1 > temp || temp > value2) { continue; }
-				}
-				else
-				{
+				} else {
 					if (value2 > temp || temp > value1) { continue; }
 				}
 				break;
@@ -707,10 +683,9 @@ template<typename T> static void SearchNextMemoryThread(
 					T add = (temp)-(*pOldData);
 
 					if ((value1 - errorRange) > add || add > (value1 + errorRange)) { continue; }
-				}
-				else {
+				} else {
 					//数值增加了的结果保留
-					if ( ((temp)-(*(T*)(memAddrJob.spSaveData.get()))) != value1) { continue; }
+					if (((temp)-(*(T*)(memAddrJob.spSaveData.get()))) != value1) { continue; }
 
 				}
 				break;
@@ -726,8 +701,7 @@ template<typename T> static void SearchNextMemoryThread(
 
 					if ((value1 - errorRange) > sum || sum > (value1 + errorRange)) { continue; }
 
-				}
-				else {
+				} else {
 					//数值减少了的结果保留
 					if (((*(T*)(memAddrJob.spSaveData.get())) - (temp)) != value1) { continue; }
 				}
@@ -736,17 +710,14 @@ template<typename T> static void SearchNextMemoryThread(
 				if (isFloatVal) {
 					//float、double变动的数值的结果保留
 					T* pOldData = (T*)memAddrJob.spSaveData.get();
-					if (temp > (*pOldData))
-					{
+					if (temp > (*pOldData)) {
 						if ((temp - errorRange) <= (*pOldData)) { continue; }
 					}
-					if (temp < (*pOldData))
-					{
+					if (temp < (*pOldData)) {
 						if ((temp + errorRange) >= (*pOldData)) { continue; }
 					}
 
-				}
-				else {
+				} else {
 					//变动的数值的结果保留
 					if (temp == *(T*)(memAddrJob.spSaveData.get())) { continue; }
 				}
@@ -756,17 +727,14 @@ template<typename T> static void SearchNextMemoryThread(
 					//float、double未变动的数值的结果保留
 					T* pOldData = (T*)memAddrJob.spSaveData.get();
 
-					if (temp > (*pOldData))
-					{
+					if (temp > (*pOldData)) {
 						if ((temp - errorRange) > (*pOldData)) { continue; }
 					}
-					if (temp < (*pOldData))
-					{
+					if (temp < (*pOldData)) {
 						if ((temp + errorRange) < (*pOldData)) { continue; }
 					}
 
-				}
-				else {
+				} else {
 					//未变动的数值的结果保留
 					if (temp != *(T*)(memAddrJob.spSaveData.get())) { continue; }
 				}
@@ -775,10 +743,9 @@ template<typename T> static void SearchNextMemoryThread(
 			default:
 				break;
 			}
-			
-			
-			if (memAddrJob.size != sizeof(T))
-			{
+
+
+			if (memAddrJob.size != sizeof(T)) {
 				memAddrJob.size = sizeof(T);
 				std::shared_ptr<unsigned char> sp(new unsigned char[memAddrJob.size], std::default_delete<unsigned char[]>());
 				memAddrJob.spSaveData = sp;
@@ -787,8 +754,7 @@ template<typename T> static void SearchNextMemoryThread(
 			vThreadOutput.push_back(memAddrJob);
 		}
 		//将当前线程的搜索结果，汇总到父线程的全部搜索结果数组里
-		for (ADDR_RESULT_INFO & newAddr : vThreadOutput)
-		{
+		for (ADDR_RESULT_INFO & newAddr : vThreadOutput) {
 			vResultList.push_back(newAddr);
 		}
 
@@ -817,8 +783,7 @@ template<typename T> static void SearchMemoryBatchBetweenValThread(
 	size_t nFastScanAlignment,
 	SafeVector<BATCH_BETWEEN_VAL_ADDR_RESULT<T>> & vResultList,
 	SafeVector<MEM_SECTION_INFO> & vErrorList,
-	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
-{
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/) {
 	//获取当前系统内存大小
 #ifdef __linux__
 	struct sysinfo si;
@@ -842,15 +807,13 @@ template<typename T> static void SearchMemoryBatchBetweenValThread(
 		while (vScanMemMapsJobList.get_val(memSecInfo)) //这里一个一个取更适合
 		{
 			//当前内存区域块大小超过了最大内存申请的限制，所以跳过
-			if (memSecInfo.nSectionSize > nMaxMemSize)
-			{
+			if (memSecInfo.nSectionSize > nMaxMemSize) {
 				vErrorList.push_back(memSecInfo);
 				continue;
 			}
 
 			unsigned char *pnew = new (std::nothrow) unsigned char[memSecInfo.nSectionSize];
-			if (!pnew)
-			{
+			if (!pnew) {
 				vErrorList.push_back(memSecInfo);
 				continue;
 			}
@@ -859,8 +822,7 @@ template<typename T> static void SearchMemoryBatchBetweenValThread(
 
 			std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 			size_t dwRead = 0;
-			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead))
-			{
+			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead)) {
 				vErrorList.push_back(memSecInfo);
 				continue;
 			}
@@ -916,15 +878,14 @@ vErrorList：存放实时搜索失败的结果地址
 std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 */
 template<typename T> static void SearchCopyProcessMemThread(
-	IMemReaderWriterProxy* IReadWriteProxy, 
-	uint64_t hProcess, 
+	IMemReaderWriterProxy* IReadWriteProxy,
+	uint64_t hProcess,
 	SafeVector<COPY_MEM_INFO> & vCopyProcessMemDataList,
 	T value1, T value2, float errorRange, SCAN_TYPE scanType, int nThreadCount,
-	size_t nFastScanAlignment, 
+	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
 	SafeVector<COPY_MEM_INFO> & vErrorList,
-	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
-{
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/) {
 
 	MultiThreadExecuteTask(nThreadCount,
 		[IReadWriteProxy, &vCopyProcessMemDataList, hProcess, value1, value2, errorRange,
@@ -937,8 +898,7 @@ template<typename T> static void SearchCopyProcessMemThread(
 
 		//一个一个job拿会拖慢速度
 		std::vector<COPY_MEM_INFO> vTempJobMemSecInfo;
-		while (vTempJobMemSecInfo.size() || vCopyProcessMemDataList.get_vals(GET_JOB_COUNT, vTempJobMemSecInfo) || vCopyProcessMemDataList.get_vals(1, vTempJobMemSecInfo))
-		{
+		while (vTempJobMemSecInfo.size() || vCopyProcessMemDataList.get_vals(GET_JOB_COUNT, vTempJobMemSecInfo) || vCopyProcessMemDataList.get_vals(1, vTempJobMemSecInfo)) {
 			COPY_MEM_INFO memSecInfo = vTempJobMemSecInfo.back();
 			vTempJobMemSecInfo.pop_back();
 
@@ -946,19 +906,17 @@ template<typename T> static void SearchCopyProcessMemThread(
 			std::vector<size_t >vFindAddr;
 			std::shared_ptr<unsigned char> spMemBuf = nullptr;
 			size_t dwRead = 0;
-			switch (scanType)
-			{
+			switch (scanType) {
 			case SCAN_TYPE::ACCURATE_VAL:
 				//精确数值
 				if (isFloatVal) {
 					FindBetween<T>((size_t)(memSecInfo.spSaveMemBuf.get()),
 						memSecInfo.nSectionSize, value1 - errorRange, value1 + errorRange, nFastScanAlignment, vFindAddr);
-				}
-				else {
+				} else {
 					FindValue<T>((size_t)(memSecInfo.spSaveMemBuf.get()),
 						memSecInfo.nSectionSize, value1, nFastScanAlignment, vFindAddr);
 				}
-				
+
 				break;
 			case SCAN_TYPE::LARGER_THAN_VAL:
 				//值大于
@@ -980,31 +938,28 @@ template<typename T> static void SearchCopyProcessMemThread(
 			case SCAN_TYPE::SUB_UNKNOW_VAL:
 			case SCAN_TYPE::SUB_ACCURATE_VAL:
 			case SCAN_TYPE::CHANGED_VAL:
-			case SCAN_TYPE::UNCHANGED_VAL:{
+			case SCAN_TYPE::UNCHANGED_VAL: {
 				unsigned char *pnew = new (std::nothrow) unsigned char[memSecInfo.nSectionSize];
-				if (!pnew)
-				{
+				if (!pnew) {
 					vErrorList.push_back(memSecInfo);
-					/*cout << "malloc "<< memSecInfo.nSectionSize  << " failed."<< endl;*/ 
+					/*cout << "malloc "<< memSecInfo.nSectionSize  << " failed."<< endl;*/
 					continue;
 				}
 				memset(pnew, 0, memSecInfo.nSectionSize);
 
 				std::shared_ptr<unsigned char> sp(pnew, std::default_delete<unsigned char[]>());
 
-				if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, sp.get(), memSecInfo.nSectionSize, &dwRead))
-				{
+				if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, sp.get(), memSecInfo.nSectionSize, &dwRead)) {
 					vErrorList.push_back(memSecInfo);
 					continue;
 				}
 				spMemBuf = sp;
-				break;}
+				break; }
 			default:
 				break;
 			}
 
-			switch (scanType)
-			{
+			switch (scanType) {
 			case SCAN_TYPE::ADD_UNKNOW_VAL:
 				//值增加了未知值
 				FindUnknowAdd<T>((size_t)(memSecInfo.spSaveMemBuf.get()), (size_t)spMemBuf.get(), dwRead, nFastScanAlignment, vFindAddr);
@@ -1032,9 +987,8 @@ template<typename T> static void SearchCopyProcessMemThread(
 			default:
 				break;
 			}
-		
-			for (size_t addr : vFindAddr)
-			{
+
+			for (size_t addr : vFindAddr) {
 				ADDR_RESULT_INFO aInfo;
 				aInfo.addr = (uint64_t)((uint64_t)memSecInfo.npSectionAddr + (uint64_t)addr - (uint64_t)memSecInfo.spSaveMemBuf.get());
 				aInfo.size = sizeof(T);
@@ -1045,8 +999,7 @@ template<typename T> static void SearchCopyProcessMemThread(
 			}
 		}
 		//将当前线程的搜索结果，汇总到父线程的全部搜索结果数组里
-		for (ADDR_RESULT_INFO & newAddr : vThreadOutput)
-		{
+		for (ADDR_RESULT_INFO & newAddr : vThreadOutput) {
 			vResultList.push_back(newAddr);
 		}
 	}, pForceStopSignal);
@@ -1077,14 +1030,12 @@ static void SearchMemoryBytesThread(
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
 	SafeVector<MEM_SECTION_INFO> & vErrorList,
-	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
-{
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/) {
 
 
 	//预处理特征码
 	replace_all_distinct(strFeaturesByte, " ", "");//去除空格
-	if (strFeaturesByte.length() % 2)
-	{
+	if (strFeaturesByte.length() % 2) {
 		return;
 	}
 
@@ -1097,8 +1048,7 @@ static void SearchMemoryBytesThread(
 	size_t nFeaturesBytePos = 0; //记录写入特征码字节数组的位置
 
 	//遍历每个文本字节
-	for (std::string::size_type pos(0); pos < strFeaturesByte.length(); pos += 2)
-	{
+	for (std::string::size_type pos(0); pos < strFeaturesByte.length(); pos += 2) {
 		std::string strByte = strFeaturesByte.substr(pos, 2); //每个文本字节
 
 		//cout << strByte <<"/" << endl;
@@ -1106,17 +1056,11 @@ static void SearchMemoryBytesThread(
 		if (strByte == "??") //判断是不是??
 		{
 			upFuzzyBytesBuf[nFeaturesBytePos] = '\x00';
-		}
-		else if (strByte.substr(0, 1) == "?")
-		{
+		} else if (strByte.substr(0, 1) == "?") {
 			upFuzzyBytesBuf[nFeaturesBytePos] = '\x01';
-		}
-		else if (strByte.substr(1, 2) == "?")
-		{
+		} else if (strByte.substr(1, 2) == "?") {
 			upFuzzyBytesBuf[nFeaturesBytePos] = '\x10';
-		}
-		else
-		{
+		} else {
 			upFuzzyBytesBuf[nFeaturesBytePos] = '\x11';
 		}
 
@@ -1171,8 +1115,7 @@ static void SearchMemoryBytesThread2(
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
 	SafeVector<MEM_SECTION_INFO> & vErrorList,
-	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
-{
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/) {
 	//获取当前系统内存大小
 #ifdef __linux__
 	struct sysinfo si;
@@ -1189,22 +1132,14 @@ static void SearchMemoryBytesThread2(
 
 	//生成特征码容错文本
 	std::string strFuzzyCode = ""; //如：xxxxx????????xx
-	for (size_t i = 0; i < nFeaturesByteLen; i++)
-	{
-		if (vFuzzyBytes[i] == '\x00')
-		{
+	for (size_t i = 0; i < nFeaturesByteLen; i++) {
+		if (vFuzzyBytes[i] == '\x00') {
 			strFuzzyCode += "??";
-		}
-		else if (vFuzzyBytes[i] == '\x01')
-		{
+		} else if (vFuzzyBytes[i] == '\x01') {
 			strFuzzyCode += "?x";
-		}
-		else if (vFuzzyBytes[i] == '\x10')
-		{
+		} else if (vFuzzyBytes[i] == '\x10') {
 			strFuzzyCode += "x?";
-		}
-		else
-		{
+		} else {
 			strFuzzyCode += "xx";
 		}
 	}
@@ -1212,8 +1147,7 @@ static void SearchMemoryBytesThread2(
 
 	//内存搜索线程
 	MultiThreadExecuteTask(nThreadCount,
-		[IReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsList, vFeaturesByte, strFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList](size_t thread_id, std::atomic<bool> * pForceStopSignal)->void
-	{
+		[IReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsList, vFeaturesByte, strFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList](size_t thread_id, std::atomic<bool> * pForceStopSignal)->void {
 		std::string spStrFuzzyCode = strFuzzyCode;
 
 		//是否启用特征码容错搜索
@@ -1224,14 +1158,12 @@ static void SearchMemoryBytesThread2(
 
 		//一个一个job拿会拖慢速度
 		std::vector<MEM_SECTION_INFO> vTempJobMemSecInfo;
-		while (vTempJobMemSecInfo.size() || vScanMemMapsList.get_vals(GET_JOB_COUNT, vTempJobMemSecInfo) || vScanMemMapsList.get_vals(1, vTempJobMemSecInfo))
-		{
+		while (vTempJobMemSecInfo.size() || vScanMemMapsList.get_vals(GET_JOB_COUNT, vTempJobMemSecInfo) || vScanMemMapsList.get_vals(1, vTempJobMemSecInfo)) {
 			MEM_SECTION_INFO memSecInfo = vTempJobMemSecInfo.back();
 			vTempJobMemSecInfo.pop_back();
 
 			//当前内存区域块大小超过了最大内存申请的限制，所以跳过
-			if (memSecInfo.nSectionSize > nMaxMemSize)
-			{
+			if (memSecInfo.nSectionSize > nMaxMemSize) {
 				vErrorList.push_back(memSecInfo);
 				continue;
 			}
@@ -1241,27 +1173,22 @@ static void SearchMemoryBytesThread2(
 
 			std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 			size_t dwRead = 0;
-			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead))
-			{
+			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memSecInfo.npSectionAddr, spMemBuf.get(), memSecInfo.nSectionSize, &dwRead)) {
 				vErrorList.push_back(memSecInfo);
 				continue;
 			}
 
 			//寻找字节集
 			std::vector<size_t>vFindAddr;
-			if (isSimpleSearch)
-			{
+			if (isSimpleSearch) {
 				//不需要容错搜索
 				FindBytes((size_t)spMemBuf.get(), dwRead, (unsigned char*)&vFeaturesByte[0], spStrFuzzyCode.length() / 2, nFastScanAlignment, vFindAddr);
-			}
-			else
-			{
+			} else {
 				//需要容错搜索
 				FindFeaturesBytes((size_t)spMemBuf.get(), dwRead, (unsigned char*)&vFeaturesByte[0], spStrFuzzyCode.c_str(), spStrFuzzyCode.length() / 2, nFastScanAlignment, vFindAddr);
 			}
 
-			for (size_t addr : vFindAddr)
-			{
+			for (size_t addr : vFindAddr) {
 				//保存搜索结果
 				ADDR_RESULT_INFO aInfo;
 				aInfo.addr = (uint64_t)((uint64_t)memSecInfo.npSectionAddr + (uint64_t)addr - (uint64_t)spMemBuf.get());
@@ -1274,8 +1201,7 @@ static void SearchMemoryBytesThread2(
 		}
 
 		//将当前线程的搜索结果，汇总到父线程的全部搜索结果数组里
-		for (ADDR_RESULT_INFO & newAddr : vThreadOutput)
-		{
+		for (ADDR_RESULT_INFO & newAddr : vThreadOutput) {
 			vResultList.push_back(newAddr);
 		}
 		return;
@@ -1304,12 +1230,10 @@ static void SearchNextMemoryBytesThread(
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
 	SafeVector<ADDR_RESULT_INFO> & vErrorList,
-	std::atomic<bool> * pForceStopSignal)
-{
+	std::atomic<bool> * pForceStopSignal) {
 	//预处理特征码
 	replace_all_distinct(strFeaturesByte, " ", "");//去除空格
-	if (strFeaturesByte.length() % 2)
-	{
+	if (strFeaturesByte.length() % 2) {
 		//设置搜索进度为100
 		return;
 	}
@@ -1323,8 +1247,7 @@ static void SearchNextMemoryBytesThread(
 	size_t nFeaturesBytePos = 0; //记录写入特征码字节数组的位置
 
 	//遍历每个文本字节
-	for (std::string::size_type pos(0); pos < strFeaturesByte.length(); pos += 2)
-	{
+	for (std::string::size_type pos(0); pos < strFeaturesByte.length(); pos += 2) {
 		std::string strByte = strFeaturesByte.substr(pos, 2); //每个文本字节
 
 		//cout << strByte <<"/" << endl;
@@ -1332,17 +1255,11 @@ static void SearchNextMemoryBytesThread(
 		if (strByte == "??") //判断是不是??
 		{
 			upFuzzyBytesBuf[nFeaturesBytePos] = '\x00';
-		}
-		else 	if (strByte.substr(0, 1) == "?")
-		{
+		} else 	if (strByte.substr(0, 1) == "?") {
 			upFuzzyBytesBuf[nFeaturesBytePos] = '\x01';
-		}
-		else 	if (strByte.substr(1, 2) == "?")
-		{
+		} else 	if (strByte.substr(1, 2) == "?") {
 			upFuzzyBytesBuf[nFeaturesBytePos] = '\x10';
-		}
-		else
-		{
+		} else {
 			upFuzzyBytesBuf[nFeaturesBytePos] = '\x11';
 		}
 
@@ -1398,27 +1315,18 @@ static void SearchNextMemoryBytesThread2(
 	size_t nFastScanAlignment,
 	SafeVector<ADDR_RESULT_INFO> & vResultList,
 	SafeVector<ADDR_RESULT_INFO> & vErrorList,
-	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
-{
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/) {
 
 	//生成特征码容错文本
 	std::string strFuzzyCode = ""; //如：xxxxx????????xx
-	for (size_t i = 0; i < nFeaturesByteLen; i++)
-	{
-		if (vFuzzyBytes[i] == '\x00')
-		{
+	for (size_t i = 0; i < nFeaturesByteLen; i++) {
+		if (vFuzzyBytes[i] == '\x00') {
 			strFuzzyCode += "??";
-		}
-		else if (vFuzzyBytes[i] == '\x01')
-		{
+		} else if (vFuzzyBytes[i] == '\x01') {
 			strFuzzyCode += "?x";
-		}
-		else if (vFuzzyBytes[i] == '\x10')
-		{
+		} else if (vFuzzyBytes[i] == '\x10') {
 			strFuzzyCode += "x?";
-		}
-		else
-		{
+		} else {
 			strFuzzyCode += "xx";
 		}
 	}
@@ -1426,8 +1334,7 @@ static void SearchNextMemoryBytesThread2(
 
 	//内存搜索线程
 	MultiThreadExecuteTask(nThreadCount,
-		[IReadWriteProxy, &vScanMemAddrList, hProcess, vFeaturesByte, strFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList](size_t thread_id, std::atomic<bool> * pForceStopSignal)->void
-	{
+		[IReadWriteProxy, &vScanMemAddrList, hProcess, vFeaturesByte, strFuzzyCode, nFastScanAlignment, &vResultList, &vErrorList](size_t thread_id, std::atomic<bool> * pForceStopSignal)->void {
 		std::string spStrFuzzyCode = strFuzzyCode;
 		//是否启用特征码容错搜索
 		int isSimpleSearch = (spStrFuzzyCode.find("?") == -1) ? 1 : 0;
@@ -1437,16 +1344,14 @@ static void SearchNextMemoryBytesThread2(
 
 		//一个一个job拿会拖慢速度
 		std::vector<ADDR_RESULT_INFO> vTempJobMemAddrInfo;
-		while (vTempJobMemAddrInfo.size() || vScanMemAddrList.get_vals(GET_JOB_COUNT, vTempJobMemAddrInfo) || vScanMemAddrList.get_vals(1, vTempJobMemAddrInfo))
-		{
+		while (vTempJobMemAddrInfo.size() || vScanMemAddrList.get_vals(GET_JOB_COUNT, vTempJobMemAddrInfo) || vScanMemAddrList.get_vals(1, vTempJobMemAddrInfo)) {
 			ADDR_RESULT_INFO memAddrJob = vTempJobMemAddrInfo.back();
 			vTempJobMemAddrInfo.pop_back();
 
 			size_t memBufSize = spStrFuzzyCode.length() / 2;
 			unsigned char *pnew = new (std::nothrow) unsigned char[memBufSize];
-			if (!pnew)
-			{ 
-				/*cout << "malloc "<< memSecInfo.nSectionSize  << " failed."<< endl;*/ 
+			if (!pnew) {
+				/*cout << "malloc "<< memSecInfo.nSectionSize  << " failed."<< endl;*/
 				vErrorList.push_back(memAddrJob);
 				continue;
 			}
@@ -1454,13 +1359,11 @@ static void SearchNextMemoryBytesThread2(
 
 			std::shared_ptr<unsigned char> spMemBuf(pnew, std::default_delete<unsigned char[]>());
 			size_t dwRead = 0;
-			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, spMemBuf.get(), memBufSize, &dwRead))
-			{
+			if (!IReadWriteProxy->ReadProcessMemory(hProcess, memAddrJob.addr, spMemBuf.get(), memBufSize, &dwRead)) {
 				vErrorList.push_back(memAddrJob);
 				continue;
 			}
-			if (dwRead != memBufSize)
-			{
+			if (dwRead != memBufSize) {
 				vErrorList.push_back(memAddrJob);
 				continue;
 			}
@@ -1468,19 +1371,15 @@ static void SearchNextMemoryBytesThread2(
 			std::vector<size_t>vFindAddr;
 
 
-			if (isSimpleSearch)
-			{
+			if (isSimpleSearch) {
 				//不需要容错搜索
 				FindBytes((size_t)spMemBuf.get(), dwRead, (unsigned char*)&vFeaturesByte[0], spStrFuzzyCode.length() / 2, nFastScanAlignment, vFindAddr);
-			}
-			else
-			{
+			} else {
 				//需要容错搜索
 				FindFeaturesBytes((size_t)spMemBuf.get(), dwRead, (unsigned char*)&vFeaturesByte[0], spStrFuzzyCode.c_str(), spStrFuzzyCode.length() / 2, nFastScanAlignment, vFindAddr);
 			}
 
-			if (vFindAddr.size())
-			{
+			if (vFindAddr.size()) {
 				//保存搜索结果
 				memcpy(memAddrJob.spSaveData.get(), spMemBuf.get(), memBufSize);
 				vThreadOutput.push_back(memAddrJob);
@@ -1488,13 +1387,12 @@ static void SearchNextMemoryBytesThread2(
 
 		}
 		//将当前线程的搜索结果，汇总到父线程的全部搜索结果数组里
-		for (ADDR_RESULT_INFO & newAddr : vThreadOutput)
-		{
+		for (ADDR_RESULT_INFO & newAddr : vThreadOutput) {
 			vResultList.push_back(newAddr);
 		}
 
 	}, pForceStopSignal);
-		
+
 	vResultList.sort([](const ADDR_RESULT_INFO & a, const ADDR_RESULT_INFO & b) -> bool { return a.addr < b.addr; });
 	return;
 }
@@ -1515,8 +1413,7 @@ static void CopyProcessMemDataThread(
 	int nThreadCount,
 	SafeVector<COPY_MEM_INFO> & vOutputMemCopyList,
 	SafeVector<MEM_SECTION_INFO> & vErrorMemCopyList,
-	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
-{
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/) {
 
 	//获取当前系统内存大小
 #ifdef __linux__
@@ -1532,8 +1429,7 @@ static void CopyProcessMemDataThread(
 #endif
 
 	MultiThreadExecuteTask(nThreadCount,
-		[IReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsList, &vErrorMemCopyList, &vOutputMemCopyList](size_t thread_id, std::atomic<bool> * pForceStopSignal)->void
-	{
+		[IReadWriteProxy, nMaxMemSize, hProcess, &vScanMemMapsList, &vErrorMemCopyList, &vOutputMemCopyList](size_t thread_id, std::atomic<bool> * pForceStopSignal)->void {
 		std::vector<COPY_MEM_INFO> vThreadOutput; //存放当前线程的搜索结果
 
 		//一个一个job拿会拖慢速度
@@ -1542,15 +1438,13 @@ static void CopyProcessMemDataThread(
 			MEM_SECTION_INFO memSecInfo = vTempJobMemSecInfo.back();
 			vTempJobMemSecInfo.pop_back();
 			//当前内存区域块大小超过了最大内存申请的限制，所以跳过
-			if (memSecInfo.nSectionSize > nMaxMemSize)
-			{
+			if (memSecInfo.nSectionSize > nMaxMemSize) {
 				vErrorMemCopyList.push_back(memSecInfo);
 				continue;
 			}
 
 			unsigned char *pnew = new (std::nothrow) unsigned char[memSecInfo.nSectionSize];
-			if (!pnew)
-			{
+			if (!pnew) {
 				vErrorMemCopyList.push_back(memSecInfo);
 				continue;
 			}
@@ -1581,7 +1475,7 @@ static void CopyProcessMemDataThread(
 }
 
 
-	
+
 /*
 多线程执行任务
 nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
@@ -1591,8 +1485,7 @@ std::atomic<bool> * pForceStopSignal: 强制中止所有任务信号
 static void MultiThreadExecuteTask(
 	int nThreadCount,
 	std::function<void(size_t thread_id, std::atomic<bool> *pForceStopSignal)> OnThreadExecute,
-	std::atomic<bool> * pForceStopSignal/* = nullptr*/)
-{
+	std::atomic<bool> * pForceStopSignal/* = nullptr*/) {
 
 	std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
 	std::vector<std::shared_ptr<std::atomic<bool>>> vbThreadStarted;
@@ -1643,22 +1536,18 @@ value: 要搜索的数值
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
-template<typename T> static inline void FindValue(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
-{
+template<typename T> static inline void FindValue(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr) {
 	vOutputAddr.clear();
 
-	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
-	{
-		if ((dwLen - i) < sizeof(T))
-		{
+	for (size_t i = 0; i < dwLen; i += nFastScanAlignment) {
+		if ((dwLen - i) < sizeof(T)) {
 			//要搜索的数据已经小于T的长度了
 			break;
 		}
 
 		T* pData = (T*)(dwAddr + i);
 
-		if (*pData == value)
-		{
+		if (*pData == value) {
 			vOutputAddr.push_back((size_t)((size_t)dwAddr + (size_t)i));
 		}
 		continue;
@@ -1674,21 +1563,17 @@ value: 要搜索大于的数值
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
-template<typename T> static inline void FindMax(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
-{
+template<typename T> static inline void FindMax(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr) {
 	vOutputAddr.clear();
 
-	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
-	{
-		if ((dwLen - i) < sizeof(T))
-		{
+	for (size_t i = 0; i < dwLen; i += nFastScanAlignment) {
+		if ((dwLen - i) < sizeof(T)) {
 			//要搜索的数据已经小于T的长度了
 			break;
 		}
 
 		T* pData = (T*)(dwAddr + i);
-		if (*pData > value)
-		{
+		if (*pData > value) {
 			vOutputAddr.push_back((size_t)((size_t)dwAddr + (size_t)i));
 		}
 		continue;
@@ -1707,21 +1592,17 @@ value: 要搜索小于的char数值
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
-template<typename T> static inline void FindMin(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
-{
+template<typename T> static inline void FindMin(size_t dwAddr, size_t dwLen, T value, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr) {
 	vOutputAddr.clear();
 
-	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
-	{
-		if ((dwLen - i) < sizeof(T))
-		{
+	for (size_t i = 0; i < dwLen; i += nFastScanAlignment) {
+		if ((dwLen - i) < sizeof(T)) {
 			//要搜索的数据已经小于T的长度了
 			break;
 		}
 
 		T* pData = (T*)(dwAddr + i);
-		if (*pData < value)
-		{
+		if (*pData < value) {
 			vOutputAddr.push_back((size_t)((size_t)dwAddr + (size_t)i));
 		}
 		continue;
@@ -1738,14 +1619,11 @@ value2: 要搜索的数值2
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
-template<typename T> static inline void FindBetween(size_t dwAddr, size_t dwLen, T value1, T value2, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
-{
+template<typename T> static inline void FindBetween(size_t dwAddr, size_t dwLen, T value1, T value2, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr) {
 	vOutputAddr.clear();
 
-	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
-	{
-		if ((dwLen - i) < sizeof(T))
-		{
+	for (size_t i = 0; i < dwLen; i += nFastScanAlignment) {
+		if ((dwLen - i) < sizeof(T)) {
 			//要搜索的数据已经小于T的长度了
 			break;
 		}
@@ -1753,8 +1631,7 @@ template<typename T> static inline void FindBetween(size_t dwAddr, size_t dwLen,
 		T* pData = (T*)(dwAddr + i);
 		T cData = *pData;
 
-		if (cData >= value1 && cData <= value2)
-		{
+		if (cData >= value1 && cData <= value2) {
 			vOutputAddr.push_back((size_t)((size_t)dwAddr + (size_t)i));
 		}
 		continue;
@@ -1772,22 +1649,18 @@ dwLen：要搜索的缓冲区大小
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
-template<typename T> static inline void FindUnknowAdd(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
-{
+template<typename T> static inline void FindUnknowAdd(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr) {
 	vOutputAddr.clear();
 
-	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
-	{
-		if ((dwLen - i) < sizeof(T))
-		{
+	for (size_t i = 0; i < dwLen; i += nFastScanAlignment) {
+		if ((dwLen - i) < sizeof(T)) {
 			//要搜索的数据已经小于T的长度了
 			break;
 		}
 
 		T* pOldData = (T*)(dwOldAddr + i);
 		T* pNewData = (T*)(dwNewAddr + i);
-		if (*pNewData > *pOldData)
-		{
+		if (*pNewData > *pOldData) {
 			vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
 		}
 		continue;
@@ -1805,20 +1678,16 @@ errorRange: 误差范围（当搜索的数值为float或者double时此值有效
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
-template<typename T> static inline void FindAdd(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
-{
+template<typename T> static inline void FindAdd(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr) {
 	vOutputAddr.clear();
 
 	float value1, value2;
-	if (errorRange)
-	{
+	if (errorRange) {
 		value1 = value - errorRange;
 		value2 = value + errorRange;
 	}
-	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
-	{
-		if ((dwLen - i) < sizeof(T))
-		{
+	for (size_t i = 0; i < dwLen; i += nFastScanAlignment) {
+		if ((dwLen - i) < sizeof(T)) {
 			//要搜索的数据已经小于T的长度了
 			break;
 		}
@@ -1827,23 +1696,18 @@ template<typename T> static inline void FindAdd(size_t dwOldAddr, size_t dwNewAd
 		T* pNewData = (T*)(dwNewAddr + i);
 		T myAdd = ((*pNewData) - (*pOldData));
 
-		if (errorRange)
-		{
-			if (myAdd >= value1 && myAdd <= value2)
-			{
+		if (errorRange) {
+			if (myAdd >= value1 && myAdd <= value2) {
+				vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
+
+			}
+		} else {
+			if (myAdd == value) {
 				vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
 
 			}
 		}
-		else
-		{
-			if (myAdd == value)
-			{
-				vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
 
-			}
-		}
-			
 		continue;
 	}
 	return;
@@ -1857,22 +1721,18 @@ dwLen：要搜索的缓冲区大小
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
-template<typename T> static inline void FindUnknowSum(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
-{
+template<typename T> static inline void FindUnknowSum(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr) {
 	vOutputAddr.clear();
 
-	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
-	{
-		if ((dwLen - i) < sizeof(T))
-		{
+	for (size_t i = 0; i < dwLen; i += nFastScanAlignment) {
+		if ((dwLen - i) < sizeof(T)) {
 			//要搜索的数据已经小于T的长度了
 			break;
 		}
 
 		T* pOldData = (T*)(dwOldAddr + i);
 		T* pNewData = (T*)(dwNewAddr + i);
-		if (*pNewData < *pOldData)
-		{
+		if (*pNewData < *pOldData) {
 			vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
 		}
 		continue;
@@ -1890,21 +1750,17 @@ errorRange: 误差范围（当搜索的数值为float或者double时此值有效
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
-template<typename T> static inline void FindSum(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
-{
+template<typename T> static inline void FindSum(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, T value, float errorRange, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr) {
 	vOutputAddr.clear();
 
 	float value1, value2;
-	if (errorRange)
-	{
+	if (errorRange) {
 		value1 = value - errorRange;
 		value2 = value + errorRange;
 	}
 
-	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
-	{
-		if ((dwLen - i) < sizeof(T))
-		{
+	for (size_t i = 0; i < dwLen; i += nFastScanAlignment) {
+		if ((dwLen - i) < sizeof(T)) {
 			//要搜索的数据已经小于T的长度了
 			break;
 		}
@@ -1913,22 +1769,17 @@ template<typename T> static inline void FindSum(size_t dwOldAddr, size_t dwNewAd
 		T* pNewData = (T*)(dwNewAddr + i);
 		T mySum = ((*pOldData) - (*pNewData));
 
-		if (errorRange)
-		{
-			if (mySum >= value1 && mySum <= value2)
-			{
+		if (errorRange) {
+			if (mySum >= value1 && mySum <= value2) {
+				vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
+			}
+		} else {
+			if (mySum == value) {
 				vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
 			}
 		}
-		else
-		{
-			if (mySum == value)
-			{
-				vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
-			}
-		}
-		
-			
+
+
 		continue;
 	}
 	return;
@@ -1942,22 +1793,18 @@ dwLen：要搜索的缓冲区大小
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
-template<typename T> static inline void FindChanged(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
-{
+template<typename T> static inline void FindChanged(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr) {
 	vOutputAddr.clear();
 
-	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
-	{
-		if ((dwLen - i) < sizeof(T))
-		{
+	for (size_t i = 0; i < dwLen; i += nFastScanAlignment) {
+		if ((dwLen - i) < sizeof(T)) {
 			//要搜索的数据已经小于T的长度了
 			break;
 		}
 
 		T* pOldData = (T*)(dwOldAddr + i);
 		T* pNewData = (T*)(dwNewAddr + i);
-		if (*pNewData != *pOldData)
-		{
+		if (*pNewData != *pOldData) {
 			vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
 		}
 		continue;
@@ -1973,22 +1820,18 @@ dwLen：要搜索的缓冲区大小
 nFastScanAlignment为快速扫描的对齐位数，CE默认为1
 vOutputAddr：存放搜索完成的结果地址
 */
-template<typename T> static inline void FindNoChange(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
-{
+template<typename T> static inline void FindNoChange(size_t dwOldAddr, size_t dwNewAddr, size_t dwLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr) {
 	vOutputAddr.clear();
 
-	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
-	{
-		if ((dwLen - i) < sizeof(T))
-		{
+	for (size_t i = 0; i < dwLen; i += nFastScanAlignment) {
+		if ((dwLen - i) < sizeof(T)) {
 			//要搜索的数据已经小于T的长度了
 			break;
 		}
 
 		T* pOldData = (T*)(dwOldAddr + i);
 		T* pNewData = (T*)(dwNewAddr + i);
-		if (*pNewData == *pOldData)
-		{
+		if (*pNewData == *pOldData) {
 			vOutputAddr.push_back((size_t)((size_t)dwOldAddr + (size_t)i));
 		}
 		continue;
@@ -2012,13 +1855,10 @@ vOutputAddr: 搜索出来的结果地址存放数组
 std::vector<size_t> vAddr;
 FindFeaturesBytes((size_t)lpBuffer, dwBufferSize, (PBYTE)"\x8B\xE8\x00\x00\x00\x00\x33\xC0\xC7\x06\x00\x00\x00\x00\x89\x86\x40", "xxxx??xx?xx?xxxxx",17,1,vAddr);
 */
-static inline void FindFeaturesBytes(size_t dwAddr, size_t dwLen, unsigned char *bMask, const char* szMask, size_t nMaskLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
-{
+static inline void FindFeaturesBytes(size_t dwAddr, size_t dwLen, unsigned char *bMask, const char* szMask, size_t nMaskLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr) {
 	vOutputAddr.clear();
-	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
-	{
-		if ((dwLen - i) < nMaskLen)
-		{
+	for (size_t i = 0; i < dwLen; i += nFastScanAlignment) {
+		if ((dwLen - i) < nMaskLen) {
 			//要搜索的数据已经小于特征码的长度了
 			break;
 		}
@@ -2027,31 +1867,23 @@ static inline void FindFeaturesBytes(size_t dwAddr, size_t dwLen, unsigned char 
 		const char* szTemMask = szMask;
 
 		bool bContinue = false;
-		for (; *szTemMask; szTemMask += 2, ++pData, ++bTemMask)
-		{
-			if ((*szTemMask == 'x') && (*(szTemMask + 1) == 'x') && ((*pData) != (*bTemMask)))
-			{
+		for (; *szTemMask; szTemMask += 2, ++pData, ++bTemMask) {
+			if ((*szTemMask == 'x') && (*(szTemMask + 1) == 'x') && ((*pData) != (*bTemMask))) {
 				bContinue = true;
 				break;
-			}
-			else if ((*szTemMask == 'x') && (*(szTemMask + 1) == '?') && ((((*pData) >> 4) & 0xFu) != (((*bTemMask) >> 4) & 0xFu)))
-			{
+			} else if ((*szTemMask == 'x') && (*(szTemMask + 1) == '?') && ((((*pData) >> 4) & 0xFu) != (((*bTemMask) >> 4) & 0xFu))) {
 				bContinue = true;
 				break;
-			}
-			else if ((*szTemMask == '?') && (*(szTemMask + 1) == 'x') && (((*pData) & 0xFu) != ((*bTemMask) & 0xFu)))
-			{
+			} else if ((*szTemMask == '?') && (*(szTemMask + 1) == 'x') && (((*pData) & 0xFu) != ((*bTemMask) & 0xFu))) {
 				bContinue = true;
 				break;
 			}
 		}
-		if (bContinue)
-		{
+		if (bContinue) {
 			continue;
 		}
 
-		if ((*szTemMask) == '\x00')
-		{
+		if ((*szTemMask) == '\x00') {
 			vOutputAddr.push_back((size_t)((size_t)dwAddr + (size_t)i));
 		}
 	}
@@ -2069,12 +1901,9 @@ vOutputAddr: 搜索出来的结果地址存放数组
 std::vector<size_t> vAddr;
 FindFeaturesBytes((size_t)lpBuffer, dwBufferSize, (PBYTE)"\x8B\xE8\x00\x00\x00\x00\x33\xC0\xC7\x06\x00\x00\x00\x00\x89\x86\x40", 17,1,vAddr);
 */
-static inline void FindBytes(size_t dwWaitSearchAddress, size_t dwLen, unsigned char *bForSearch, size_t ifLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr)
-{
-	for (size_t i = 0; i < dwLen; i += nFastScanAlignment)
-	{
-		if ((dwLen - i) < ifLen)
-		{
+static inline void FindBytes(size_t dwWaitSearchAddress, size_t dwLen, unsigned char *bForSearch, size_t ifLen, size_t nFastScanAlignment, std::vector<size_t> & vOutputAddr) {
+	for (size_t i = 0; i < dwLen; i += nFastScanAlignment) {
+		if ((dwLen - i) < ifLen) {
 			//要搜索的数据已经小于特征码的长度了
 			break;
 		}
@@ -2082,16 +1911,13 @@ static inline void FindBytes(size_t dwWaitSearchAddress, size_t dwLen, unsigned 
 		unsigned char*bTemForSearch = bForSearch;
 
 		bool bContinue = false;
-		for (size_t y = 0; y < ifLen; y++, ++pData, ++bTemForSearch)
-		{
-			if (*pData != *bTemForSearch)
-			{
+		for (size_t y = 0; y < ifLen; y++, ++pData, ++bTemForSearch) {
+			if (*pData != *bTemForSearch) {
 				bContinue = true;
 				break;
 			}
 		}
-		if (bContinue)
-		{
+		if (bContinue) {
 			continue;
 		}
 		vOutputAddr.push_back((size_t)((size_t)dwWaitSearchAddress + (size_t)i));
@@ -2099,16 +1925,11 @@ static inline void FindBytes(size_t dwWaitSearchAddress, size_t dwLen, unsigned 
 	return;
 }
 
-static inline std::string& replace_all_distinct(std::string& str, const std::string& old_value, const std::string& new_value)
-{
-	for (std::string::size_type pos(0); pos != std::string::npos; pos += new_value.length())
-	{
-		if ((pos = str.find(old_value, pos)) != std::string::npos)
-		{
+static inline std::string& replace_all_distinct(std::string& str, const std::string& old_value, const std::string& new_value) {
+	for (std::string::size_type pos(0); pos != std::string::npos; pos += new_value.length()) {
+		if ((pos = str.find(old_value, pos)) != std::string::npos) {
 			str.replace(pos, old_value.length(), new_value);
-		}
-		else
-		{
+		} else {
 			break;
 		}
 	}

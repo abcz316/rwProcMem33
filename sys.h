@@ -46,12 +46,11 @@
 
 
 //////////////////////////////////////////////////////////////////
-static int g_rwProcMem_major  = 0; //记录动态申请的主设备号
+static int g_rwProcMem_major = 0; //记录动态申请的主设备号
 static dev_t g_rwProcMem_devno;
 
 //rwProcMemDev设备结构体
-struct rwProcMemDev
-{
+struct rwProcMemDev {
 	struct cdev cdev; //cdev结构体
 	size_t max_dev_open_count; //驱动dev文件允许同时open的最大数量
 	size_t cur_dev_open_count; //驱动dev文件当前同时open的数量

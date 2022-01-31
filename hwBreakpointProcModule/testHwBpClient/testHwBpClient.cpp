@@ -22,8 +22,7 @@ END_MESSAGE_MAP()
 
 // CtestHwBpClientApp 构造
 
-CtestHwBpClientApp::CtestHwBpClientApp()
-{
+CtestHwBpClientApp::CtestHwBpClientApp() {
 	// 支持重新启动管理器
 	m_dwRestartManagerSupportFlags = AFX_RESTART_MANAGER_SUPPORT_RESTART;
 
@@ -39,8 +38,7 @@ CtestHwBpClientApp theApp;
 
 // CtestHwBpClientApp 初始化
 
-BOOL CtestHwBpClientApp::InitInstance()
-{
+BOOL CtestHwBpClientApp::InitInstance() {
 	// 如果一个运行在 Windows XP 上的应用程序清单指定要
 	// 使用 ComCtl32.dll 版本 6 或更高版本来启用可视化方式，
 	//则需要 InitCommonControlsEx()。  否则，将无法创建窗口。
@@ -53,8 +51,7 @@ BOOL CtestHwBpClientApp::InitInstance()
 
 	CWinApp::InitInstance();
 
-	if (!AfxSocketInit())
-	{
+	if (!AfxSocketInit()) {
 		AfxMessageBox(IDP_SOCKETS_INIT_FAILED);
 		return FALSE;
 	}
@@ -83,8 +80,7 @@ BOOL CtestHwBpClientApp::InitInstance()
 
 	INT_PTR nResponse = 0;
 
-	if (g_NetworkManager.IsConnected())
-	{
+	if (g_NetworkManager.IsConnected()) {
 		//网络连接成功，载入主窗口
 		g_NetworkManager.Disconnect();
 
@@ -92,25 +88,19 @@ BOOL CtestHwBpClientApp::InitInstance()
 		m_pMainWnd = &dlg;
 		nResponse = dlg.DoModal();
 	}
-	if (nResponse == IDOK)
-	{
+	if (nResponse == IDOK) {
 		// TODO: 在此放置处理何时用
 		//  “确定”来关闭对话框的代码
-	}
-	else if (nResponse == IDCANCEL)
-	{
+	} else if (nResponse == IDCANCEL) {
 		// TODO: 在此放置处理何时用
 		//  “取消”来关闭对话框的代码
-	}
-	else if (nResponse == -1)
-	{
+	} else if (nResponse == -1) {
 		TRACE(traceAppMsg, 0, "警告: 对话框创建失败，应用程序将意外终止。\n");
 		TRACE(traceAppMsg, 0, "警告: 如果您在对话框上使用 MFC 控件，则无法 #define _AFX_NO_MFC_CONTROLS_IN_DIALOGS。\n");
 	}
 
 	// 删除上面创建的 shell 管理器。
-	if (pShellManager != nullptr)
-	{
+	if (pShellManager != nullptr) {
 		delete pShellManager;
 	}
 

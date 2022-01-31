@@ -11,13 +11,12 @@
 #include <zlib.h>
 
 #pragma pack(1)
-typedef struct
-{
-  uint64_t address;
-  int size;
-  int type;
-  unsigned char namelength;
-  char name[0];
+typedef struct {
+	uint64_t address;
+	int size;
+	int type;
+	unsigned char namelength;
+	char name[0];
 } symbolinfo, *psymbolinfo;
 #pragma pack()
 

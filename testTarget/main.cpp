@@ -12,8 +12,7 @@
 
 
 
-int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver)
-{
+int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver) {
 	int nTargetPid = 0;
 
 	//驱动_获取进程PID列表
@@ -23,8 +22,7 @@ int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver)
 	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
 
 	//打印进程列表信息
-	for (int pid : vPID)
-	{
+	for (int pid : vPID) {
 		//驱动_打开进程
 		uint64_t hProcess = pDriver->OpenProcess(pid);
 		if (!hProcess) { continue; }
@@ -36,8 +34,7 @@ int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver)
 		//驱动_关闭进程
 		pDriver->CloseHandle(hProcess);
 
-		if (strcmp(lpszCmdline, cmdline) == 0)
-		{
+		if (strcmp(lpszCmdline, cmdline) == 0) {
 			nTargetPid = pid;
 			break;
 		}
@@ -48,8 +45,7 @@ int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver)
 
 
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 	printf(
 		"======================================================\n"
 		"本驱动名称: Linux ARM64 硬件读写进程内存驱动37\n"
@@ -75,8 +71,7 @@ int main(int argc, char *argv[])
 
 	//驱动默认文件名
 	std::string devFileName = RWPROCMEM_FILE_NODE;
-	if (argc > 1)
-	{
+	if (argc > 1) {
 		//如果用户自定义输入驱动名
 		devFileName = argv[1];
 	}
@@ -85,8 +80,7 @@ int main(int argc, char *argv[])
 
 	//连接驱动
 	int err = 0;
-	if (!rwDriver.ConnectDriver(devFileName.c_str(), err))
-	{
+	if (!rwDriver.ConnectDriver(devFileName.c_str(), err)) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return 0;
@@ -96,8 +90,7 @@ int main(int argc, char *argv[])
 	//获取目标进程PID
 	const char *name = "com.miui.calculator";
 	pid_t pid = findPID(name, &rwDriver);
-	if (pid == 0)
-	{
+	if (pid == 0) {
 		printf("找不到进程\n");
 		return 0;
 	}
@@ -106,8 +99,7 @@ int main(int argc, char *argv[])
 	//打开进程
 	uint64_t hProcess = rwDriver.OpenProcess(pid);
 	printf("调用驱动 OpenProcess 返回值:%" PRIu64 "\n", hProcess);
-	if (!hProcess)
-	{
+	if (!hProcess) {
 		printf("调用驱动 OpenProcess 失败\n");
 		fflush(stdout);
 		return 0;
@@ -119,8 +111,7 @@ int main(int argc, char *argv[])
 	BOOL b = rwDriver.VirtualQueryExFull(hProcess, FALSE, vMaps, bOutListCompleted);
 	printf("调用驱动 VirtualQueryExFull(显示全部内存) 返回值:%d\n", b);
 
-	if(!vMaps.size())
-	{
+	if (!vMaps.size()) {
 		printf("VirtualQueryExFull 失败\n");
 
 		//关闭进程
@@ -131,8 +122,7 @@ int main(int argc, char *argv[])
 	}
 
 	//显示进程内存块地址列表
-	for (DRIVER_REGION_INFO rinfo : vMaps)
-	{
+	for (DRIVER_REGION_INFO rinfo : vMaps) {
 		printf("---Start:%p,Size:%" PRIu64 ",Type:%s,Name:%s\n", (void*)rinfo.baseaddress, rinfo.size, MapsTypeToString(&rinfo).c_str(), rinfo.name);
 	}
 
@@ -141,8 +131,7 @@ int main(int argc, char *argv[])
 	vMaps.clear();
 	b = rwDriver.VirtualQueryExFull(hProcess, TRUE, vMaps, bOutListCompleted);
 	printf("调用驱动 VirtualQueryExFull(只显示在物理内存中的内存) 返回值:%d\n", b);
-	if (!vMaps.size())
-	{
+	if (!vMaps.size()) {
 		printf("VirtualQueryExFull 失败\n");
 
 		//关闭进程
@@ -152,8 +141,7 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 	//显示进程内存块地址列表
-	for (DRIVER_REGION_INFO rinfo : vMaps)
-	{
+	for (DRIVER_REGION_INFO rinfo : vMaps) {
 		printf("+++Start:%p,Size:%" PRIu64 ",Type:%s,Name:%s\n", (void*)rinfo.baseaddress, rinfo.size, MapsTypeToString(&rinfo).c_str(), rinfo.name);
 	}
 
@@ -162,8 +150,7 @@ int main(int argc, char *argv[])
 	uint64_t pRead = 0;
 	size_t nReadSize = 0;
 
-	for (DRIVER_REGION_INFO rinfo : vMaps)
-	{
+	for (DRIVER_REGION_INFO rinfo : vMaps) {
 		if (rinfo.protection != PAGE_NOACCESS) //此地址可以访问
 		{
 			//记录一个可以访问的地址信息
@@ -189,13 +176,12 @@ int main(int argc, char *argv[])
 
 	nReadSize = nReadSize > 1024 ? 1024 : nReadSize;
 
-	char *readBuf=(char*)malloc(nReadSize);
+	char *readBuf = (char*)malloc(nReadSize);
 
 	auto read_res = rwDriver.ReadProcessMemory(hProcess, pRead, readBuf, nReadSize, &real_read, FALSE);
 	printf("调用驱动 ReadProcessMemory 读取内存地址:%p,返回值:%d,实际读取大小:%zu \n", (void*)pRead, read_res, real_read);
-	
-	for (int i = 0; i < nReadSize; i++)
-	{
+
+	for (int i = 0; i < nReadSize; i++) {
 		char c = readBuf[i];
 		printf("%x ", c);
 	}

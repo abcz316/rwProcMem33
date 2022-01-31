@@ -28,16 +28,14 @@
 #define VQE_NOSHARED 4
 
 
-struct ModuleListEntry
-{
+struct ModuleListEntry {
 	unsigned long long baseAddress;
 	int moduleSize;
 	std::string moduleName;
 
 };
 
-struct ProcessListEntry
-{
+struct ProcessListEntry {
 	int PID;
 	std::string ProcessName;
 
@@ -60,20 +58,17 @@ struct MyProcessInfo {
 	std::string cmdline;
 };
 
-struct CeProcessList
-{
+struct CeProcessList {
 	std::vector<MyProcessInfo> vProcessList;
 	decltype(vProcessList)::iterator readIter;
 };
 
-struct CeModuleList
-{
+struct CeModuleList {
 	std::vector<ModuleListEntry> vModuleList;
 	decltype(vModuleList)::iterator readIter;
 };
 
-struct CeOpenProcess
-{
+struct CeOpenProcess {
 	int pid;
 	uint64_t u64DriverProcessHandle;
 
@@ -83,8 +78,7 @@ struct CeOpenProcess
 	std::atomic<uint64_t> nLastGetMapsTime;
 };
 
-class CApi
-{
+class CApi {
 public:
 	static BOOL InitReadWriteDriver(const char* lpszDevFileName);
 	static HANDLE CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID);

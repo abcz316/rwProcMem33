@@ -28,14 +28,12 @@ struct my_user_pt_regs {
 	uint64_t orig_x0;
 	uint64_t syscallno;
 };
-struct USER_HIT_INFO
-{
+struct USER_HIT_INFO {
 	size_t hit_addr; //命中地址
 	size_t hit_count; //命中次数
 	struct my_user_pt_regs regs; //最后一次命中的寄存器数据
 };
-struct HIT_CONDITIONS
-{
+struct HIT_CONDITIONS {
 	char enable_regs[31];
 	char enable_sp;
 	char enable_pc;
@@ -46,8 +44,7 @@ struct HIT_CONDITIONS
 };
 #pragma pack()
 
-class CNetworkManager
-{
+class CNetworkManager {
 public:
 	CNetworkManager();
 	~CNetworkManager();

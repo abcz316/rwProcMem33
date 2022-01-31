@@ -14,10 +14,8 @@ CMemoryReaderWriter m_Driver;
 
 
 
-BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName)
-{
-	if (!lpszDevFileName)
-	{
+BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName) {
+	if (!lpszDevFileName) {
 		//驱动默认文件名
 		lpszDevFileName = RWPROCMEM_FILE_NODE;
 	}
@@ -27,8 +25,7 @@ BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName)
 
 	//连接驱动
 	int err = 0;
-	if (!m_Driver.ConnectDriver(lpszDevFileName, err))
-	{
+	if (!m_Driver.ConnectDriver(lpszDevFileName, err)) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return FALSE;
@@ -42,27 +39,23 @@ BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName)
 
 
 
-BOOL GetProcessListInfo(CMemoryReaderWriter* pDriver, BOOL bGetPhyMemorySize, std::vector<MyProcessInfo> & vOutput)
-{
+BOOL GetProcessListInfo(CMemoryReaderWriter* pDriver, BOOL bGetPhyMemorySize, std::vector<MyProcessInfo> & vOutput) {
 	//驱动_获取进程PID列表
 	std::vector<int> vPID;
 	BOOL bOutListCompleted;
 	BOOL b = pDriver->GetProcessPidList(vPID, FALSE, bOutListCompleted);
 	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
-	if (b == FALSE)
-	{
+	if (b == FALSE) {
 		return FALSE;
 	}
 	//打印进程列表信息
-	for (int pid : vPID)
-	{
+	for (int pid : vPID) {
 		uint64_t hProcess = pDriver->OpenProcess(pid);
 		if (!hProcess) { continue; }
 
 		MyProcessInfo pInfo = { 0 };
 		pInfo.pid = pid;
-		if (bGetPhyMemorySize)
-		{
+		if (bGetPhyMemorySize) {
 			uint64_t outRss = 0;
 			pDriver->GetProcessRSS(hProcess, outRss);
 			pInfo.total_rss = outRss;
@@ -79,28 +72,23 @@ BOOL GetProcessListInfo(CMemoryReaderWriter* pDriver, BOOL bGetPhyMemorySize, st
 }
 
 
-HANDLE CApi::CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID)
-{
+HANDLE CApi::CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID) {
 
-	if (dwFlags & TH32CS_SNAPPROCESS)
-	{
+	if (dwFlags & TH32CS_SNAPPROCESS) {
 		//printf("TH32CS_SNAPPROCESS\n");
 		//获取进程列表
 		CeProcessList * pCeProcessList = new CeProcessList();
 
 		//获取进程列表
 		GetProcessListInfo(&m_Driver, FALSE, pCeProcessList->vProcessList);
-	
+
 
 		pCeProcessList->readIter = pCeProcessList->vProcessList.begin();
 		return CPortHelper::CreateHandleFromPointer((uint64_t)pCeProcessList, htTHSProcess);
-	}
-	else if (dwFlags & TH32CS_SNAPMODULE)
-	{
+	} else if (dwFlags & TH32CS_SNAPMODULE) {
 		//printf("TH32CS_SNAPMODULE\n");
 		HANDLE hm = CPortHelper::FindHandleByPID(th32ProcessID);
-		if (!hm)
-		{
+		if (!hm) {
 			//如果没有打开此进程，就不允许获取此进程的模块列表
 			return 0;
 		}
@@ -117,8 +105,7 @@ HANDLE CApi::CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID)
 		BOOL b = m_Driver.VirtualQueryExFull(u64DriverProcessHandle, FALSE, vMaps, bOutListCompleted);
 		printf("调用驱动 VirtualQueryExFull(显示全部内存) 返回值:%d\n", b);
 
-		if (!vMaps.size())
-		{
+		if (!vMaps.size()) {
 			printf("VirtualQueryExFull 失败\n");
 			fflush(stdout);
 			return 0;
@@ -127,63 +114,49 @@ HANDLE CApi::CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID)
 		CeModuleList * pCeModuleList = new CeModuleList();
 
 		//显示进程内存块地址列表
-		for (DRIVER_REGION_INFO rinfo : vMaps)
-		{
-			if (rinfo.protection == PAGE_NOACCESS)
-			{
+		for (DRIVER_REGION_INFO rinfo : vMaps) {
+			if (rinfo.protection == PAGE_NOACCESS) {
 				//此地址不可访问
 				continue;
-			}
-			else if (rinfo.type == MEM_MAPPED)
-			{
+			} else if (rinfo.type == MEM_MAPPED) {
 				continue;
-			}
-			else if (rinfo.name[0] == '\x00')
-			{
+			} else if (rinfo.name[0] == '\x00' {
 				continue;
-			}
-			else if (strcmp(rinfo.name, "[heap]") == 0)
-			{
+			} else if (strcmp(rinfo.name, "[heap]") == 0 {
 				continue;
 			}
 			if (strcmp(rinfo.name, "[vdso]") != 0)  //ceOpenProcessorary patch as to not rename vdso, because it is treated differently by the ce symbol loader
 			{
 				for (int i = 0; rinfo.name[i]; i++) //strip square brackets from the name (conflicts with pointer notations)
 				{
-					if ((rinfo.name[i] == '[') || (rinfo.name[i] == ']'))
-					{
+					if ((rinfo.name[i] == '[') || (rinfo.name[i] == ']')) {
 						rinfo.name[i] = '_';
 					}
 				}
 			}
 
 			int isExist = 0;
-			for (auto iter = pCeModuleList->vModuleList.begin(); iter != pCeModuleList->vModuleList.end(); iter++)
-			{
-				if (iter->moduleName == std::string(rinfo.name))
-				{
+			for (auto iter = pCeModuleList->vModuleList.begin(); iter != pCeModuleList->vModuleList.end(); iter++) {
+				if (iter->moduleName == std::string(rinfo.name)) {
 					isExist = 1;
 					ModuleListEntry newReplace = *iter;
 					newReplace.moduleSize += rinfo.size;
 					iter = pCeModuleList->vModuleList.insert(iter, newReplace);
 					iter++;
-					if (iter != pCeModuleList->vModuleList.end())
-					{
+					if (iter != pCeModuleList->vModuleList.end()) {
 						pCeModuleList->vModuleList.erase(iter);
 
 						break;
 					}
 				}
 			}
-			if (isExist)
-			{
+			if (isExist) {
 				continue;
 			}
 
 			uint32_t magic = 0;
 			BOOL b = m_Driver.ReadProcessMemory(u64DriverProcessHandle, rinfo.baseaddress, &magic, 4, NULL, FALSE);
-			if (b == FALSE)
-			{
+			if (b == FALSE) {
 				//printf("%s is unreadable(%llx)\n", modulepath, start);
 				continue; //unreadable
 			}
@@ -213,20 +186,17 @@ HANDLE CApi::CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID)
 }
 
 
-BOOL CApi::Process32First(HANDLE hSnapshot, ProcessListEntry & processentry)
-{
+BOOL CApi::Process32First(HANDLE hSnapshot, ProcessListEntry & processentry) {
 	//Get a processentry from the processlist snapshot. fill the given processentry with the data.
 
    // printf("Process32First\n");
-	if (CPortHelper::GetHandleType(hSnapshot) == htTHSProcess)
-	{
+	if (CPortHelper::GetHandleType(hSnapshot) == htTHSProcess) {
 		CeProcessList *pCeProcessList = (CeProcessList*)CPortHelper::GetPointerFromHandle(hSnapshot);
 		pCeProcessList->readIter = pCeProcessList->vProcessList.begin();
-		if (pCeProcessList->readIter != pCeProcessList->vProcessList.end())
-		{
+		if (pCeProcessList->readIter != pCeProcessList->vProcessList.end()) {
 			processentry.PID = pCeProcessList->readIter->pid;
 			processentry.ProcessName = pCeProcessList->readIter->cmdline;
-			
+
 			return TRUE;
 		}
 	}
@@ -234,17 +204,14 @@ BOOL CApi::Process32First(HANDLE hSnapshot, ProcessListEntry & processentry)
 }
 
 
-BOOL CApi::Process32Next(HANDLE hSnapshot, ProcessListEntry &processentry)
-{
+BOOL CApi::Process32Next(HANDLE hSnapshot, ProcessListEntry &processentry) {
 	//get the current iterator of the list and increase it. If the max has been reached, return false
    // printf("Process32Next\n");
 
-	if (CPortHelper::GetHandleType(hSnapshot) == htTHSProcess)
-	{
+	if (CPortHelper::GetHandleType(hSnapshot) == htTHSProcess) {
 		CeProcessList *pCeProcessList = (CeProcessList*)CPortHelper::GetPointerFromHandle(hSnapshot);
 		pCeProcessList->readIter++;
-		if (pCeProcessList->readIter != pCeProcessList->vProcessList.end())
-		{
+		if (pCeProcessList->readIter != pCeProcessList->vProcessList.end()) {
 			processentry.PID = pCeProcessList->readIter->pid;
 			processentry.ProcessName = pCeProcessList->readIter->cmdline;
 			return TRUE;
@@ -254,15 +221,12 @@ BOOL CApi::Process32Next(HANDLE hSnapshot, ProcessListEntry &processentry)
 }
 
 
-BOOL CApi::Module32First(HANDLE hSnapshot, ModuleListEntry & moduleentry)
-{
-	if (CPortHelper::GetHandleType(hSnapshot) == htTHSModule)
-	{
+BOOL CApi::Module32First(HANDLE hSnapshot, ModuleListEntry & moduleentry) {
+	if (CPortHelper::GetHandleType(hSnapshot) == htTHSModule) {
 		CeModuleList *pCeModuleList = (CeModuleList*)CPortHelper::GetPointerFromHandle(hSnapshot);
 
 		pCeModuleList->readIter = pCeModuleList->vModuleList.begin();
-		if (pCeModuleList->readIter != pCeModuleList->vModuleList.end())
-		{
+		if (pCeModuleList->readIter != pCeModuleList->vModuleList.end()) {
 			moduleentry.baseAddress = pCeModuleList->readIter->baseAddress;
 			moduleentry.moduleSize = pCeModuleList->readIter->moduleSize;
 			moduleentry.moduleName = pCeModuleList->readIter->moduleName;
@@ -272,16 +236,13 @@ BOOL CApi::Module32First(HANDLE hSnapshot, ModuleListEntry & moduleentry)
 	return FALSE;
 }
 
-BOOL CApi::Module32Next(HANDLE hSnapshot, ModuleListEntry & moduleentry)
-{
+BOOL CApi::Module32Next(HANDLE hSnapshot, ModuleListEntry & moduleentry) {
 	//get the current iterator of the list and increase it. If the max has been reached, return false
 	printf("Module32First/Next(%d)\n", hSnapshot);
-	if (CPortHelper::GetHandleType(hSnapshot) == htTHSModule)
-	{
+	if (CPortHelper::GetHandleType(hSnapshot) == htTHSModule) {
 		CeModuleList *pCeModuleList = (CeModuleList*)CPortHelper::GetPointerFromHandle(hSnapshot);
 		pCeModuleList->readIter++;
-		if (pCeModuleList->readIter != pCeModuleList->vModuleList.end())
-		{
+		if (pCeModuleList->readIter != pCeModuleList->vModuleList.end()) {
 			moduleentry.baseAddress = pCeModuleList->readIter->baseAddress;
 			moduleentry.moduleSize = pCeModuleList->readIter->moduleSize;
 			moduleentry.moduleName = pCeModuleList->readIter->moduleName;
@@ -293,20 +254,17 @@ BOOL CApi::Module32Next(HANDLE hSnapshot, ModuleListEntry & moduleentry)
 
 
 
-HANDLE CApi::OpenProcess(DWORD pid)
-{
+HANDLE CApi::OpenProcess(DWORD pid) {
 	//check if this process has already been opened
 	HANDLE hm = CPortHelper::FindHandleByPID(pid);
-	if (hm)
-	{
+	if (hm) {
 		return hm;
 	}
 	//still here, so not opened yet
 
 	//驱动_打开进程
 	uint64_t u64DriverProcessHandle = m_Driver.OpenProcess(pid);
-	if (u64DriverProcessHandle == 0)
-	{
+	if (u64DriverProcessHandle == 0) {
 		return 0;
 	}
 	CeOpenProcess *pCeOpenProcess = new CeOpenProcess();
@@ -317,8 +275,7 @@ HANDLE CApi::OpenProcess(DWORD pid)
 }
 
 
-void CApi::CloseHandle(HANDLE h)
-{
+void CApi::CloseHandle(HANDLE h) {
 
 	int i;
 	handleType ht = CPortHelper::GetHandleType(h);
@@ -326,18 +283,13 @@ void CApi::CloseHandle(HANDLE h)
 
 	printf("CloseHandle %d %" PRIu64 "\n", h, pl);
 
-	if (ht == htTHSModule)
-	{
+	if (ht == htTHSModule) {
 		auto pCeModuleList = (CeModuleList*)pl;
 		delete pCeModuleList;
-	}
-	else if (ht == htTHSProcess)
-	{
+	} else if (ht == htTHSProcess) {
 		auto pProcessList = (CeProcessList*)pl;
 		delete pProcessList;
-	}
-	else if (ht == htProcesHandle)
-	{
+	} else if (ht == htProcesHandle) {
 		auto pOpenProcess = (CeOpenProcess*)pl;
 
 		m_Driver.CloseHandle(pOpenProcess->u64DriverProcessHandle);
@@ -371,8 +323,7 @@ int CApi::VirtualQueryExFull(HANDLE hProcess, uint32_t flags, std::vector<Region
 {
 	printf("VirtualQueryExFull: %d \n", hProcess);
 
-	if (CPortHelper::GetHandleType(hProcess) != htProcesHandle)
-	{
+	if (CPortHelper::GetHandleType(hProcess) != htProcesHandle) {
 		printf("VirtualQueryExFull handle Error: %d \n", hProcess);
 		return 0;
 	}
@@ -396,17 +347,14 @@ int CApi::VirtualQueryExFull(HANDLE hProcess, uint32_t flags, std::vector<Region
 	fflush(stdout);
 
 
-	if (!pCeOpenProcess->vLastMaps.size())
-	{
+	if (!pCeOpenProcess->vLastMaps.size()) {
 		pCeOpenProcess->nLastGetMapsTime = 0;
 
 		printf("m_Driver.VirtualQueryExFull(showPhy)  failed.\n");
 		fflush(stdout);
 
 		return 0;
-	}
-	else
-	{
+	} else {
 		//记录当前系统运行毫秒
 		struct timespec times = { 0, 0 };
 		clock_gettime(CLOCK_MONOTONIC, &times);
@@ -415,21 +363,17 @@ int CApi::VirtualQueryExFull(HANDLE hProcess, uint32_t flags, std::vector<Region
 	}
 
 	//显示进程内存块地址列表
-	for (DRIVER_REGION_INFO rinfo : pCeOpenProcess->vLastMaps)
-	{
-		if (rinfo.protection == PAGE_NOACCESS)
-		{
+	for (DRIVER_REGION_INFO rinfo : pCeOpenProcess->vLastMaps) {
+		if (rinfo.protection == PAGE_NOACCESS) {
 			//此地址不可访问
 			continue;
-		}
-		else if (rinfo.type == MEM_MAPPED) //some checks to see if it passed
+		} else if (rinfo.type == MEM_MAPPED) //some checks to see if it passed
 		{
-			if (noshared)
-			{
+			if (noshared) {
 				continue;
 			}
 		}
-	
+
 		RegionInfo newInfo = { 0 };
 		newInfo.baseaddress = rinfo.baseaddress;
 		newInfo.size = rinfo.size;
@@ -439,11 +383,10 @@ int CApi::VirtualQueryExFull(HANDLE hProcess, uint32_t flags, std::vector<Region
 		//printf("+++Start:%llx,Size:%lld,Protection:%d,Type:%d,Name:%s\n", rinfo.baseaddress, rinfo.size, rinfo.protection, rinfo.type, rinfo.name);
 	}
 	return 1;
-	
+
 }
 
-int CApi::VirtualQueryEx(HANDLE hProcess, uint64_t lpAddress, RegionInfo & rinfo, std::string & memName)
-{
+int CApi::VirtualQueryEx(HANDLE hProcess, uint64_t lpAddress, RegionInfo & rinfo, std::string & memName) {
 	/*
 	 * Alternate method: read pagemaps and look up the pfn in /proc/kpageflags (needs to 2 files open and random seeks through both files, so not sure if slow or painfully slow...)
 	 */
@@ -454,8 +397,7 @@ int CApi::VirtualQueryEx(HANDLE hProcess, uint64_t lpAddress, RegionInfo & rinfo
 	//printf("VirtualQueryEx %d (%p)\n", hProcess, lpAddress);
 
 
-	if (CPortHelper::GetHandleType(hProcess) != htProcesHandle)
-	{
+	if (CPortHelper::GetHandleType(hProcess) != htProcesHandle) {
 		return 0;
 	}
 
@@ -481,16 +423,13 @@ int CApi::VirtualQueryEx(HANDLE hProcess, uint64_t lpAddress, RegionInfo & rinfo
 		BOOL b = m_Driver.VirtualQueryExFull(u64DriverProcessHandle, TRUE, pCeOpenProcess->vLastMaps, bOutListCompleted);
 		printf("调用驱动 VirtualQueryExFull(只显示在物理内存中的内存) 返回值:%d\n", b);
 		fflush(stdout);
-		
-		if (!pCeOpenProcess->vLastMaps.size())
-		{
+
+		if (!pCeOpenProcess->vLastMaps.size()) {
 			pCeOpenProcess->nLastGetMapsTime = 0;
 			printf("VirtualQueryExFull 失败\n");
 			fflush(stdout);
 			return 0;
-		}
-		else
-		{
+		} else {
 			//记录这次列表的获取时间
 			memset(&times, 0, sizeof(times));
 			clock_gettime(CLOCK_MONOTONIC, &times);
@@ -504,23 +443,19 @@ int CApi::VirtualQueryEx(HANDLE hProcess, uint64_t lpAddress, RegionInfo & rinfo
 	lpAddress = (uint64_t)(rinfo.baseaddress);
 
 	//显示进程内存块地址列表
-	for (DRIVER_REGION_INFO r : pCeOpenProcess->vLastMaps)
-	{
+	for (DRIVER_REGION_INFO r : pCeOpenProcess->vLastMaps) {
 		uint64_t stop = r.baseaddress + r.size;
 		if (stop > lpAddress) //we passed it
 		{
 			found = 1;
 
-			if (lpAddress >= r.baseaddress)
-			{
+			if (lpAddress >= r.baseaddress) {
 				//it's inside the region, so useable
 
 				rinfo.protection = r.protection;
 				rinfo.type = r.type;
 				rinfo.size = stop - rinfo.baseaddress;
-			}
-			else
-			{
+			} else {
 				rinfo.size = r.baseaddress - rinfo.baseaddress;
 				rinfo.protection = PAGE_NOACCESS;
 				rinfo.type = 0;
@@ -538,8 +473,7 @@ int CApi::VirtualQueryEx(HANDLE hProcess, uint64_t lpAddress, RegionInfo & rinfo
 
 
 
-int CApi::ReadProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer, int size)
-{
+int CApi::ReadProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer, int size) {
 	//idea in case this is too slow. always read a full page and keep the last 16 accessed pages.
 	//only on cache miss, or if the cache is older than 1000 milliseconds fetch the page.
 	//keep in mind that this routine can get called by multiple threads at the same time
@@ -554,8 +488,7 @@ int CApi::ReadProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer, int 
 
 	size_t bread = 0;
 
-	if (CPortHelper::GetHandleType(hProcess) != htProcesHandle)
-	{
+	if (CPortHelper::GetHandleType(hProcess) != htProcesHandle) {
 		return 0;
 	}
 	CeOpenProcess *pCeOpenProcess = (CeOpenProcess*)CPortHelper::GetPointerFromHandle(hProcess);
@@ -570,14 +503,12 @@ int CApi::ReadProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer, int 
 }
 
 
-int CApi::WriteProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer, int size)
-{
+int CApi::WriteProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer, int size) {
 	size_t written = 0;
 	//printf("WriteProcessMemory(%d, %p, %p, %d\n", hProcess, lpAddress, buffer, size);
 
 
-	if (CPortHelper::GetHandleType(hProcess) != htProcesHandle)
-	{
+	if (CPortHelper::GetHandleType(hProcess) != htProcesHandle) {
 		return 0;
 	}
 

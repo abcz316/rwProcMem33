@@ -11,10 +11,8 @@
 
 int g_value = 0;
 
-void AddValueThread()
-{
-	while (1)
-	{
+void AddValueThread() {
+	while (1) {
 		g_value++;
 		printf("pid:%d, g_value addr:0x%llx, g_value: %d\n", getpid(), &g_value, g_value);
 		fflush(stdout);
@@ -24,14 +22,12 @@ void AddValueThread()
 }
 
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 	//启动数值增加线程
 	std::thread tdValue(AddValueThread);
 	tdValue.detach();
-	
-	while(1)
-	{
+
+	while (1) {
 		sleep(0);
 	}
 	return 0;

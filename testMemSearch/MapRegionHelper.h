@@ -8,8 +8,7 @@
 #include "MemSearchHelper.h"
 #include "MapRegionType.h"
 
-enum RangeType
-{
+enum RangeType {
 	ALL,        //所有内存
 	B_BAD,      //B内存
 	C_ALLOC,    //Ca内存
@@ -29,14 +28,12 @@ enum RangeType
 };
 
 //获取进程的内存块区域
-static BOOL GetMemRegion(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, RangeType type, BOOL showPhy, std::vector<MEM_SECTION_INFO> & vOutput)
-{
+static BOOL GetMemRegion(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, RangeType type, BOOL showPhy, std::vector<MEM_SECTION_INFO> & vOutput) {
 	//驱动_获取进程内存块地址列表
 	std::vector<DRIVER_REGION_INFO> vMapsList;
 	BOOL bOutListCompleted;
 	IReadWriteProxy->VirtualQueryExFull(hProcess, showPhy, vMapsList, bOutListCompleted);
-	if (vMapsList.size() == 0)
-	{
+	if (vMapsList.size() == 0) {
 		//无内存
 		return FALSE;
 	}
@@ -45,65 +42,39 @@ static BOOL GetMemRegion(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProce
 	vOutput.clear();
 	for (DRIVER_REGION_INFO rinfo : vMapsList) {
 		int vaild = 0;
-		if (type == RangeType::X)
-		{
+		if (type == RangeType::X) {
 			if (is_r0xp(&rinfo)) { vaild = 1; }
-		}
-		else if (type == RangeType::R0_0)
-		{
+		} else if (type == RangeType::R0_0) {
 			if (is_r0_0(&rinfo)) { vaild = 1; }
-		}
-		else if (type == RangeType::RW_0)
-		{
+		} else if (type == RangeType::RW_0) {
 			if (is_rw_0(&rinfo)) { vaild = 1; }
-		}
-		else if (type == RangeType::ALL) { vaild = 1; }
+		} else if (type == RangeType::ALL) { vaild = 1; }
 
 		else if (!is_rw00(&rinfo)) { continue; }
 
-		else if (type == RangeType::B_BAD)
-		{
+		else if (type == RangeType::B_BAD) {
 			if (is_B(&rinfo)) { vaild = 1; }
-		}
-		else if (type == RangeType::C_ALLOC)
-		{
+		} else if (type == RangeType::C_ALLOC) {
 			if (strstr(rinfo.name, "[anon:libc_malloc]")) { vaild = 1; }
-		}
-		else if (type == RangeType::C_BSS)
-		{
+		} else if (type == RangeType::C_BSS) {
 			if (strstr(rinfo.name, "[anon:.bss]")) { vaild = 1; }
-		}
-		else if (type == RangeType::C_DATA)
-		{
+		} else if (type == RangeType::C_DATA) {
 			if (strstr(rinfo.name, "/data/app/")) { vaild = 1; }
-		}
-		else if (type == RangeType::C_HEAP)
-		{
+		} else if (type == RangeType::C_HEAP) {
 			if (is_Ch(&rinfo)) { vaild = 1; }
-		}
-		else if (type == RangeType::JAVA_HEAP)
-		{
+		} else if (type == RangeType::JAVA_HEAP) {
 			if (is_Jh(&rinfo)) { vaild = 1; }
-		}
-		else if (type == RangeType::A_ANONMYOUS)
-		{
+		} else if (type == RangeType::A_ANONMYOUS) {
 			if (is_A(&rinfo)) { vaild = 1; }
-		}
-		else if (type == RangeType::CODE_SYSTEM)
-		{
+		} else if (type == RangeType::CODE_SYSTEM) {
 			if (strstr(rinfo.name, "/system")) { vaild = 1; }
-		}
-		else if (type == RangeType::STACK)
-		{
+		} else if (type == RangeType::STACK) {
 			if (is_S(&rinfo)) { vaild = 1; }
-		}
-		else if (type == RangeType::ASHMEM)
-		{
+		} else if (type == RangeType::ASHMEM) {
 			if (strstr(rinfo.name, "/dev/ashmem/") && !strstr(rinfo.name, "dalvik")) { vaild = 1; }
 		}
 
-		if (vaild == 1)
-		{
+		if (vaild == 1) {
 			MEM_SECTION_INFO newMemScan;
 			newMemScan.npSectionAddr = rinfo.baseaddress;
 			newMemScan.nSectionSize = rinfo.size;
@@ -186,8 +157,7 @@ static BOOL GetMemModuleDataAreaSection(IMemReaderWriterProxy *IReadWriteProxy, 
 	for (DRIVER_REGION_INFO rinfo : vMapsList) {
 		if (startExecuteAddr == 0 && strstr(rinfo.name, targetModuleName) && is_r0xp(&rinfo)) {
 			startExecuteAddr = rinfo.baseaddress; //记录模块起始位置
-		}
-		else if (startExecuteAddr && startAddr == 0 && is_rw00(&rinfo)) {
+		} else if (startExecuteAddr && startAddr == 0 && is_rw00(&rinfo)) {
 			startAddr = rinfo.baseaddress; //设置遍历起始位置
 
 			MEM_SECTION_INFO newSec;
@@ -195,16 +165,14 @@ static BOOL GetMemModuleDataAreaSection(IMemReaderWriterProxy *IReadWriteProxy, 
 			newSec.nSectionSize = rinfo.size;
 			vOut.push_back(newSec);
 
-		}
-		else if (startExecuteAddr && startAddr && is_rw00(&rinfo)) {
+		} else if (startExecuteAddr && startAddr && is_rw00(&rinfo)) {
 			endAddr = rinfo.baseaddress + rinfo.size; //设置遍历结束位置，一个so模块的区域，包括后面无名内存
 
 			MEM_SECTION_INFO newSec;
 			newSec.npSectionAddr = rinfo.baseaddress;
 			newSec.nSectionSize = rinfo.size;
 			vOut.push_back(newSec);
-		}
-		else if (startExecuteAddr && startAddr && endAddr && is_r0xp(&rinfo)) {
+		} else if (startExecuteAddr && startAddr && endAddr && is_r0xp(&rinfo)) {
 			break;
 		}
 	}

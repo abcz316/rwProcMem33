@@ -16,8 +16,7 @@
 #endif
 
 
-class IMemReaderWriterProxy
-{
+class IMemReaderWriterProxy {
 public:
 	virtual BOOL ReadProcessMemory(
 		uint64_t hProcess,
@@ -32,7 +31,7 @@ public:
 		void *lpBuffer,
 		size_t nSize,
 		size_t * lpNumberOfBytesRead,
-		BOOL bIsForceRead = FALSE)  = 0;
+		BOOL bIsForceRead = FALSE) = 0;
 	virtual BOOL WriteProcessMemory(
 		uint64_t hProcess,
 		uint64_t lpBaseAddress,

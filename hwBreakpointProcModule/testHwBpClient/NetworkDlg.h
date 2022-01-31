@@ -3,15 +3,14 @@
 
 // CNetworkDlg 对话框
 
-class CNetworkDlg : public CDialogEx
-{
+class CNetworkDlg : public CDialogEx {
 	DECLARE_DYNAMIC(CNetworkDlg)
 
 public:
 	CNetworkDlg(CWnd* pParent = nullptr);   // 标准构造函数
 	virtual ~CNetworkDlg();
 
-// 对话框数据
+	// 对话框数据
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_NETWORK_DIALOG };
 #endif

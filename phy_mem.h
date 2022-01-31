@@ -45,30 +45,24 @@ static inline int change_pte_exec_status(pte_t* pte, bool can_exec);
 const int __endian_bit = 1;
 #define is_bigendian() ( (*(char*)&__endian_bit) == 0 )
 ///////////////////////////////////////////////////////////////////
-static inline struct file * open_pagemap(int pid)
-{
+static inline struct file * open_pagemap(int pid) {
 	struct file *filp = NULL;
 
 	char szFilePath[256] = { 0 };
-	if (pid == -1)
-	{
-		strcpy(szFilePath,"/proc/self/pagemap");
-	}
-	else
-	{
+	if (pid == -1) {
+		strcpy(szFilePath, "/proc/self/pagemap");
+	} else {
 		snprintf(szFilePath, sizeof(szFilePath), "/proc/%d/pagemap", pid);
 	}
-	
+
 	filp = filp_open(szFilePath, O_RDONLY, 0);
-	if (IS_ERR(filp))
-	{
+	if (IS_ERR(filp)) {
 		return NULL;
 	}
 	return filp;
 }
 
-static size_t get_pagemap_phy_addr(struct file * lpPagemap, size_t virt_addr)
-{
+static size_t get_pagemap_phy_addr(struct file * lpPagemap, size_t virt_addr) {
 
 	uint64_t page_size = PAGE_SIZE;
 	uint64_t file_offset;
@@ -90,8 +84,7 @@ static size_t get_pagemap_phy_addr(struct file * lpPagemap, size_t virt_addr)
 
 	pold_fs = get_fs();
 	set_fs(KERNEL_DS);
-	if (lpPagemap->f_op->llseek(lpPagemap, file_offset, SEEK_SET) == -1)
-	{
+	if (lpPagemap->f_op->llseek(lpPagemap, file_offset, SEEK_SET) == -1) {
 		printk_debug(KERN_INFO "Failed to do llseek!");
 		set_fs(pold_fs);
 		return 0;
@@ -100,18 +93,15 @@ static size_t get_pagemap_phy_addr(struct file * lpPagemap, size_t virt_addr)
 	read_val = 0;
 
 
-	if (lpPagemap->f_op->read(lpPagemap, c_buf, PAGEMAP_ENTRY, &lpPagemap->f_pos) != PAGEMAP_ENTRY)
-	{
+	if (lpPagemap->f_op->read(lpPagemap, c_buf, PAGEMAP_ENTRY, &lpPagemap->f_pos) != PAGEMAP_ENTRY) {
 		printk_debug(KERN_INFO "Failed to do read!");
 		set_fs(pold_fs);
 		return 0;
 	}
 	set_fs(pold_fs);
 
-	if (!is_bigendian())
-	{
-		for (i = 0; i < PAGEMAP_ENTRY / 2; i++)
-		{
+	if (!is_bigendian()) {
+		for (i = 0; i < PAGEMAP_ENTRY / 2; i++) {
 			c = c_buf[PAGEMAP_ENTRY - i - 1];
 			c_buf[PAGEMAP_ENTRY - i - 1] = c_buf[i];
 			c_buf[i] = c;
@@ -119,8 +109,7 @@ static size_t get_pagemap_phy_addr(struct file * lpPagemap, size_t virt_addr)
 	}
 
 
-	for (i = 0; i < PAGEMAP_ENTRY; i++)
-	{
+	for (i = 0; i < PAGEMAP_ENTRY; i++) {
 		printk_debug(KERN_INFO "[%d]0x%x ", i, c_buf[i]);
 
 		read_val = (read_val << 8) + c_buf[i];
@@ -128,89 +117,68 @@ static size_t get_pagemap_phy_addr(struct file * lpPagemap, size_t virt_addr)
 	printk_debug(KERN_INFO "\n");
 	printk_debug(KERN_INFO "Result: 0x%llx\n", read_val);
 
-	if (GET_BIT(read_val, 63))
-	{
+	if (GET_BIT(read_val, 63)) {
 		uint64_t pfn = GET_PFN(read_val);
 		printk_debug(KERN_INFO "PFN: 0x%llx (0x%llx)\n", pfn, pfn * page_size + virt_addr % page_size);
 		return pfn * page_size + virt_addr % page_size;
-	}
-	else
-	{
+	} else {
 		printk_debug(KERN_INFO "Page not present\n");
 	}
-	if (GET_BIT(read_val, 62))
-	{
+	if (GET_BIT(read_val, 62)) {
 		printk_debug(KERN_INFO "Page swapped\n");
 	}
 	return 0;
 }
-static inline void close_pagemap(struct file* lpPagemap)
-{
+static inline void close_pagemap(struct file* lpPagemap) {
 	filp_close(lpPagemap, NULL);
 }
 #else
 #include <asm/pgtable.h>
-static inline int is_pte_can_read(pte_t* pte)
-{
+static inline int is_pte_can_read(pte_t* pte) {
 	if (!pte) { return 0; }
 #ifdef pte_read
-	if (pte_read(*pte)) { return 1; }
-	else { return 0; }
+	if (pte_read(*pte)) { return 1; } else { return 0; }
 #endif
 	return 1;
 }
-static inline int is_pte_can_write(pte_t* pte)
-{
+static inline int is_pte_can_write(pte_t* pte) {
 	if (!pte) { return 0; }
-	if (pte_write(*pte)) { return 1; }
-	else { return 0; }
+	if (pte_write(*pte)) { return 1; } else { return 0; }
 }
-static inline int is_pte_can_exec(pte_t* pte)
-{
+static inline int is_pte_can_exec(pte_t* pte) {
 	if (!pte) { return 0; }
 #ifdef pte_exec
-	if (pte_exec(*pte)) { return 1; }
-	else { return 0; }
+	if (pte_exec(*pte)) { return 1; } else { return 0; }
 #endif
 #ifdef pte_user_exec
-	if (pte_user_exec(*pte)) { return 1; }
-	else { return 0; }
+	if (pte_user_exec(*pte)) { return 1; } else { return 0; }
 #endif
 	return 0;
 }
-static inline int change_pte_read_status(pte_t* pte, bool can_read)
-{
+static inline int change_pte_read_status(pte_t* pte, bool can_read) {
 	//ARM64架构所有内存都具备可读属性
 	if (!pte) { return 0; }
 	return 1;
 }
-static inline int change_pte_write_status(pte_t* pte, bool can_write)
-{
+static inline int change_pte_write_status(pte_t* pte, bool can_write) {
 	//ARM64架构所有内存都必须具备可读属性
 	if (!pte) { return 0; }
-	if (can_write)
-	{
+	if (can_write) {
 		//ARM64：删除内存“仅可读”属性，此时内存内存可读、可写
 		set_pte(pte, pte_mkwrite(*pte));
-	}
-	else
-	{
+	} else {
 		//ARM64：设置内存“仅可读”属性，此时内存内存可读、不可写
 		set_pte(pte, pte_wrprotect(*pte));
 	}
 	return 1;
 }
-static inline int change_pte_exec_status(pte_t* pte, bool can_exec)
-{
+static inline int change_pte_exec_status(pte_t* pte, bool can_exec) {
 	if (!pte) { return 0; }
-	if (can_exec)
-	{
+	if (can_exec) {
 #ifdef pte_mknexec
 		set_pte(pte, pte_mknexec(*pte));
 #endif
-	}
-	else
-	{
+	} else {
 #ifdef pte_mkexec
 		set_pte(pte, pte_mkexec(*pte));
 #endif
@@ -255,8 +223,7 @@ do{\
 
 
 static inline unsigned long size_inside_page(unsigned long start,
-	unsigned long size)
-{
+	unsigned long size) {
 	unsigned long sz;
 
 	sz = PAGE_SIZE - (start & (PAGE_SIZE - 1));
@@ -265,8 +232,7 @@ static inline unsigned long size_inside_page(unsigned long start,
 }
 
 
-static inline int __valid_phys_addr_range(size_t addr, size_t count)
-{
+static inline int __valid_phys_addr_range(size_t addr, size_t count) {
 	return addr + count <= __pa(high_memory);
 }
 
@@ -370,45 +336,45 @@ do{\
 		 * it must also be accessed uncached by the kernel or data
 		 * corruption may occur.
 		 */\
-\
-		char *ptr___ = xlate_dev_mem_ptr(phy_addr___);\
-		int probe___;\
-\
-		if (!ptr___)\
-		{\
-			printk_debug(KERN_INFO "Error in xlate_dev_mem_ptr:0x%zx\n", phy_addr___);\
-			RETURN_VALUE(ret___, realRead___) \
-		}\
-		probe___ = probe_kernel_read(bounce___, ptr___, sz___);\
-		unxlate_dev_mem_ptr(phy_addr___, ptr___);\
+	\
+	char *ptr___ = xlate_dev_mem_ptr(phy_addr___); \
+	int probe___; \
+	\
+	if (!ptr___)\
+	{\
+		printk_debug(KERN_INFO "Error in xlate_dev_mem_ptr:0x%zx\n", phy_addr___); \
+		RETURN_VALUE(ret___, realRead___) \
+	}\
+		probe___ = probe_kernel_read(bounce___, ptr___, sz___); \
+		unxlate_dev_mem_ptr(phy_addr___, ptr___); \
 		if (probe___)\
 		{\
 			RETURN_VALUE(ret___, realRead___) \
 		}\
-\
-		if (is_kernel_buf___)\
-		{\
-			memcpy(lpBuf___, bounce___, sz___); \
-		}\
-		else\
-		{\
-			unsigned long remaining___ = copy_to_user(lpBuf___, bounce___, sz___); \
-			if (remaining___)\
+			\
+			if (is_kernel_buf___)\
 			{\
-				printk_debug(KERN_INFO "Error in copy_to_user\n"); \
-				RETURN_VALUE(ret___, realRead___) \
+				memcpy(lpBuf___, bounce___, sz___); \
 			}\
-		}\
-\
-\
-		lpBuf___ += sz___;\
-		phy_addr___ += sz___;\
-		read_size___ -= sz___;\
-		realRead___ += sz___;\
+			else\
+			{\
+				unsigned long remaining___ = copy_to_user(lpBuf___, bounce___, sz___); \
+				if (remaining___)\
+				{\
+					printk_debug(KERN_INFO "Error in copy_to_user\n"); \
+					RETURN_VALUE(ret___, realRead___) \
+				}\
+			}\
+				\
+					\
+					lpBuf___ += sz___; \
+					phy_addr___ += sz___; \
+					read_size___ -= sz___; \
+					realRead___ += sz___; \
 	}\
-	kfree(bounce___);\
-	RETURN_VALUE(ret___, realRead___) \
-}while(0)
+	kfree(bounce___); \
+					RETURN_VALUE(ret___, realRead___) \
+} while (0)
 
 
 
@@ -490,37 +456,37 @@ do {\
 		 * it must also be accessed uncached by the kernel or data
 		 * corruption may occur.
 		 */\
-\
-		char *ptr___ = xlate_dev_mem_ptr(phy_addr___);\
-		if (!ptr___)\
-		{\
-			printk_debug(KERN_INFO "Error in xlate_dev_mem_ptr:0x%zx\n", phy_addr___);\
-			RETURN_VALUE(ret___, realWrite___) \
-		}\
-\
-		if (is_kernel_buf___)\
-		{\
-			memcpy(ptr___, lpBuf___, sz___); \
-		}\
-		else\
-		{\
-			unsigned long copied___ = copy_from_user(ptr___, lpBuf___, sz___); \
-		\
-			if (copied___)\
-			{\
-				unxlate_dev_mem_ptr(phy_addr___, ptr___); \
-				realWrite___ += sz___ - copied___; \
-				printk_debug(KERN_INFO "Error in copy_from_user\n"); \
-				RETURN_VALUE(ret___, realWrite___) \
-			}\
-		}\
-		unxlate_dev_mem_ptr(phy_addr___, ptr___);\
-		lpBuf___ += sz___;\
-		phy_addr___ += sz___;\
-		write_size___ -= sz___;\
-		realWrite___ += sz___;\
+					\
+					char *ptr___ = xlate_dev_mem_ptr(phy_addr___); \
+					if (!ptr___)\
+					{\
+						printk_debug(KERN_INFO "Error in xlate_dev_mem_ptr:0x%zx\n", phy_addr___); \
+						RETURN_VALUE(ret___, realWrite___) \
+					}\
+						\
+						if (is_kernel_buf___)\
+						{\
+							memcpy(ptr___, lpBuf___, sz___); \
+						}\
+						else\
+						{\
+							unsigned long copied___ = copy_from_user(ptr___, lpBuf___, sz___); \
+							\
+							if (copied___)\
+							{\
+								unxlate_dev_mem_ptr(phy_addr___, ptr___); \
+								realWrite___ += sz___ - copied___; \
+								printk_debug(KERN_INFO "Error in copy_from_user\n"); \
+								RETURN_VALUE(ret___, realWrite___) \
+							}\
+						}\
+							unxlate_dev_mem_ptr(phy_addr___, ptr___); \
+								lpBuf___ += sz___; \
+								phy_addr___ += sz___; \
+								write_size___ -= sz___; \
+								realWrite___ += sz___; \
 	}\
-	RETURN_VALUE(ret___, realWrite___) \
+					RETURN_VALUE(ret___, realWrite___) \
 } while (0)
 
 
