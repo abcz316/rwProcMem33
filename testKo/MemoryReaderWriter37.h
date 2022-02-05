@@ -152,6 +152,9 @@ static inline BOOL rwProcMemDriver_CloseHandle(int nDriverLink, uint64_t hProces
 //（参数bOutListCompleted说明: 若输出FALSE，则代表输出缓冲区里的进程内存块列表不完整，若输出TRUE，则代表输出缓冲区里的进程内存块列表完整可靠）
 static BOOL rwProcMemDriver_VirtualQueryExFull(int nDriverLink, uint64_t hProcess, BOOL showPhy, cvector vOutput, BOOL * bOutListCompleted);
 
+//驱动_检查进程内存地址是否存在（驱动连接句柄，进程句柄，进程内存地址），返回值：TRUE存在，FALSE不存在
+static BOOL rwProcMemDriver_CheckMemAddrIsValid(int nDriverLink, uint64_t hProcess, uint64_t lpBaseAddress);
+
 
 //驱动_获取进程PID列表（驱动连接句柄，获取方式，输出缓冲区，输出是否完整），返回值：TRUE成功，FALSE失败
 //（参数bIsSpeedMode说明: FALSE为稳定模式，TRUE为极速模式）
@@ -382,7 +385,16 @@ public:
 		return FALSE;
 #endif
 	}
-
+	
+	//驱动_检查进程内存地址是否存在（驱动连接句柄，进程句柄，进程内存地址），返回值：TRUE存在，FALSE不存在
+	BOOL CheckMemAddrIsValid(uint64_t hProcess, uint64_t lpBaseAddress) override {
+#ifdef __linux__
+		return rwProcMemDriver_CheckMemAddrIsValid(m_nDriverLink, hProcess, lpBaseAddress);
+#else
+		return FALSE;
+#endif
+	}
+	
 	//驱动_获取进程PID列表（获取方式，获取方式，输出缓冲区，输出是否完整），返回值：TRUE成功，FALSE失败
 	//（参数bIsSpeedMode说明: FALSE为稳定模式，TRUE为极速模式）
 	//（参数bOutListCompleted说明: 若输出FALSE，则代表输出缓冲区里的进程PID列表不完整，若输出TRUE，则代表输出缓冲区里的进程PID列表完整可靠）
@@ -809,14 +821,10 @@ static BOOL rwProcMemDriver_VirtualQueryExFull(int nDriverLink, uint64_t hProces
 			//只显示在物理内存中的内存
 			DRIVER_REGION_INFO rPhyInfo = { 0 };
 
-			char ptr_buf[16] = { 0 };
-			*(uint64_t*)&ptr_buf[0] = hProcess;
-
 			uint64_t addr;
 			int isPhyRegion = 0;
 			for (addr = vma_start; addr < vma_end; addr += getpagesize()) {
-				*(uint64_t*)&ptr_buf[8] = addr;
-				if (ioctl(nDriverLink, IOCTL_CHECK_PROCESS_ADDR_PHY, (unsigned long)&ptr_buf, sizeof(ptr_buf)) == 1) {
+				if (rwProcMemDriver_CheckMemAddrIsValid(nDriverLink, hProcess, addr)) {
 					if (isPhyRegion == 0) {
 						isPhyRegion = 1;
 						rPhyInfo.baseaddress = addr;
@@ -851,7 +859,18 @@ static BOOL rwProcMemDriver_VirtualQueryExFull(int nDriverLink, uint64_t hProces
 	return (pass == '\x01') ? FALSE : TRUE;
 }
 
+static BOOL rwProcMemDriver_CheckMemAddrIsValid(int nDriverLink, uint64_t hProcess, uint64_t lpBaseAddress) {
+	if (nDriverLink < 0) { return FALSE; }
+	if (!hProcess) { return FALSE; }
+	char ptr_buf[16] = { 0 };
+	*(uint64_t*)&ptr_buf[0] = hProcess;
+	*(uint64_t*)&ptr_buf[8] = lpBaseAddress;
 
+	if (ioctl(nDriverLink, IOCTL_CHECK_PROCESS_ADDR_PHY, (unsigned long)&ptr_buf, sizeof(ptr_buf)) == 1) {
+		return TRUE;
+	}
+	return FALSE;
+}
 
 static inline BOOL rwProcMemDriver_GetProcessPidList(int nDriverLink, BOOL bIsSpeedMode, cvector vOutput, BOOL * bOutListCompleted) {
 	if (nDriverLink < 0) { return FALSE; }

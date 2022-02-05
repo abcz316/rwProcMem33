@@ -7,6 +7,7 @@
 #include <mutex>
 #include <thread>
 #include <sstream>
+#include <stdint.h>
 
 #ifdef __linux__
 #include <unistd.h>
@@ -15,9 +16,7 @@
 #include <windows.h>
 #endif
 
-
-class IMemReaderWriterProxy {
-public:
+struct IMemReaderWriterProxy {
 	virtual BOOL ReadProcessMemory(
 		uint64_t hProcess,
 		uint64_t lpBaseAddress,
@@ -51,6 +50,10 @@ public:
 		BOOL showPhy,
 		std::vector<DRIVER_REGION_INFO> & vOutput,
 		BOOL & bOutListCompleted) = 0;
+
+	virtual BOOL CheckMemAddrIsValid(
+		uint64_t hProcess,
+		uint64_t lpBaseAddress) = 0;
 };
 
 #endif /* MEM_READER_WRITER_PROXY_H_ */
