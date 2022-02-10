@@ -83,5 +83,4 @@ void CTextViewDlg::OnSize(UINT nType, int cx, int cy) {
 	if (edit) {
 		::SetWindowPos(edit->m_hWnd, NULL, 0, 0, cx, cy, SWP_NOMOVE);
 	}
-	// TODO: 在此处添加消息处理程序代码
 }

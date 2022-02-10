@@ -236,16 +236,6 @@ BOOL CtestHwBpClientDlg::OnInitDialog() {
 	m_list_result.InsertColumn(5, L"命中地址", LVCFMT_LEFT, 130);
 	m_list_result.InsertColumn(6, L"信息", LVCFMT_LEFT, 350);
 
-	/*
-	m_list_result.InsertItem(0, L"12345");
-	m_list_result.SetItemText(0, 1, L"0xFFFFFFFFFFFFFFFF");
-	m_list_result.SetItemText(0, 2, L"RW");
-	m_list_result.SetItemText(0, 3, L"4");
-	m_list_result.SetItemText(0, 4, L"OTHER");
-	m_list_result.SetItemText(0, 5, L"0xFFFFFFFFFFFFFFFF");
-	m_list_result.SetItemText(0, 6, L"命中命中命中命中命中命中命中命中命中命中命中命中命中命中命中命中");
-	*/
-
 
 	m_edit_pid = L"0";
 	m_edit_addr = L"0";
@@ -756,7 +746,6 @@ void CtestHwBpClientDlg::OnBnClickedButtonAddHwbp() {
 
 void CtestHwBpClientDlg::OnDblclkListResult(NMHDR *pNMHDR, LRESULT *pResult) {
 	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
-	// TODO: 在此添加控件通知处理程序代码
 	if (pNMItemActivate->iItem != -1) {
 		//按下了列表
 		CString title = m_list_result.GetItemText(pNMItemActivate->iItem, 6);
@@ -811,13 +800,11 @@ void CtestHwBpClientDlg::OnRclickListResult(NMHDR *pNMHDR, LRESULT *pResult) {
 
 
 void CtestHwBpClientDlg::OnMenuitemCleanList() {
-	// TODO: 在此添加命令处理程序代码
 	m_list_result.DeleteAllItems();
 }
 
 
 void CtestHwBpClientDlg::OnMenuitemDeleteSelectedCount() {
-	// TODO: 在此添加命令处理程序代码
 	std::vector<int> vDeleteIndex;
 	POSITION pos = m_list_result.GetFirstSelectedItemPosition(); //返回第一个选中的行位置
 	if (pos != NULL) {
@@ -838,7 +825,6 @@ void CtestHwBpClientDlg::OnMenuitemDeleteSelectedCount() {
 
 
 void CtestHwBpClientDlg::OnMenuitemDeleteOtherCount() {
-	// TODO: 在此添加命令处理程序代码
 	std::vector<int> vSaveIndex;
 	POSITION pos = m_list_result.GetFirstSelectedItemPosition(); //返回第一个选中的行位置
 	if (pos != NULL) {
@@ -873,7 +859,6 @@ void CtestHwBpClientDlg::OnMenuitemDeleteOtherCount() {
 
 
 void CtestHwBpClientDlg::OnMenuitemDeleteUpCount() {
-	// TODO: 在此添加命令处理程序代码
 	int nFirstIndex = -1;
 	POSITION pos = m_list_result.GetFirstSelectedItemPosition(); //返回第一个选中的行位置
 	if (pos != NULL) {
@@ -892,7 +877,6 @@ void CtestHwBpClientDlg::OnMenuitemDeleteUpCount() {
 
 
 void CtestHwBpClientDlg::OnMenuitemDeleteDownCount() {
-	// TODO: 在此添加命令处理程序代码
 	int nFirstIndex = -1;
 	POSITION pos = m_list_result.GetFirstSelectedItemPosition(); //返回第一个选中的行位置
 	if (pos != NULL) {

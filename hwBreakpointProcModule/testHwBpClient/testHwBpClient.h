@@ -5,7 +5,7 @@
 #pragma once
 
 #ifndef __AFXWIN_H__
-#error "include 'pch.h' before including this file for PCH"
+	#error "include 'pch.h' before including this file for PCH"
 #endif
 
 #include "resource.h"		// 主符号
@@ -15,15 +15,16 @@
 // 有关此类的实现，请参阅 testHwBpClient.cpp
 //
 
-class CtestHwBpClientApp : public CWinApp {
+class CtestHwBpClientApp : public CWinApp
+{
 public:
 	CtestHwBpClientApp();
 
-	// 重写
+// 重写
 public:
 	virtual BOOL InitInstance();
 
-	// 实现
+// 实现
 
 	DECLARE_MESSAGE_MAP()
 };
