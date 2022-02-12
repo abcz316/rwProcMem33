@@ -265,7 +265,6 @@ void CNetworkDlg::OnBnClickedConnect() {
 
 
 void CNetworkDlg::OnBnClickedCancel() {
-	// TODO: 在此添加控件通知处理程序代码
 	OnOK();
 }
 
@@ -277,9 +276,9 @@ LRESULT CNetworkDlg::OnAddFindServer(WPARAM wParam, LPARAM lParam) {
 	m_list_find_server.InsertItem(nCount, s2ws(myMsgParam.get()).c_str());
 
 	//显示端口号
-	std::stringstream ssConvert;
+	std::wstringstream ssConvert;
 	ssConvert << (size_t)lParam;
-	m_list_find_server.SetItemText(nCount, 1, s2ws(ssConvert.str()).c_str());
+	m_list_find_server.SetItemText(nCount, 1, ssConvert.str().c_str());
 
 	return 0;
 }

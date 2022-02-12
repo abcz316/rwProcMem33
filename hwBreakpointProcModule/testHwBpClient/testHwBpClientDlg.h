@@ -124,4 +124,10 @@ private:
 	CString m_edit_syscallno;
 private:
 	void GetUserHitConditions(HIT_CONDITIONS & hitConditions);
+	int GetInputPid();
+	UINT64 GetInputAddress();
+	std::wstring GetInputAddressString();
+	uint32_t GetInputHwBpAddrLen();
+	uint32_t GetInputHwBpAddrType();
+	uint32_t GetInputHwBpKeepTimeMs();
 };
