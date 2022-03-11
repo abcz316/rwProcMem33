@@ -125,6 +125,18 @@ static inline int is_r0_0(const DRIVER_REGION_INFO * rInfo) {
 	}
 	return 0;
 }
+static inline int is_r__0(const DRIVER_REGION_INFO * rInfo) {
+	if (
+		(rInfo->protection != PAGE_EXECUTE_READ) &&
+		(rInfo->protection != PAGE_NOACCESS)
+		) {
+		return 1;
+	}
+	return 0;
+}
+static inline int is_0w_0(const DRIVER_REGION_INFO * rInfo) {
+	return is_r0_0(rInfo);
+}
 static inline int is_r0_p(const DRIVER_REGION_INFO * rInfo) {
 	if (
 		(rInfo->protection == PAGE_READONLY) ||
