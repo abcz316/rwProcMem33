@@ -7,7 +7,7 @@ ifneq ($(KERNELRELEASE),)
 else
 	KDIR := /cepheus-q-oss/out
 all:
-	make -C $(KDIR) ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- M=$(PWD) modules 
+	make -C $(KDIR) M=$(PWD) ARCH=arm64 SUBARCH=arm64 modules
 clean:    
 	rm -f *.ko *.o *.mod.o *.mod.c *.symvers *.order
 endif    

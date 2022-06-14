@@ -1,36 +1,45 @@
 #ifndef PROC_CMDLINE_H_
 #define PROC_CMDLINE_H_
-//ÉùÃ÷
+//å£°æ˜
 //////////////////////////////////////////////////////////////////////////
 #include <linux/pid.h>
 #include <linux/ksm.h>
 #include "ver_control.h"
-static inline struct pid * get_proc_pid_struct(int pid);
-static inline int get_proc_pid(struct pid* proc_pid_struct);
-static inline void release_proc_pid_struct(struct pid* proc_pid_struct);
-static inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t * arg_start, size_t * arg_end);
-static inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * arg_start, size_t * arg_end);
 
+#ifndef MM_STRUCT_MMAP_LOCK 
+#if MY_LINUX_VERSION_CODE < KERNEL_VERSION(5,10,43)
+#define MM_STRUCT_MMAP_LOCK mmap_sem
+#endif
+#if MY_LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,43)
+#define MM_STRUCT_MMAP_LOCK mmap_lock
+#endif
+#endif
+MY_STATIC inline struct pid * get_proc_pid_struct(int pid);
+MY_STATIC inline int get_proc_pid(struct pid* proc_pid_struct);
+MY_STATIC inline void release_proc_pid_struct(struct pid* proc_pid_struct);
+MY_STATIC inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t * arg_start, size_t * arg_end);
+MY_STATIC inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * arg_start, size_t * arg_end);
 
-//ÊµÏÖ
+//å®ç°
 //////////////////////////////////////////////////////////////////////////
 #include "phy_mem.h"
-static ssize_t g_arg_start_offset_proc_cmdline = 0; //mm_structÀïarg_startµÄÆ«ÒÆÎ»ÖÃ
-static bool g_init_arg_start_offset_success = false; //ÊÇ·ñ³õÊ¼»¯ÕÒµ½¹ıarg_startµÄÆ«ÒÆÎ»ÖÃ
+#include "api_proxy.h"
+MY_STATIC ssize_t g_arg_start_offset_proc_cmdline = 0; //mm_structï¿½ï¿½arg_startï¿½ï¿½Æ«ï¿½ï¿½Î»ï¿½ï¿½
+MY_STATIC bool g_init_arg_start_offset_success = false; //ï¿½Ç·ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½Òµï¿½ï¿½ï¿½arg_startï¿½ï¿½Æ«ï¿½ï¿½Î»ï¿½ï¿½
 
 
-static inline struct pid * get_proc_pid_struct(int pid) {
+MY_STATIC inline struct pid * get_proc_pid_struct(int pid) {
 	return find_get_pid(pid);
 }
 
 
-static inline int get_proc_pid(struct pid* proc_pid_struct) {
+MY_STATIC inline int get_proc_pid(struct pid* proc_pid_struct) {
 	return proc_pid_struct->numbers[0].nr;
 }
-static inline void release_proc_pid_struct(struct pid* proc_pid_struct) {
+MY_STATIC inline void release_proc_pid_struct(struct pid* proc_pid_struct) {
 	put_pid(proc_pid_struct);
 }
-static inline int init_proc_cmdline_offset(void) {
+MY_STATIC inline int init_proc_cmdline_offset(void) {
 	int is_find_cmdline_offset = 0;
 	size_t size = 4096;
 	char *lpOldCmdLineBuf = NULL;
@@ -68,16 +77,16 @@ static inline int init_proc_cmdline_offset(void) {
 		if (get_task_proc_cmdline_addr(current, &arg_start, &arg_end) == 0) {
 			printk_debug(KERN_INFO "get_task_proc_cmdline_addr arg_start %p\n", (void*)arg_start);
 
-			//¶ÁÈ¡Ã¿¸ö+4µÄarg_startÄÚ´æµØÖ·µÄÄÚÈİ
+			//è¯»å–æ¯ä¸ª+4çš„arg_startå†…å­˜åœ°å€çš„å†…å®¹
 			if (arg_start > 0) {
 
 				size_t read_size = 0;
 
-				//¿ªÊ¼¶ÁÈ¡ÎïÀíÄÚ´æ
+				//å¼€å§‹è¯»å–ç‰©ç†å†…å­˜
 				memset(lpNewCmdLineBuf, 0, size);
 
 				while (read_size < size) {
-					//»ñÈ¡½ø³ÌĞéÄâÄÚ´æµØÖ·¶ÔÓ¦µÄÎïÀíµØÖ·
+					//è·å–è¿›ç¨‹è™šæ‹Ÿå†…å­˜åœ°å€å¯¹åº”çš„ç‰©ç†åœ°å€
 					size_t phy_addr;
 					size_t pfn_sz;
 					size_t ret;
@@ -135,7 +144,7 @@ static inline int init_proc_cmdline_offset(void) {
 	printk_debug(KERN_INFO "g_arg_start_offset_proc_cmdline:%zu\n", g_arg_start_offset_proc_cmdline);
 	return 0;
 }
-static inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t * arg_start, size_t * arg_end) {
+MY_STATIC inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t * arg_start, size_t * arg_end) {
 	int ret = 0;
 	struct task_struct *task = NULL;
 
@@ -152,7 +161,7 @@ static inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t * ar
 	ret = get_task_proc_cmdline_addr(task, arg_start, arg_end);
 	return ret;
 }
-static inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * arg_start, size_t * arg_end) {
+MY_STATIC inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * arg_start, size_t * arg_end) {
 	if (g_init_arg_start_offset_success) {
 		struct mm_struct *mm;
 		ssize_t accurate_offset;
@@ -160,14 +169,14 @@ static inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * 
 
 		if (!mm) { return -EFAULT; }
 
-		//¾«È·Æ«ÒÆ
+		//ç²¾ç¡®åç§»
 		accurate_offset = (ssize_t)((size_t)&mm->arg_start - (size_t)mm + g_arg_start_offset_proc_cmdline);
 		if (accurate_offset >= sizeof(struct mm_struct) - sizeof(ssize_t)) {
 			mmput(mm);
 			return -EFAULT;
 		}
 
-		down_read(&mm->mmap_sem);
+		down_read(&mm->MM_STRUCT_MMAP_LOCK);
 		printk_debug(KERN_INFO "accurate_offset:%zd\n", accurate_offset);
 
 		*arg_start = *(size_t*)((size_t)mm + (size_t)accurate_offset);
@@ -175,7 +184,7 @@ static inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * 
 
 		printk_debug(KERN_INFO "arg_start addr:0x%p\n", (void*)*arg_start);
 
-		up_read(&mm->mmap_sem);
+		up_read(&mm->MM_STRUCT_MMAP_LOCK);
 		mmput(mm);
 		return 0;
 	}

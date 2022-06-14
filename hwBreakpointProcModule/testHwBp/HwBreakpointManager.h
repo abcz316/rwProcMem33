@@ -11,7 +11,6 @@
 #include <malloc.h>
 
 #include <linux\perf_event.h>
-#include "cvector.h"
 
 //当前驱动版本号
 #define SYS_VERSION 01
@@ -124,7 +123,7 @@ static BOOL hwBreakpointProcDriver_DelProcessHwBp(
 static BOOL hwBreakpointProcDriver_ReadHwBpInfo(
 	int nDriverLink,
 	uint64_t hHwBreakpointHandle,
-	cvector vOutput
+	std::vector<USER_HIT_INFO>& vOutput
 );
 
 //驱动_清除硬件断点命中记录信息，返回值：TRUE成功，FALSE失败
@@ -216,14 +215,7 @@ public:
 
 	//驱动_读取硬件断点命中记录信息，返回值：TRUE成功，FALSE失败
 	BOOL ReadHwBpInfo(uint64_t hHwBreakpointHandle, std::vector<USER_HIT_INFO> & vOutput) {
-		cvector cvOutput = cvector_create(sizeof(USER_HIT_INFO));
-		BOOL b = hwBreakpointProcDriver_ReadHwBpInfo(m_nDriverLink, hHwBreakpointHandle, cvOutput);
-		for (citerator iter = cvector_begin(cvOutput); iter != cvector_end(cvOutput); iter = cvector_next(cvOutput, iter)) {
-			USER_HIT_INFO *rinfo = (USER_HIT_INFO*)iter;
-			vOutput.push_back(*rinfo);
-		}
-		cvector_destroy(cvOutput);
-		return b;
+		return hwBreakpointProcDriver_ReadHwBpInfo(m_nDriverLink, hHwBreakpointHandle, vOutput);
 	}
 
 
@@ -364,7 +356,7 @@ static BOOL hwBreakpointProcDriver_DelProcessHwBp(
 static BOOL hwBreakpointProcDriver_ReadHwBpInfo(
 	int nDriverLink,
 	uint64_t hHwBreakpointHandle,
-	cvector vOutput
+	std::vector<USER_HIT_INFO>& vOutput
 ) {
 	if (nDriverLink < 0) {
 		return FALSE;
@@ -372,7 +364,6 @@ static BOOL hwBreakpointProcDriver_ReadHwBpInfo(
 	if (!hHwBreakpointHandle) {
 		return FALSE;
 	}
-
 
 	char buf[8] = { 0 };
 	memcpy(buf, &hHwBreakpointHandle, 8);
@@ -400,7 +391,7 @@ static BOOL hwBreakpointProcDriver_ReadHwBpInfo(
 		struct USER_HIT_INFO hInfo = { 0 };
 		memcpy(&hInfo, (void*)copy_pos, sizeof(hInfo));
 		copy_pos += sizeof(hInfo);
-		cvector_pushback(vOutput, &hInfo);
+		vOutput.push_back(hInfo);
 	}
 	free(big_buf);
 	return TRUE;

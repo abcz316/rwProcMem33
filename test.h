@@ -8,7 +8,7 @@
 #include "ver_control.h"
 
 /*
-staticvoid test1(void)
+MY_STATIC void test1(void)
 {
 	size_t phy_addr;
 	struct file * pFile = open_pagemap(4180);
@@ -33,7 +33,7 @@ staticvoid test1(void)
 }
 */
 /*
-static void test2(void)
+MY_STATIC void test2(void)
 {
 	struct pid * proc_pid_struct = get_proc_pid_struct(23072);
 	int map_count = get_proc_map_count(proc_pid_struct);
@@ -57,7 +57,7 @@ static void test2(void)
 }
 */
 /*
-static void test3(void)
+MY_STATIC void test3(void)
 {
 	struct pid * proc_pid_struct = get_proc_pid_struct(4180);
 	printk(KERN_INFO "test3 get_proc_pid_struct:%ld\n", proc_pid_struct);
@@ -72,7 +72,7 @@ static void test3(void)
 }
 */
 
-//static void test4(void)
+//MY_STATIC void test4(void)
 //{
 //	struct pid * proc_pid_struct = get_proc_pid_struct(23948);
 //	printk(KERN_INFO "test4 get_proc_pid_struct:%ld\n", proc_pid_struct);
@@ -106,7 +106,7 @@ static void test3(void)
 //}
 
 
-//static void test5(void)
+//MY_STATIC void test5(void)
 //{
 //	int *pid = kmalloc(sizeof(int) * 100, GFP_KERNEL);
 //	int i = 0;
@@ -126,7 +126,7 @@ static void test3(void)
 //
 //}
 
-//static void test6(void)
+//MY_STATIC void test6(void)
 //{
 //	int ret = 0;
 //	struct pid * proc_pid_struct = get_proc_pid_struct(17597);
@@ -141,7 +141,7 @@ static void test3(void)
 //
 //}
 
-//static void test7(void)
+//MY_STATIC void test7(void)
 //{
 //	struct pid * proc_pid_struct = get_proc_pid_struct(11533);
 //	size_t ret = read_proc_rss_size(proc_pid_struct);
@@ -152,7 +152,7 @@ static void test3(void)
 //
 //}
 
-//static void test8(void)
+//MY_STATIC void test8(void)
 //{
 //	struct pid * proc_pid_struct = get_proc_pid_struct(17597);
 //	printk(KERN_INFO "test8 get_proc_pid_struct:%ld\n", proc_pid_struct);
@@ -166,7 +166,7 @@ static void test3(void)
 //
 //}
 
-//static void test9(void)
+//MY_STATIC void test9(void)
 //{
 //	struct pid * proc_pid_struct = get_proc_pid_struct(20524);
 //	printk(KERN_INFO "test9 get_proc_pid_struct:%ld\n", proc_pid_struct);

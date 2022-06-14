@@ -46,8 +46,8 @@
 
 
 //////////////////////////////////////////////////////////////////
-static int g_rwProcMem_major = 0; //记录动态申请的主设备号
-static dev_t g_rwProcMem_devno;
+MY_STATIC int g_rwProcMem_major = 0; //记录动态申请的主设备号
+MY_STATIC dev_t g_rwProcMem_devno;
 
 //rwProcMemDev设备结构体
 struct rwProcMemDev {
@@ -57,22 +57,22 @@ struct rwProcMemDev {
 	bool is_already_hide_dev_file; //是否已经隐藏过驱动dev文件了
 	bool is_already_hide_module_list; //是否已经隐藏过驱动列表了
 };
-static struct rwProcMemDev *g_rwProcMem_devp; //创建的cdev设备结构
-static struct class *g_Class_devp; //创建的设备类
+MY_STATIC struct rwProcMemDev *g_rwProcMem_devp; //创建的cdev设备结构
+MY_STATIC struct class *g_Class_devp; //创建的设备类
 
-static int rwProcMem_open(struct inode *inode, struct file *filp);
-static int rwProcMem_release(struct inode *inode, struct file *filp);
-static ssize_t rwProcMem_read(struct file* filp, char __user* buf, size_t size, loff_t* ppos);
-static ssize_t rwProcMem_write(struct file* filp, const char __user* buf, size_t size, loff_t *ppos);
-//static long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);
-//static long (*compat_ioctl) (struct file *, unsigned int cmd, unsigned long arg);
-static long rwProcMem_ioctl(
+MY_STATIC int rwProcMem_open(struct inode *inode, struct file *filp);
+MY_STATIC int rwProcMem_release(struct inode *inode, struct file *filp);
+MY_STATIC ssize_t rwProcMem_read(struct file* filp, char __user* buf, size_t size, loff_t* ppos);
+MY_STATIC ssize_t rwProcMem_write(struct file* filp, const char __user* buf, size_t size, loff_t *ppos);
+//MY_STATIC long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);
+//MY_STATIC long (*compat_ioctl) (struct file *, unsigned int cmd, unsigned long arg);
+MY_STATIC long rwProcMem_ioctl(
 	struct file *filp,
 	unsigned int cmd,
 	unsigned long arg);
-static loff_t rwProcMem_llseek(struct file* filp, loff_t offset, int orig);
+MY_STATIC loff_t rwProcMem_llseek(struct file* filp, loff_t offset, int orig);
 
-static const struct file_operations rwProcMem_fops =
+MY_STATIC const struct file_operations rwProcMem_fops =
 {
   .owner = THIS_MODULE,
   .open = rwProcMem_open, //打开设备函数
@@ -81,7 +81,7 @@ static const struct file_operations rwProcMem_fops =
   .write = rwProcMem_write, //写设备函数
   .llseek = rwProcMem_llseek, //定位偏移量函数
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+#if MY_LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 	.ioctl = rwProcMem_ioctl, //控制函数
 #else
 	.compat_ioctl = rwProcMem_ioctl, //64位驱动必须实现这个接口，32位程序才能调用驱动

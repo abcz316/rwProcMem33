@@ -5,19 +5,20 @@
 #include <linux/fs.h>
 #include <linux/pid.h>
 #include <asm/page.h>
+#include "phy_mem_auto_offset.h"
 #include "ver_control.h"
 
 #ifdef CONFIG_USE_PAGEMAP_FILE
-static inline struct file * open_pagemap(int pid);
-static size_t get_pagemap_phy_addr(struct file * lpPagemap, size_t virt_addr);
-static inline void close_pagemap(struct file* lpPagemap);
+MY_STATIC inline struct file * open_pagemap(int pid);
+MY_STATIC size_t get_pagemap_phy_addr(struct file * lpPagemap, size_t virt_addr);
+MY_STATIC inline void close_pagemap(struct file* lpPagemap);
 #else
-static inline int is_pte_can_read(pte_t* pte);
-static inline int is_pte_can_write(pte_t* pte);
-static inline int is_pte_can_exec(pte_t* pte);
-static inline int change_pte_read_status(pte_t* pte, bool can_read);
-static inline int change_pte_write_status(pte_t* pte, bool can_write);
-static inline int change_pte_exec_status(pte_t* pte, bool can_exec);
+MY_STATIC inline int is_pte_can_read(pte_t* pte);
+MY_STATIC inline int is_pte_can_write(pte_t* pte);
+MY_STATIC inline int is_pte_can_exec(pte_t* pte);
+MY_STATIC inline int change_pte_read_status(pte_t* pte, bool can_read);
+MY_STATIC inline int change_pte_write_status(pte_t* pte, bool can_write);
+MY_STATIC inline int change_pte_exec_status(pte_t* pte, bool can_exec);
 
 //size_t get_task_proc_phy_addr(struct task_struct* task, size_t virt_addr, pte_t *out_pte)
 //size_t get_proc_phy_addr(struct pid* proc_pid_struct, size_t virt_addr, pte_t *out_pte)
@@ -45,7 +46,7 @@ static inline int change_pte_exec_status(pte_t* pte, bool can_exec);
 const int __endian_bit = 1;
 #define is_bigendian() ( (*(char*)&__endian_bit) == 0 )
 ///////////////////////////////////////////////////////////////////
-static inline struct file * open_pagemap(int pid)
+MY_STATIC inline struct file * open_pagemap(int pid)
 {
 	struct file *filp = NULL;
 
@@ -67,7 +68,7 @@ static inline struct file * open_pagemap(int pid)
 	return filp;
 }
 
-static size_t get_pagemap_phy_addr(struct file * lpPagemap, size_t virt_addr)
+MY_STATIC size_t get_pagemap_phy_addr(struct file * lpPagemap, size_t virt_addr)
 {
 
 	uint64_t page_size = PAGE_SIZE;
@@ -144,13 +145,13 @@ static size_t get_pagemap_phy_addr(struct file * lpPagemap, size_t virt_addr)
 	}
 	return 0;
 }
-static inline void close_pagemap(struct file* lpPagemap)
+MY_STATIC inline void close_pagemap(struct file* lpPagemap)
 {
 	filp_close(lpPagemap, NULL);
 }
 #else
 #include <asm/pgtable.h>
-static inline int is_pte_can_read(pte_t* pte)
+MY_STATIC inline int is_pte_can_read(pte_t* pte)
 {
 	if (!pte) { return 0; }
 #ifdef pte_read
@@ -159,13 +160,13 @@ static inline int is_pte_can_read(pte_t* pte)
 #endif
 	return 1;
 }
-static inline int is_pte_can_write(pte_t* pte)
+MY_STATIC inline int is_pte_can_write(pte_t* pte)
 {
 	if (!pte) { return 0; }
 	if (pte_write(*pte)) { return 1; }
 	else { return 0; }
 }
-static inline int is_pte_can_exec(pte_t* pte)
+MY_STATIC inline int is_pte_can_exec(pte_t* pte)
 {
 	if (!pte) { return 0; }
 #ifdef pte_exec
@@ -178,13 +179,13 @@ static inline int is_pte_can_exec(pte_t* pte)
 #endif
 	return 0;
 }
-static inline int change_pte_read_status(pte_t* pte, bool can_read)
+MY_STATIC inline int change_pte_read_status(pte_t* pte, bool can_read)
 {
 	//ARM64架构所有内存都具备可读属性
 	if (!pte) { return 0; }
 	return 1;
 }
-static inline int change_pte_write_status(pte_t* pte, bool can_write)
+MY_STATIC inline int change_pte_write_status(pte_t* pte, bool can_write)
 {
 	//ARM64架构所有内存都必须具备可读属性
 	if (!pte) { return 0; }
@@ -200,7 +201,7 @@ static inline int change_pte_write_status(pte_t* pte, bool can_write)
 	}
 	return 1;
 }
-static inline int change_pte_exec_status(pte_t* pte, bool can_exec)
+MY_STATIC inline int change_pte_exec_status(pte_t* pte, bool can_exec)
 {
 	if (!pte) { return 0; }
 	if (can_exec)
@@ -218,7 +219,7 @@ static inline int change_pte_exec_status(pte_t* pte, bool can_exec)
 	return 1;
 }
 //
-//static size_t get_task_proc_phy_addr(struct task_struct* task, size_t virt_addr, pte_t *out_pte)
+//MY_STATIC size_t get_task_proc_phy_addr(struct task_struct* task, size_t virt_addr, pte_t *out_pte)
 //{
 	/*Because this code is only for the purpose of learning and research, it is forbidden to use this code to do bad things, so I only release the method code to obtain the physical memory address through the pagemap file here, and the method to calculate the physical memory address can be realized without relying on pagemap and pure algorithm, and I have implemented it, but in order to prevent some people from doing bad things, this part of the code I'm not open. If you need this part of the code, you can contact me and ask me for this part of the code. Of course, you can also add the relevant algorithm code here by yourself. Here I can provide a brief process. You can browse the relevant source code of pagemap in Linux kernel, and calculate the address of physical memory by mixing the PGD, PUD, PMD, PTE and page of the process .*/
 //	return 0;
@@ -234,7 +235,7 @@ do{\
 
 
 
-//static size_t get_proc_phy_addr(struct pid* proc_pid_struct, size_t virt_addr, pte_t *out_pte)
+//MY_STATIC size_t get_proc_phy_addr(struct pid* proc_pid_struct, size_t virt_addr, pte_t *out_pte)
 //{
 //	struct task_struct *task = get_pid_task(proc_pid_struct, PIDTYPE_PID);
 //	if (!task) { return 0; }
@@ -254,7 +255,7 @@ do{\
 
 
 
-static inline unsigned long size_inside_page(unsigned long start,
+MY_STATIC inline unsigned long size_inside_page(unsigned long start,
 	unsigned long size)
 {
 	unsigned long sz;
@@ -265,10 +266,13 @@ static inline unsigned long size_inside_page(unsigned long start,
 }
 
 
-static inline int __valid_phys_addr_range(size_t addr, size_t count)
-{
-	return addr + count <= __pa(high_memory);
+MY_STATIC inline int check_phys_addr_valid_range(size_t addr, size_t count) {
+	if (g_phy_total_memory_size == 0) {
+		init_phy_total_memory_size();
+	}
+	return addr + count <= g_phy_total_memory_size;
 }
+
 
 
 
@@ -280,14 +284,14 @@ static inline int __valid_phys_addr_range(size_t addr, size_t count)
 #define unxlate_dev_mem_ptr(phys, addr)
 #endif
 
-//static size_t read_ram_physical_addr(size_t phy_addr, char* lpBuf, bool is_kernel_buf, size_t read_size)
+//MY_STATIC size_t read_ram_physical_addr(size_t phy_addr, char* lpBuf, bool is_kernel_buf, size_t read_size)
 //{
 //	void *bounce;
 //	size_t realRead = 0;
 //	//检查物理地址是否合法
-//	if (!__valid_phys_addr_range(phy_addr, read_size))
+//	if (!check_phys_addr_valid_range(phy_addr, read_size))
 //	{
-//		printk_debug(KERN_INFO "Error in valid_phys_addr_range:0x%llx,size:%zu\n", phy_addr, read_size);
+//		printk_debug(KERN_INFO "Error in check_phys_addr_valid_range:0x%llx,size:%zu\n", phy_addr, read_size);
 //		return 0;
 //	}
 //	bounce = kmalloc(PAGE_SIZE, GFP_KERNEL);
@@ -314,7 +318,7 @@ static inline int __valid_phys_addr_range(size_t addr, size_t count)
 //			printk_debug(KERN_INFO "Error in xlate_dev_mem_ptr:0x%llx\n", phy_addr);
 //			break;
 //		}
-//		probe = probe_kernel_read(bounce, ptr, sz);
+//		probe = x_probe_kernel_read(bounce, ptr, sz);
 //		unxlate_dev_mem_ptr(phy_addr, ptr);
 //		if (probe)
 //		{
@@ -353,9 +357,9 @@ do{\
 	size_t realRead___ = 0;\
 \
 	/*检查物理地址是否合法*/\
-	if (!__valid_phys_addr_range(phy_addr___, read_size___))\
+	if (!check_phys_addr_valid_range(phy_addr___, read_size___))\
 	{\
-		printk_debug(KERN_INFO "Error in valid_phys_addr_range:0x%zx,size:%zu\n", phy_addr___, read_size___);\
+		printk_debug(KERN_INFO "Error in check_phys_addr_valid_range:0x%zx,size:%zu\n", phy_addr___, read_size___);\
 		RETURN_VALUE(ret___, realRead___) \
 	}\
 	bounce___ = kmalloc(PAGE_SIZE, GFP_KERNEL);\
@@ -379,7 +383,7 @@ do{\
 			printk_debug(KERN_INFO "Error in xlate_dev_mem_ptr:0x%zx\n", phy_addr___);\
 			RETURN_VALUE(ret___, realRead___) \
 		}\
-		probe___ = probe_kernel_read(bounce___, ptr___, sz___);\
+		probe___ = x_probe_kernel_read(bounce___, ptr___, sz___);\
 		unxlate_dev_mem_ptr(phy_addr___, ptr___);\
 		if (probe___)\
 		{\
@@ -413,13 +417,13 @@ do{\
 
 
 
-//static size_t write_ram_physical_addr(size_t phy_addr, char* lpBuf, bool is_kernel_buf, size_t write_size)
+//MY_STATIC size_t write_ram_physical_addr(size_t phy_addr, char* lpBuf, bool is_kernel_buf, size_t write_size)
 //{
 //	size_t realWrite = 0;
 //	//检查物理地址是否合法
-//	if (!__valid_phys_addr_range(phy_addr, write_size))
+//	if (!check_phys_addr_valid_range(phy_addr, write_size))
 //	{
-//		printk_debug(KERN_INFO "Error in valid_phys_addr_range:0x%llx,size:%zu\n", phy_addr, write_size);
+//		printk_debug(KERN_INFO "Error in check_phys_addr_valid_range:0x%llx,size:%zu\n", phy_addr, write_size);
 //		return 0;
 //	}
 //
@@ -476,9 +480,9 @@ do {\
 \
 	size_t realWrite___ = 0;\
 	/*检查物理地址是否合法*/\
-	if (!__valid_phys_addr_range(phy_addr___, write_size___))\
+	if (!check_phys_addr_valid_range(phy_addr___, write_size___))\
 	{\
-		printk_debug(KERN_INFO "Error in valid_phys_addr_range:0x%zx,size:%zu\n", phy_addr___, write_size___);\
+		printk_debug(KERN_INFO "Error in check_phys_addr_valid_range:0x%zx,size:%zu\n", phy_addr___, write_size___);\
 		RETURN_VALUE(ret___,realWrite___) \
 	}\
 	while (write_size___ > 0)\

@@ -1,16 +1,16 @@
 #ifndef PROC_RSS_H_
 #define PROC_RSS_H_
-//声明
+//澹版槑
 //////////////////////////////////////////////////////////////////////////
 #include <linux/pid.h>
 #include <linux/ksm.h>
 #include "ver_control.h"
-static size_t read_proc_rss_size(struct pid* proc_pid_struct);
+MY_STATIC size_t read_proc_rss_size(struct pid* proc_pid_struct);
 
-//实现
+//瀹炵幇
 //////////////////////////////////////////////////////////////////////////
 #include "proc_cmdline.h"
-static size_t read_proc_rss_size(struct pid* proc_pid_struct) {
+MY_STATIC size_t read_proc_rss_size(struct pid* proc_pid_struct) {
 	struct task_struct *task;
 	struct mm_struct *mm;
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
@@ -19,7 +19,7 @@ static size_t read_proc_rss_size(struct pid* proc_pid_struct) {
 	}
 	mm = get_task_mm(task);
 	if (mm) {
-		//精确偏移
+		//绮剧‘鍋忕Щ
 		size_t total_rss;
 		ssize_t offset = g_init_arg_start_offset_success ? g_arg_start_offset_proc_cmdline : 0;
 		struct mm_rss_stat *rss_stat = (struct mm_rss_stat *)((size_t)&mm->rss_stat + offset);

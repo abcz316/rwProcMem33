@@ -7,6 +7,6 @@ LOCAL_CFLAGS += -fvisibility=hidden
 LOCAL_LDFLAGS += -fPIE -pie
 LOCAL_DISABLE_FATAL_LINKER_WARNINGS := true
 LOCAL_MODULE    := testHwBpServer.out
-LOCAL_SRC_FILES :=  ../main.cpp ../api.cpp ../Global.cpp  ../porthelp.cpp  ../../testHwBp/cvector.c
+LOCAL_SRC_FILES :=  ../main.cpp ../api.cpp ../Global.cpp  ../porthelp.cpp
 LOCAL_LDLIBS := -lz -llog
 include $(BUILD_EXECUTABLE)

@@ -7,7 +7,7 @@ LOCAL_CFLAGS += -fPIE -fvisibility=hidden
 LOCAL_LDFLAGS += -fPIE -pie
 LOCAL_DISABLE_FATAL_LINKER_WARNINGS := true
 LOCAL_MODULE    := testDumpMem.out
-LOCAL_SRC_FILES :=  ../main.cpp ../../testKo/cvector.c \
+LOCAL_SRC_FILES :=  ../main.cpp\
 	../libzip/mkstemp.c \
 	../libzip/zip_add.c \
 	../libzip/zip_add_dir.c \

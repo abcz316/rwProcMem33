@@ -1,6 +1,6 @@
 #include "sys.h"
 
-static int rwProcMem_open(struct inode *inode, struct file *filp)
+MY_STATIC int rwProcMem_open(struct inode *inode, struct file *filp)
 {
 	//将设备结构体指针赋值给文件私有数据指针
 	filp->private_data = g_rwProcMem_devp;
@@ -21,7 +21,7 @@ static int rwProcMem_open(struct inode *inode, struct file *filp)
 }
 
 
-static ssize_t rwProcMem_read(struct file* filp, char __user* buf, size_t size, loff_t* ppos)
+MY_STATIC ssize_t rwProcMem_read(struct file* filp, char __user* buf, size_t size, loff_t* ppos)
 {
 	
 	//struct rwProcMemDev* devp = filp->private_data; //获得设备结构体指针
@@ -125,7 +125,7 @@ static ssize_t rwProcMem_read(struct file* filp, char __user* buf, size_t size, 
 	return -EFAULT;
 }
 
-static ssize_t rwProcMem_write(struct file* filp, const char __user* buf, size_t size, loff_t *ppos)
+MY_STATIC ssize_t rwProcMem_write(struct file* filp, const char __user* buf, size_t size, loff_t *ppos)
 {
 
 	//struct rwProcMemDev* devp = filp->private_data; //获得设备结构体指针
@@ -227,9 +227,9 @@ static ssize_t rwProcMem_write(struct file* filp, const char __user* buf, size_t
 
 
 
-//static long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);
-//static long (*compat_ioctl) (struct file *, unsigned int cmd, unsigned long arg);
-static long rwProcMem_ioctl(
+//MY_STATIC long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);
+//MY_STATIC long (*compat_ioctl) (struct file *, unsigned int cmd, unsigned long arg);
+MY_STATIC long rwProcMem_ioctl(
 	struct file *filp,
 	unsigned int cmd,
 	unsigned long arg)
@@ -639,7 +639,7 @@ static long rwProcMem_ioctl(
 	return -EINVAL;
 
 }
-static loff_t rwProcMem_llseek(struct file* filp, loff_t offset, int orig)
+MY_STATIC loff_t rwProcMem_llseek(struct file* filp, loff_t offset, int orig)
 {
 	loff_t ret = 0; //返回的位置偏移
 
@@ -676,7 +676,7 @@ static loff_t rwProcMem_llseek(struct file* filp, loff_t offset, int orig)
 	return ret;
 }
 
-static int rwProcMem_release(struct inode *inode, struct file *filp)
+MY_STATIC int rwProcMem_release(struct inode *inode, struct file *filp)
 {
 
 	g_rwProcMem_devp->cur_dev_open_count--;
@@ -773,9 +773,9 @@ void __exit rwProcMem_dev_exit(void)
 	unregister_chrdev_region(g_rwProcMem_devno, 1); //释放设备号
 
 	printk(KERN_EMERG "Goodbye, %s\n", DEV_FILENAME);
-	return;
 
 }
+
 #ifdef CONFIG_MODULE_GUIDE_ENTRY
 module_init(rwProcMem_dev_init);
 module_exit(rwProcMem_dev_exit);

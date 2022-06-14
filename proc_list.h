@@ -2,22 +2,22 @@
 #define PROC_LIST_H_
 #include <linux/ctype.h>
 #include "ver_control.h"
-//ÉùÃ÷
+//å£°æ˜
 //////////////////////////////////////////////////////////////////////////
-static ssize_t get_proc_pid_list(bool is_lookup_proc_file_mode, char* lpBuf, size_t buf_size, bool is_kernel_buf);
+MY_STATIC ssize_t get_proc_pid_list(bool is_lookup_proc_file_mode, char* lpBuf, size_t buf_size, bool is_kernel_buf);
 
 
-//ÊµÏÖ
+//å®ç°
 //////////////////////////////////////////////////////////////////////////
-static struct semaphore g_sema_proc_pid_list;
-static char* g_buf_proc_pid_list = NULL;
-static size_t g_buf_size_proc_pid_list;
-static size_t g_buf_pos_proc_pid_list;
-static bool g_is_kernel_buf_pro_pid_list;
-static ssize_t g_count_pro_pid_list;
+MY_STATIC struct semaphore g_sema_proc_pid_list;
+MY_STATIC char* g_buf_proc_pid_list = NULL;
+MY_STATIC size_t g_buf_size_proc_pid_list;
+MY_STATIC size_t g_buf_pos_proc_pid_list;
+MY_STATIC bool g_is_kernel_buf_pro_pid_list;
+MY_STATIC ssize_t g_count_pro_pid_list;
 
 
-static inline int atoi(const char arr[]) {
+MY_STATIC inline int atoi(const char arr[]) {
 	int index = 0;
 	int flag = 1;
 	int num = 0;
@@ -30,7 +30,7 @@ static inline int atoi(const char arr[]) {
 	return flag * num;
 }
 
-static int handle_proc_pid_filldir(struct dir_context *ctx, const char *d_name, int namlen, loff_t offset, u64 ino, unsigned d_type) {
+MY_STATIC int handle_proc_pid_filldir(struct dir_context *ctx, const char *d_name, int namlen, loff_t offset, u64 ino, unsigned d_type) {
 
 
 	printk_debug(KERN_EMERG "handle_proc_pid_filldir d_name: %s", d_name);
@@ -51,7 +51,7 @@ static int handle_proc_pid_filldir(struct dir_context *ctx, const char *d_name, 
 			memcpy((void*)((size_t)g_buf_proc_pid_list + (size_t)g_buf_pos_proc_pid_list), &pid, sizeof(pid));
 		} else {
 			if (!!copy_to_user((void*)((size_t)g_buf_proc_pid_list + (size_t)g_buf_pos_proc_pid_list), &pid, sizeof(pid))) {
-				//ÓÃ»§µÄ»º³åÇøÒÑÂú£¬ÎŞ·¨ÔÙ¿½±´
+				//ï¿½Ã»ï¿½ï¿½Ä»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ş·ï¿½ï¿½Ù¿ï¿½ï¿½ï¿½
 				g_buf_size_proc_pid_list = g_buf_pos_proc_pid_list;
 			}
 		}
@@ -61,7 +61,7 @@ static int handle_proc_pid_filldir(struct dir_context *ctx, const char *d_name, 
 }
 
 
-static ssize_t get_proc_pid_list(bool is_lookup_proc_file_mode, char* lpBuf, size_t buf_size, bool is_kernel_buf) {
+MY_STATIC ssize_t get_proc_pid_list(bool is_lookup_proc_file_mode, char* lpBuf, size_t buf_size, bool is_kernel_buf) {
 
 	if (is_lookup_proc_file_mode) {
 		struct dir_context dctx;
@@ -69,7 +69,7 @@ static ssize_t get_proc_pid_list(bool is_lookup_proc_file_mode, char* lpBuf, siz
 		void *pfunc = handle_proc_pid_filldir;
 
 		if (g_buf_proc_pid_list == NULL) {
-			//³õÊ¼»¯ĞÅºÅÁ¿
+			//ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½Åºï¿½ï¿½ï¿½
 			sema_init(&g_sema_proc_pid_list, 1);
 			g_buf_proc_pid_list = NULL;
 			g_buf_size_proc_pid_list = 0;
@@ -121,7 +121,7 @@ static ssize_t get_proc_pid_list(bool is_lookup_proc_file_mode, char* lpBuf, siz
 				memcpy((void*)((size_t)buf_proc_pid_list + (size_t)buf_pos_proc_pid_list), &pid, sizeof(pid));
 			} else {
 				if (!!copy_to_user((void*)((size_t)buf_proc_pid_list + (size_t)buf_pos_proc_pid_list), &pid, sizeof(pid))) {
-					//ÓÃ»§µÄ»º³åÇøÒÑÂú£¬ÎŞ·¨ÔÙ¿½±´
+					//ç”¨æˆ·çš„ç¼“å†²åŒºå·²æ»¡ï¼Œæ— æ³•å†æ‹·è´
 					buf_size_proc_pid_list = buf_pos_proc_pid_list;
 				}
 			}

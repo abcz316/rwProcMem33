@@ -162,7 +162,7 @@ void loop_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, size_t nWork
 	//获取进程内存块地址列表
 	const char * targetModuleName = "libxxx.so";
 	std::vector<DRIVER_REGION_INFO> vModuleList;
-	GetMemModuleDataAreaSection(pRwDriver, 1, targetModuleName, true, true, vModuleList);
+	GetMemModuleDataAreaSection(pRwDriver, 1, targetModuleName, vModuleList);
 
 	DRIVER_REGION_INFO execStart;
 	GetMemModuleExecStartAddr(pRwDriver, 1, targetModuleName, execStart);

@@ -7,5 +7,5 @@ LOCAL_CFLAGS += -fvisibility=hidden
 LOCAL_LDFLAGS += -fPIE -pie
 LOCAL_DISABLE_FATAL_LINKER_WARNINGS := true
 LOCAL_MODULE    := testKo.out
-LOCAL_SRC_FILES :=  ../main.cpp ../cvector.c
+LOCAL_SRC_FILES :=  ../main.cpp
 include $(BUILD_EXECUTABLE)

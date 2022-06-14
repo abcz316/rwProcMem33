@@ -2,9 +2,9 @@
 #define PROC_ROOT_H_
 #include <linux/ctype.h>
 #include "ver_control.h"
-//ÉùÃ÷
+//å£°æ˜
 //////////////////////////////////////////////////////////////////////////
-static inline int get_proc_group(struct pid* proc_pid_struct,
+MY_STATIC inline int get_proc_group(struct pid* proc_pid_struct,
 	size_t *npOutUID,
 	size_t *npOutSUID,
 	size_t *npOutEUID,
@@ -13,22 +13,22 @@ static inline int get_proc_group(struct pid* proc_pid_struct,
 	size_t *npOutSGID,
 	size_t *npOutEGID,
 	size_t *npOutFSGID);
-static inline int set_proc_root(struct pid* proc_pid_struct);
+MY_STATIC inline int set_proc_root(struct pid* proc_pid_struct);
 
 
-//ÊµÏÖ
+//å®ç°
 //////////////////////////////////////////////////////////////////////////
-static ssize_t g_real_cred_offset_proc_root = 0; //task_structÀïreal_credµÄÆ«ÒÆÎ»ÖÃ
-static bool g_init_real_cred_offset_success = false; //ÊÇ·ñ³õÊ¼»¯ÕÒµ½¹ıreal_credµÄÆ«ÒÆÎ»ÖÃ
+MY_STATIC ssize_t g_real_cred_offset_proc_root = 0; //task_structé‡Œreal_credçš„åç§»ä½ç½®
+MY_STATIC bool g_init_real_cred_offset_success = false; //æ˜¯å¦åˆå§‹åŒ–æ‰¾åˆ°è¿‡real_credçš„åç§»ä½ç½®
 
-static inline int init_proc_root_offset(void) {
+MY_STATIC inline int init_proc_root_offset(void) {
 	size_t size = 512;
 	char *lpszStatusBuf[2] = { 0 };
 
 	char comm[TASK_COMM_LEN] = { 0 }; //executable name excluding path
 	char * lpFind = NULL;
 
-	//ÓĞĞ©ÄÚºËÃ»ÓĞµ¼³öget_task_comm£¬ËùÒÔ²»ÄÜÊ¹ÓÃ
+	//æœ‰äº›å†…æ ¸æ²¡æœ‰å¯¼å‡ºget_task_commï¼Œæ‰€ä»¥ä¸èƒ½ä½¿ç”¨
 	//get_task_comm(comm, task);
 
 
@@ -112,7 +112,7 @@ static inline int init_proc_root_offset(void) {
 	printk_debug(KERN_INFO "g_real_cred_offset_proc_root:%zu\n", g_real_cred_offset_proc_root);
 	return 0;
 }
-static inline int get_proc_group(struct pid* proc_pid_struct,
+MY_STATIC inline int get_proc_group(struct pid* proc_pid_struct,
 	size_t *npOutUID,
 	size_t *npOutSUID,
 	size_t *npOutEUID,
@@ -193,7 +193,7 @@ static inline int get_proc_group(struct pid* proc_pid_struct,
 	return -ESPIPE;
 
 }
-static inline int set_proc_root(struct pid* proc_pid_struct) {
+MY_STATIC inline int set_proc_root(struct pid* proc_pid_struct) {
 	if (g_init_real_cred_offset_success == false) {
 		int ret = 0;
 		if ((ret = init_proc_root_offset()) != 0) {
