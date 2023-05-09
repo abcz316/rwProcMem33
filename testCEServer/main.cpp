@@ -796,7 +796,7 @@ void IdentifierThread() {
 
 int main(int argc, char *argv[]) {
 	//初始化读写驱动
-	if (!CApi::InitReadWriteDriver(argc > 1 ? argv[1] : NULL)) {
+	if (!CApi::InitReadWriteDriver(argc > 1 ? argv[1] : NULL, FALSE)) {
 		printf("Init read write driver failed.\n");
 		return 0;
 	}

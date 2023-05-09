@@ -9,12 +9,11 @@
 #include <cinttypes>
 #include "ceserver.h"
 
-
 CMemoryReaderWriter m_Driver;
 
 
 
-BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName) {
+BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName, BOOL bUseBypassSELinuxMode) {
 	if (!lpszDevFileName) {
 		//驱动默认文件名
 		lpszDevFileName = RWPROCMEM_FILE_NODE;
@@ -25,7 +24,7 @@ BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName) {
 
 	//连接驱动
 	int err = 0;
-	if (!m_Driver.ConnectDriver(lpszDevFileName, err)) {
+	if (!m_Driver.ConnectDriver(lpszDevFileName, bUseBypassSELinuxMode, err)) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return FALSE;
@@ -38,37 +37,83 @@ BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName) {
 }
 
 
+//获取进程列表信息
+//BOOL GetProcessListInfo(CMemoryReaderWriter* pDriver, BOOL bGetPhyMemorySize, std::vector<MyProcessInfo>& vOutput) {
+//	//驱动_获取进程PID列表
+//	std::vector<int> vPID;
+//	BOOL bOutListCompleted;
+//	BOOL b = pDriver->GetProcessPidList(vPID, FALSE, bOutListCompleted);
+//	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
+//	if (b == FALSE) {
+//		return FALSE;
+//	}
+//	//打印进程列表信息
+//	for (int pid : vPID) {
+//		uint64_t hProcess = pDriver->OpenProcess(pid);
+//		if (!hProcess) { continue; }
+//
+//		MyProcessInfo pInfo = { 0 };
+//		pInfo.pid = pid;
+//		if (bGetPhyMemorySize) {
+//			uint64_t outRss = 0;
+//			pDriver->GetProcessRSS(hProcess, outRss);
+//			pInfo.total_rss = outRss;
+//		}
+//		char cmdline[200] = { 0 };
+//		pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
+//		pInfo.cmdline = cmdline;
+//
+//		pDriver->CloseHandle(hProcess);
+//
+//		vOutput.push_back(pInfo);
+//	}
+//	return TRUE;
+//}
+BOOL GetProcessListInfo(CMemoryReaderWriter* pDriver, BOOL bGetPhyMemorySize, std::vector<MyProcessInfo>& vOutput) {
+	DIR* dir = NULL;
+	struct dirent* ptr = NULL;
 
-BOOL GetProcessListInfo(CMemoryReaderWriter* pDriver, BOOL bGetPhyMemorySize, std::vector<MyProcessInfo> & vOutput) {
-	//驱动_获取进程PID列表
-	std::vector<int> vPID;
-	BOOL bOutListCompleted;
-	BOOL b = pDriver->GetProcessPidList(vPID, FALSE, bOutListCompleted);
-	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
-	if (b == FALSE) {
-		return FALSE;
-	}
-	//打印进程列表信息
-	for (int pid : vPID) {
-		uint64_t hProcess = pDriver->OpenProcess(pid);
-		if (!hProcess) { continue; }
+	dir = opendir("/proc");
+	if (dir) {
+		while ((ptr = readdir(dir)) != NULL) { // 循环读取路径下的每一个文件/文件夹
+			// 如果读取到的是"."或者".."则跳过，读取到的不是文件夹名字也跳过
+			if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0))
+			{
+				continue;
+			}
+			else if (ptr->d_type != DT_DIR)
+			{
+				continue;
+			}
+			else if (strspn(ptr->d_name, "1234567890") != strlen(ptr->d_name))
+			{
+				continue;
+			}
 
-		MyProcessInfo pInfo = { 0 };
-		pInfo.pid = pid;
-		if (bGetPhyMemorySize) {
-			uint64_t outRss = 0;
-			pDriver->GetProcessRSS(hProcess, outRss);
-			pInfo.total_rss = outRss;
+			int pid = atoi(ptr->d_name);
+
+			uint64_t hProcess = pDriver->OpenProcess(pid);
+			if (!hProcess) { continue; }
+
+			MyProcessInfo pInfo = { 0 };
+			pInfo.pid = pid;
+			if (bGetPhyMemorySize) {
+				uint64_t outRss = 0;
+				pDriver->GetProcessRSS(hProcess, outRss);
+				pInfo.total_rss = outRss;
+			}
+			char cmdline[200] = { 0 };
+			pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
+			pInfo.cmdline = cmdline;
+
+			pDriver->CloseHandle(hProcess);
+
+			vOutput.push_back(pInfo);
 		}
-		char cmdline[200] = { 0 };
-		pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
-		pInfo.cmdline = cmdline;
-
-		pDriver->CloseHandle(hProcess);
-
-		vOutput.push_back(pInfo);
+		closedir(dir);
+		return TRUE;
 	}
-	return TRUE;
+	return FALSE;
 }
 
 
@@ -120,9 +165,9 @@ HANDLE CApi::CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID) {
 				continue;
 			} else if (rinfo.type == MEM_MAPPED) {
 				continue;
-			} else if (rinfo.name[0] == '\x00' {
+			} else if (rinfo.name[0] == '\0') {
 				continue;
-			} else if (strcmp(rinfo.name, "[heap]") == 0 {
+			} else if (strcmp(rinfo.name, "[heap]") == 0) {
 				continue;
 			}
 			if (strcmp(rinfo.name, "[vdso]") != 0)  //ceOpenProcessorary patch as to not rename vdso, because it is treated differently by the ce symbol loader

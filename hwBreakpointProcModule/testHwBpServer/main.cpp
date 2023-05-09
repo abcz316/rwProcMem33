@@ -22,16 +22,8 @@
 #include "Global.h"
 
 
-//启用驱动KEY验证系统
-#define CONFIG_VERIFY
-#ifdef CONFIG_VERIFY
-#include "../testHwBp/GetVerifyKey.h"
-#endif
-
-
 #define PORT 3170
 
-//默认驱动文件名
 #define DEV_FILEPATH "/dev/hwBreakpointProc1"
 
 char versionstring[] = "HWBP Network 1.0";
@@ -354,35 +346,13 @@ void IdentifierThread() {
 int main(int argc, char *argv[]) {
 	printf("Connecting driver.\n");
 
-	//连接驱动
+	//锟斤拷锟斤拷锟斤拷锟斤拷
 	int err = 0;
 	if (!g_Driver.ConnectDriver(err)) {
 		printf("Connect driver failed.\n");
 		fflush(stdout);
 		return 0;
 	}
-
-
-#ifdef CONFIG_VERIFY
-	//驱动_设置密匙（如果驱动开启了密匙验证系统，则需要输入密匙才可读取其他进程内存，否则只能读取自身进程）
-	char identityBuf128[128] = { 0 };
-	if (g_Driver.SetKey((char*)&identityBuf128, 0)) {
-		printf("Driver verify identity:%" PRIu64 "\n", *(uint64_t*)&identityBuf128);
-
-		uint64_t key = GetVerifyKey((char*)&identityBuf128, sizeof(identityBuf128));
-		printf("Driver verify key:%" PRIu64 "\n", key);
-
-		if (g_Driver.SetKey(NULL, key)) {
-			printf("Driver verify key success.\n");
-		} else {
-			printf("Driver verify key failed.\n");
-		}
-	} else {
-		printf("Get driver verify question failed.\n");
-	}
-#endif
-
-
 
 	socklen_t clisize;
 	struct sockaddr_in addr, addr_client;
@@ -405,7 +375,7 @@ int main(int argc, char *argv[]) {
 	addr.sin_addr.s_addr = INADDR_ANY;
 
 	int optval = 1;
-	setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)); //让端口释放后立即就可以被再次使用
+	setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)); //锟矫端匡拷锟酵放猴拷锟斤拷锟斤拷锟酵匡拷锟皆憋拷锟劫达拷使锟斤拷
 
 	int b = bind(s, (struct sockaddr *)&addr, sizeof(addr));
 	printf("bind=%d\n", b);

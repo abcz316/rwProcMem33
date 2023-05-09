@@ -1,15 +1,14 @@
-#ifndef PROC_RSS_H_
+﻿#ifndef PROC_RSS_H_
 #define PROC_RSS_H_
 //声明
 //////////////////////////////////////////////////////////////////////////
 #include <linux/pid.h>
-#include <linux/ksm.h>
 #include "ver_control.h"
 MY_STATIC size_t read_proc_rss_size(struct pid* proc_pid_struct);
 
 //实现
 //////////////////////////////////////////////////////////////////////////
-#include "proc_cmdline.h"
+#include "proc_cmdline_auto_offset.h"
 MY_STATIC size_t read_proc_rss_size(struct pid* proc_pid_struct) {
 	struct task_struct *task;
 	struct mm_struct *mm;

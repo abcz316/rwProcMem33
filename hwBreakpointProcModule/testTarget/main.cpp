@@ -11,13 +11,6 @@
 
 #include "../testHwBp/HwBreakpointManager.h"
 
-
-//启用驱动KEY验证系统
-#define CONFIG_VERIFY
-#ifdef CONFIG_VERIFY
-#include "../testHwBp/GetVerifyKey.h"
-#endif
-
 int g_value = 0;
 
 BOOL GetProcessTask(int pid, std::vector<int> & vOutput) {
@@ -116,28 +109,6 @@ int main(int argc, char *argv[]) {
 		printf("连接驱动失败\n");
 		return 0;
 	}
-
-
-
-#ifdef CONFIG_VERIFY
-	//驱动_设置密匙（如果驱动开启了密匙验证系统，则需要输入密匙才可读取其他进程内存，否则只能读取自身进程）
-	char identityBuf128[128] = { 0 };
-	if (driver.SetKey((char*)&identityBuf128, 0)) {
-		printf("Driver verify identity:%" PRIu64 "\n", *(uint64_t*)&identityBuf128);
-
-		uint64_t key = GetVerifyKey((char*)&identityBuf128, sizeof(identityBuf128));
-		printf("Driver verify key:%" PRIu64 "\n", key);
-
-		if (driver.SetKey(NULL, key)) {
-			printf("Driver verify key success.\n");
-		} else {
-			printf("Driver verify key failed.\n");
-		}
-	} else {
-		printf("Get driver verify question failed.\n");
-	}
-#endif
-
 
 
 	//获取CPU支持硬件执行和访问断点的数量

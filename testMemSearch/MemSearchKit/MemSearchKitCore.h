@@ -7,6 +7,7 @@
 #include <thread>
 #include <sstream>
 #include <functional>
+#include <chrono>
 #include <assert.h>
 #ifdef __linux__
 #include <unistd.h>
@@ -99,35 +100,28 @@ namespace MemorySearchKit {
 			std::atomic<bool>* pForceStopSignal/* = nullptr*/) {
 
 			std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
-			std::vector<std::shared_ptr<std::atomic<bool>>> vbThreadStarted;
+			std::atomic<int> nThreadStart{ 0 };
+			std::atomic<int> nThreadEnd{ 0 };
 			for (int i = 0; i < nThreadCount; ++i) {
 				vspMtxThreadExist.push_back(std::make_shared<std::mutex>());
-				vbThreadStarted.push_back(std::make_shared<std::atomic<bool>>(false));
 			}
-
 
 			//开始分配线程
 			for (int i = 0; i < nThreadCount; i++) {
 				std::shared_ptr<std::mutex> spMtxThread = vspMtxThreadExist[i];
-				std::shared_ptr<std::atomic<bool>> spnThreadStarted = vbThreadStarted[i];
 				//工作线程
 				std::thread td(
-					[i, OnThreadExecute, spMtxThread, spnThreadStarted, pForceStopSignal]()->void {
+					[i, OnThreadExecute, spMtxThread, &nThreadStart, &nThreadEnd, pForceStopSignal]()->void {
 						std::lock_guard<std::mutex> mlock(*spMtxThread);
-						spnThreadStarted->store(true);
+						nThreadStart++;
 						OnThreadExecute(i, pForceStopSignal);
+						nThreadEnd++;
 					});
 				td.detach();
 			}
-			//等待所有线程结束汇总
-			for (auto spnThreadStarted : vbThreadStarted) {
-				while (!spnThreadStarted->load()) {
-#ifdef __linux__
-					sleep(0);
-#else
-					Sleep(0);
-#endif
-				}
+			//等待所有线程启动
+			while (nThreadStart < nThreadCount) {
+				std::this_thread::sleep_for(std::chrono::milliseconds(0));
 			}
 			for (auto spMtxThread : vspMtxThreadExist) {
 				std::lock_guard<std::mutex> mlock(*spMtxThread);
@@ -168,7 +162,7 @@ namespace MemorySearchKit {
 
 			//设置内存数据读取器
 			std::shared_ptr<SimpleDriverMemDataProvider> spMemDataProvider
-				= std::make_shared<SimpleDriverMemDataProvider>(pReadWriteProxy, hProcess); 
+				= std::make_shared<SimpleDriverMemDataProvider>(pReadWriteProxy, hProcess);
 			if (!spMemDataProvider) {
 				return MEM_SEARCH_FAILED_ALLOC_MEM;
 			}
@@ -226,8 +220,7 @@ namespace MemorySearchKit {
 							if (isFloatVal) {
 								FindBetween<T>((size_t)(pReadBuf),
 									nRealReadSize, value1 - errorRange, value1 + errorRange, nScanAlignBytesCount, vFindAddr);
-							}
-							else {
+							} else {
 								FindValue<T>((size_t)pReadBuf, nRealReadSize, value1, nScanAlignBytesCount, vFindAddr);
 							}
 
@@ -355,8 +348,7 @@ namespace MemorySearchKit {
 							if (isFloatVal) {
 								//当是float、double数值的情况
 								if ((value1 - errorRange) > temp || temp > (value1 + errorRange)) { continue; }
-							}
-							else {
+							} else {
 								//精确数值
 								if (temp != value1) { continue; }
 							}
@@ -373,8 +365,7 @@ namespace MemorySearchKit {
 							//值在两者之间的结果保留
 							if (value1 < value2) {
 								if (value1 > temp || temp > value2) { continue; }
-							}
-							else {
+							} else {
 								if (value2 > temp || temp > value1) { continue; }
 							}
 							break;
@@ -391,8 +382,7 @@ namespace MemorySearchKit {
 								T add = temp - cOldData;
 
 								if ((value1 - errorRange) > add || add > (value1 + errorRange)) { continue; }
-							}
-							else {
+							} else {
 								//数值增加了的结果保留
 								if (((temp)-(*(T*)(memAddrJob.spSaveData.get()))) != value1) { continue; }
 
@@ -412,8 +402,7 @@ namespace MemorySearchKit {
 
 								if ((value1 - errorRange) > sum || sum > (value1 + errorRange)) { continue; }
 
-							}
-							else {
+							} else {
 								//数值减少了的结果保留
 								if (((*(T*)(memAddrJob.spSaveData.get())) - (temp)) != value1) { continue; }
 							}
@@ -429,8 +418,7 @@ namespace MemorySearchKit {
 									if ((temp + errorRange) >= (*pOldData)) { continue; }
 								}
 
-							}
-							else {
+							} else {
 								//变动的数值的结果保留
 								if (temp == *(T*)(memAddrJob.spSaveData.get())) { continue; }
 							}
@@ -447,8 +435,7 @@ namespace MemorySearchKit {
 									if ((temp + errorRange) < (*pOldData)) { continue; }
 								}
 
-							}
-							else {
+							} else {
 								//未变动的数值的结果保留
 								if (temp != *(T*)(memAddrJob.spSaveData.get())) { continue; }
 							}
@@ -507,7 +494,7 @@ namespace MemorySearchKit {
 
 			//设置内存数据读取器
 			std::shared_ptr<SimpleDriverMemDataProvider> spMemDataProvider
-				= std::make_shared<SimpleDriverMemDataProvider>(pReadWriteProxy, hProcess); 
+				= std::make_shared<SimpleDriverMemDataProvider>(pReadWriteProxy, hProcess);
 			if (!spMemDataProvider) {
 				return MEM_SEARCH_FAILED_ALLOC_MEM;
 			}
@@ -622,7 +609,7 @@ namespace MemorySearchKit {
 			}
 
 			//设置内存数据读取器
-			std::shared_ptr<SimpleDriverMemDataProvider> spMemDataProvider 
+			std::shared_ptr<SimpleDriverMemDataProvider> spMemDataProvider
 				= std::make_shared<SimpleDriverMemDataProvider>(pReadWriteProxy, hProcess);
 			if (!spMemDataProvider) {
 				return MEM_SEARCH_FAILED_ALLOC_MEM;
@@ -635,14 +622,11 @@ namespace MemorySearchKit {
 			for (size_t i = 0; i < nFeaturesByteLen; i++) {
 				if (vFuzzyBytes[i] == '\x00') {
 					strFuzzyCode += "??";
-				}
-				else if (vFuzzyBytes[i] == '\x01') {
+				} else if (vFuzzyBytes[i] == '\x01') {
 					strFuzzyCode += "?x";
-				}
-				else if (vFuzzyBytes[i] == '\x10') {
+				} else if (vFuzzyBytes[i] == '\x10') {
 					strFuzzyCode += "x?";
-				}
-				else {
+				} else {
 					strFuzzyCode += "xx";
 				}
 			}
@@ -702,8 +686,7 @@ namespace MemorySearchKit {
 							//不需要容错搜索
 							FindBytes((size_t)pReadBuf, nRealReadSize, (unsigned char*)&vFeaturesByte[0], nFeaturesByteLen,
 								nScanAlignBytesCount, vFindAddr);
-						}
-						else {
+						} else {
 							//需要容错搜索
 							FindFeaturesBytes((size_t)pReadBuf, nRealReadSize, (unsigned char*)&vFeaturesByte[0],
 								(const char*)spStrFuzzyCode.get(), nFeaturesByteLen, nScanAlignBytesCount, vFindAddr);
@@ -766,14 +749,11 @@ namespace MemorySearchKit {
 			for (size_t i = 0; i < nFeaturesByteLen; i++) {
 				if (vFuzzyBytes[i] == '\x00') {
 					strFuzzyCode += "??";
-				}
-				else if (vFuzzyBytes[i] == '\x01') {
+				} else if (vFuzzyBytes[i] == '\x01') {
 					strFuzzyCode += "?x";
-				}
-				else if (vFuzzyBytes[i] == '\x10') {
+				} else if (vFuzzyBytes[i] == '\x10') {
 					strFuzzyCode += "x?";
-				}
-				else {
+				} else {
 					strFuzzyCode += "xx";
 				}
 			}
@@ -832,8 +812,7 @@ namespace MemorySearchKit {
 						if (isSimpleSearch) {
 							//不需要容错搜索
 							FindBytes((size_t)spMemBuf.get(), dwRead, (unsigned char*)&vFeaturesByte[0], nFeaturesByteLen, nScanAlignBytesCount, vFindAddr);
-						}
-						else {
+						} else {
 							//需要容错搜索
 							FindFeaturesBytes((size_t)spMemBuf.get(), dwRead, (unsigned char*)&vFeaturesByte[0],
 								(const char*)spStrFuzzyCode.get(), nFeaturesByteLen, nScanAlignBytesCount, vFindAddr);
@@ -908,14 +887,11 @@ namespace MemorySearchKit {
 				if (strByte == "??") //判断是不是??
 				{
 					upFuzzyBytesBuf[nFeaturesBytePos] = '\x00';
-				}
-				else if (strByte.substr(0, 1) == "?") {
+				} else if (strByte.substr(0, 1) == "?") {
 					upFuzzyBytesBuf[nFeaturesBytePos] = '\x01';
-				}
-				else if (strByte.substr(1, 2) == "?") {
+				} else if (strByte.substr(1, 2) == "?") {
 					upFuzzyBytesBuf[nFeaturesBytePos] = '\x10';
-				}
-				else {
+				} else {
 					upFuzzyBytesBuf[nFeaturesBytePos] = '\x11';
 				}
 
@@ -995,14 +971,11 @@ namespace MemorySearchKit {
 				if (strByte == "??") //判断是不是??
 				{
 					upFuzzyBytesBuf[nFeaturesBytePos] = '\x00';
-				}
-				else 	if (strByte.substr(0, 1) == "?") {
+				} else 	if (strByte.substr(0, 1) == "?") {
 					upFuzzyBytesBuf[nFeaturesBytePos] = '\x01';
-				}
-				else 	if (strByte.substr(1, 2) == "?") {
+				} else 	if (strByte.substr(1, 2) == "?") {
 					upFuzzyBytesBuf[nFeaturesBytePos] = '\x10';
-				}
-				else {
+				} else {
 					upFuzzyBytesBuf[nFeaturesBytePos] = '\x11';
 				}
 

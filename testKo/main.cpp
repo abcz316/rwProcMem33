@@ -15,18 +15,18 @@ int main(int argc, char *argv[]) {
 		"======================================================\n"
 		"本驱动名称: Linux ARM64 硬件读写进程内存驱动37\n"
 		"本驱动接口列表：\n"
-		"\t1.	 驱动_设置驱动设备接口文件允许同时被使用的最大值: SetMaxDevFileOpen\n"
-		"\t2.	 驱动_隐藏驱动（卸载驱动需重启机器）: HideKernelModule\n"
-		"\t3.	 驱动_打开进程: OpenProcess\n"
-		"\t4.	 驱动_读取进程内存: ReadProcessMemory\n"
-		"\t5.	 驱动_写入进程内存: WriteProcessMemory\n"
-		"\t6.	 驱动_关闭进程: CloseHandle\n"
-		"\t7.	 驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、只显示在物理内存中的内存）\n"
-		"\t8.	 驱动_获取进程PID列表: GetProcessPidList\n"
-		"\t9.	 驱动_获取进程权限等级: GetProcessGroup\n"
-		"\t10.驱动_提升进程权限到Root: SetProcessRoot\n"
-		"\t11.驱动_获取进程占用物理内存大小: GetProcessRSS\n"
-		"\t12.驱动_获取进程命令行: GetProcessCmdline\n"
+		"\t1.	驱动_设置驱动设备接口文件允许同时被使用的最大值: SetMaxDevFileOpen\n"
+		"\t2.	驱动_隐藏驱动（卸载驱动需重启机器）: HideKernelModule\n"
+		"\t3.	驱动_打开进程: OpenProcess\n"
+		"\t4.	驱动_读取进程内存: ReadProcessMemory\n"
+		"\t5.	驱动_写入进程内存: WriteProcessMemory\n"
+		"\t6.	驱动_关闭进程: CloseHandle\n"
+		"\t7.	驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、只显示在物理内存中的内存）\n"
+		"\t8.	驱动_获取进程PID列表: GetProcessPidList\n"
+		"\t9.	驱动_获取进程权限等级: GetProcessGroup\n"
+		"\t10.	驱动_提升进程权限到Root: SetProcessRoot\n"
+		"\t11.	驱动_获取进程占用物理内存大小: GetProcessRSS\n"
+		"\t12.	驱动_获取进程命令行: GetProcessCmdline\n"
 		"\t以上所有功能不注入、不附加进程，不打开进程任何文件，所有操作均为内核操作\n"
 		"======================================================\n"
 	);
@@ -57,16 +57,18 @@ int main(int argc, char *argv[]) {
 
 	//连接驱动
 	int err = 0;
-	if (!rwDriver.ConnectDriver(devFileName.c_str(), err)) {
+	if (!rwDriver.ConnectDriver(devFileName.c_str(), FALSE, err, "myMachineId")) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return 0;
 	}
 
-	//驱动_设置驱动设备接口文件允许同时被使用的最大值
-	BOOL b = rwDriver.SetMaxDevFileOpen(1);
-	printf("调用驱动 SetMaxDevFileOpen 返回值:%d\n", b);
+	//驱动_是否使用躲避SELinux的通信方式（按需选择）
+	rwDriver.UsePassSELinuxMode(TRUE);
 
+	//驱动_设置驱动设备接口文件允许同时被使用的最大值
+	BOOL b = rwDriver.SetMaxDevFileOpen(2);
+	printf("调用驱动 SetMaxDevFileOpen 返回值:%d\n", b);
 
 	/*
 	//驱动_隐藏驱动（卸载驱动需重启机器）
@@ -164,7 +166,6 @@ int main(int argc, char *argv[]) {
 		uint64_t hProcess = rwDriver.OpenProcess(pid);
 		if (!hProcess) { continue; }
 
-
 		//驱动_获取进程占用物理内存大小
 		uint64_t outRss = 0;
 		rwDriver.GetProcessRSS(hProcess, outRss);
@@ -173,8 +174,7 @@ int main(int argc, char *argv[]) {
 		char cmdline[100] = { 0 };
 		rwDriver.GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
 
-		if (!!strstr(cmdline, "calc")) //将计算器进程提升至ROOT
-		{
+		if (!!strstr(cmdline, "calc")) { //将计算器进程提升至ROOT
 			//驱动_提升进程权限到Root
 			BOOL b = rwDriver.SetProcessRoot(hProcess);
 			printf("调用驱动 SetProcessRoot 返回值:%d\n", b);

@@ -6,6 +6,7 @@
 #include <memory>
 #include <sstream>
 #include <cinttypes>
+#include <dirent.h>
 #include <iostream>
 #include <map>
 #include <sys/stat.h>
@@ -14,6 +15,7 @@
 #include "../testKo/MemoryReaderWriter37.h"
 #include "../testMemSearch/MapRegionType.h"
 
+constexpr uint64_t kMaxDumpMemRegionSize = 2147483648;
 
 std::string& replace_all_distinct(std::string& str, const std::string& old_value, const std::string& new_value) {
 	for (std::string::size_type pos(0); pos != std::string::npos; pos += new_value.length()) {
@@ -26,35 +28,73 @@ std::string& replace_all_distinct(std::string& str, const std::string& old_value
 	return str;
 }
 
+//int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver) {
+//	int nTargetPid = 0;
+//
+//	//驱动_获取进程PID列表
+//	std::vector<int> vPID;
+//	BOOL bOutListCompleted;
+//	BOOL b = pDriver->GetProcessPidList(vPID, FALSE, bOutListCompleted);
+//	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
+//
+//	//打印进程列表信息
+//	for (int pid : vPID) {
+//		//驱动_打开进程
+//		uint64_t hProcess = pDriver->OpenProcess(pid);
+//		if (!hProcess) { continue; }
+//
+//		//驱动_获取进程命令行
+//		char cmdline[100] = { 0 };
+//		pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
+//
+//		//驱动_关闭进程
+//		pDriver->CloseHandle(hProcess);
+//
+//		if (strcmp(lpszCmdline, cmdline) == 0) {
+//			nTargetPid = pid;
+//			break;
+//		}
+//	}
+//	return nTargetPid;
+//}
+
 int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver) {
 	int nTargetPid = 0;
+	DIR* dir = NULL;
+	struct dirent* ptr = NULL;
 
-	//驱动_获取进程PID列表
-	std::vector<int> vPID;
-	BOOL bOutListCompleted;
-	BOOL b = pDriver->GetProcessPidList(vPID, FALSE, bOutListCompleted);
-	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
+	dir = opendir("/proc");
+	if (dir) {
+		while ((ptr = readdir(dir)) != NULL) { // 循环读取路径下的每一个文件/文件夹
+			// 如果读取到的是"."或者".."则跳过，读取到的不是文件夹名字也跳过
+			if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0)) {
+				continue;
+			} else if (ptr->d_type != DT_DIR) {
+				continue;
+			} else if (strspn(ptr->d_name, "1234567890") != strlen(ptr->d_name)) {
+				continue;
+			}
 
-	//打印进程列表信息
-	for (int pid : vPID) {
-		//驱动_打开进程
-		uint64_t hProcess = pDriver->OpenProcess(pid);
-		if (!hProcess) { continue; }
+			int pid = atoi(ptr->d_name);
 
-		//驱动_获取进程命令行
-		char cmdline[100] = { 0 };
-		pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
+			uint64_t hProcess = pDriver->OpenProcess(pid);
+			if (!hProcess) { continue; }
 
-		//驱动_关闭进程
-		pDriver->CloseHandle(hProcess);
+			char cmdline[200] = { 0 };
+			pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
 
-		if (strcmp(lpszCmdline, cmdline) == 0) {
-			nTargetPid = pid;
-			break;
+			pDriver->CloseHandle(hProcess);
+
+			if (strcmp(lpszCmdline, cmdline) == 0) {
+				nTargetPid = pid;
+				break;
+			}
 		}
+		closedir(dir);
 	}
 	return nTargetPid;
 }
+
 
 
 
@@ -80,19 +120,20 @@ int main(int argc, char *argv[]) {
 	);
 
 	CMemoryReaderWriter rwDriver;
-
-	//驱动默认文件名
+	std::string targetProcessName = "com.wdf0453.f5cde5";
 	std::string devFileName = RWPROCMEM_FILE_NODE;
 	if (argc > 1) {
-		//如果用户自定义输入驱动名
-		devFileName = argv[1];
+		targetProcessName = argv[1];
+	}
+	if (argc > 2) {
+		devFileName = argv[2];
 	}
 	printf("Connecting rwDriver:%s\n", devFileName.c_str());
 
 
 	//连接驱动
 	int err = 0;
-	if (!rwDriver.ConnectDriver(devFileName.c_str(), err)) {
+	if (!rwDriver.ConnectDriver(devFileName.c_str(), FALSE, err)) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return 0;
@@ -100,8 +141,7 @@ int main(int argc, char *argv[]) {
 
 
 	//获取目标进程PID
-	const char *name = "com.miui.calculator";
-	pid_t pid = findPID(name, &rwDriver);
+	pid_t pid = findPID(targetProcessName.c_str(), &rwDriver);
 	if (pid == 0) {
 		printf("找不到进程\n");
 		return 0;
@@ -149,13 +189,19 @@ int main(int argc, char *argv[]) {
 	//开始生成指针映射集
 	std::vector<std::shared_ptr<char>> vspMemData;
 	size_t total_size = 0;
+	int pass_cnt = 0;
 	for (DRIVER_REGION_INFO rinfo : vMaps) {
 		printf("[%.2f%%][%zd Mb] +++Start:%p,Size:%" PRIu64 ",Type:%s,Name:%s\n",
 			(float)((float)vspMemData.size() * 100 / vMaps.size()),
 			total_size / 1024 / 1024,
 			(void*)rinfo.baseaddress, rinfo.size,
 			MapsTypeToString(&rinfo).c_str(), rinfo.name);
-
+		
+		if(rinfo.size > kMaxDumpMemRegionSize) {
+			pass_cnt++;
+			continue;
+		}
+		
 		//申请内存
 		std::shared_ptr<char> spMem(new char[rinfo.size], [](char *p) { delete[] p; });
 		if (!spMem) {
@@ -212,6 +258,7 @@ int main(int argc, char *argv[]) {
 			ZIP_FL_OVERWRITE | ZIP_FL_ENC_GUESS);
 	}
 
+	printf("其中有[%d]个内存区域，由于内存太大被跳过\n", pass_cnt);
 	//关闭压缩包
 	printf("zip_closing...\n");
 	err = zip_close(z);

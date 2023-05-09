@@ -3,6 +3,8 @@
 
 #include <vector>
 #include <mutex>
+#include <fstream>
+
 #include "IMemReaderWriterProxy.h"
 #ifdef __linux__
 #include <stdio.h>
@@ -19,7 +21,7 @@
 #define RWPROCMEM_FILE_NODE "/dev/rwProcMem37"
 
 //安静输出模式
-//#define QUIET_PRINTF
+#define QUIET_PRINTF
 
 #ifdef QUIET_PRINTF
 #undef TRACE
@@ -29,18 +31,19 @@
 #endif
 
 #define MAJOR_NUM 100
-#define IOCTL_SET_MAX_DEV_FILE_OPEN				_IOWR(MAJOR_NUM, 0, char*) //设置驱动设备接口文件允许同时被使用的最大值
-#define IOCTL_HIDE_KERNEL_MODULE						_IOWR(MAJOR_NUM, 1, char*) //隐藏驱动（卸载驱动需重启机器）
-#define IOCTL_OPEN_PROCESS 								_IOWR(MAJOR_NUM, 2, char*) //打开进程
-#define IOCTL_CLOSE_HANDLE 								_IOWR(MAJOR_NUM, 3, char*) //关闭进程
-#define IOCTL_GET_PROCESS_MAPS_COUNT			_IOWR(MAJOR_NUM, 4, char*) //获取进程的内存块地址数量
-#define IOCTL_GET_PROCESS_MAPS_LIST				_IOWR(MAJOR_NUM, 5, char*) //获取进程的内存块地址列表
-#define IOCTL_CHECK_PROCESS_ADDR_PHY			_IOWR(MAJOR_NUM, 6, char*) //检查进程内存是否有物理内存位置
-#define IOCTL_GET_PROCESS_PID_LIST					_IOWR(MAJOR_NUM, 7, char*) //获取进程PID列表
-#define IOCTL_GET_PROCESS_GROUP						_IOWR(MAJOR_NUM, 8, char*) //获取进程权限等级
-#define IOCTL_SET_PROCESS_ROOT							_IOWR(MAJOR_NUM, 9, char*) //提升进程权限到Root
-#define IOCTL_GET_PROCESS_RSS							_IOWR(MAJOR_NUM, 10, char*) //获取进程的物理内存占用大小
-#define IOCTL_GET_PROCESS_CMDLINE_ADDR		_IOWR(MAJOR_NUM, 11, char*) //获取进程cmdline的内存地址
+#define IOCTL_INIT_DEVICE_INFO					_IOWR(MAJOR_NUM, 0, char*) //传入设备信息
+#define IOCTL_SET_MAX_DEV_FILE_OPEN				_IOWR(MAJOR_NUM, 1, char*) //设置驱动设备接口文件允许同时被使用的最大值
+#define IOCTL_HIDE_KERNEL_MODULE				_IOWR(MAJOR_NUM, 2, char*) //隐藏驱动（卸载驱动需重启机器）
+#define IOCTL_OPEN_PROCESS 						_IOWR(MAJOR_NUM, 3, char*) //打开进程
+#define IOCTL_CLOSE_HANDLE 						_IOWR(MAJOR_NUM, 4, char*) //关闭进程
+#define IOCTL_GET_PROCESS_MAPS_COUNT			_IOWR(MAJOR_NUM, 5, char*) //获取进程的内存块地址数量
+#define IOCTL_GET_PROCESS_MAPS_LIST				_IOWR(MAJOR_NUM, 6, char*) //获取进程的内存块地址列表
+#define IOCTL_CHECK_PROCESS_ADDR_PHY			_IOWR(MAJOR_NUM, 7, char*) //检查进程内存是否有物理内存位置
+#define IOCTL_GET_PROCESS_PID_LIST				_IOWR(MAJOR_NUM, 8, char*) //获取进程PID列表
+#define IOCTL_GET_PROCESS_GROUP					_IOWR(MAJOR_NUM, 9, char*) //获取进程权限等级
+#define IOCTL_SET_PROCESS_ROOT					_IOWR(MAJOR_NUM, 10, char*) //提升进程权限到Root
+#define IOCTL_GET_PROCESS_RSS					_IOWR(MAJOR_NUM, 11, char*) //获取进程的物理内存占用大小
+#define IOCTL_GET_PROCESS_CMDLINE_ADDR			_IOWR(MAJOR_NUM, 12, char*) //获取进程cmdline的内存地址
 
 #endif /*__linux__*/
 
@@ -49,9 +52,9 @@ public:
 	CMemoryReaderWriter() {}
 	~CMemoryReaderWriter() { DisconnectDriver(); }
 
-	//连接驱动（驱动节点文件路径名，错误代码），返回值：驱动连接句柄，>=0代表成功
-	BOOL ConnectDriver(const char* lpszDriverFileNode, int& err) {
-		return _InternalConnectDriver(lpszDriverFileNode, err);
+	//连接驱动（驱动节点文件路径名，是否使用躲避SELinux的通信方式，错误代码，机器码ID），返回值：驱动连接句柄，>=0代表成功
+	BOOL ConnectDriver(const char* lpszDriverFileNodePath, BOOL bUseBypassSELinuxMode, int & err, const std::string &machineId = "") {
+		return _InternalConnectDriver(lpszDriverFileNodePath, bUseBypassSELinuxMode, err, machineId);
 	}
 
 	//断开驱动，返回值：TRUE成功，FALSE失败
@@ -64,10 +67,16 @@ public:
 		return _InternalIsDriverConnected();
 	}
 
+	//驱动_设置密匙（身份信息，交互缓冲区），返回值：TRUE钥匙正确，FALSE钥匙错误
+	//（参数key说明：当传入的交互缓冲区全部为00时，将会从交互缓冲区输出64字节的“问题”以供开发者计算“答案”。当传入的交互缓冲区不为00时，将验证“答案”是否正确）
+	BOOL SetKey(char * key64) {
+		return _InternalSetKey(key64);
+	}
+
 	//驱动_设置驱动接口文件允许同时被使用的最大值（最大值），返回值：TRUE成功，FALSE失败
 	BOOL SetMaxDevFileOpen(uint64_t max) {
 		return _InternalSetMaxDevFileOpen(max);
-}
+	}
 
 	//驱动_隐藏驱动（），返回值：TRUE成功，FALSE失败
 	BOOL HideKernelModule() {
@@ -83,9 +92,9 @@ public:
 	BOOL ReadProcessMemory(
 		uint64_t hProcess,
 		uint64_t lpBaseAddress,
-		void* lpBuffer,
+		void *lpBuffer,
 		size_t nSize,
-		size_t* lpNumberOfBytesRead = NULL,
+		size_t * lpNumberOfBytesRead = NULL,
 		BOOL bIsForceRead = FALSE) override {
 		return _InternalReadProcessMemory(
 			hProcess,
@@ -100,9 +109,9 @@ public:
 	BOOL ReadProcessMemory_Fast(
 		uint64_t hProcess,
 		uint64_t lpBaseAddress,
-		void* lpBuffer,
+		void *lpBuffer,
 		size_t nSize,
-		size_t* lpNumberOfBytesRead = NULL,
+		size_t * lpNumberOfBytesRead = NULL,
 		BOOL bIsForceRead = FALSE) override {
 		return _InternalReadProcessMemory_Fast(
 			hProcess,
@@ -117,9 +126,9 @@ public:
 	BOOL WriteProcessMemory(
 		uint64_t hProcess,
 		uint64_t lpBaseAddress,
-		void* lpBuffer,
+		void * lpBuffer,
 		size_t nSize,
-		size_t* lpNumberOfBytesWritten = NULL,
+		size_t * lpNumberOfBytesWritten = NULL,
 		BOOL bIsForceWrite = FALSE) override {
 		return _InternalWriteProcessMemory(
 			hProcess,
@@ -134,11 +143,11 @@ public:
 	BOOL WriteProcessMemory_Fast(
 		uint64_t hProcess,
 		uint64_t lpBaseAddress,
-		void* lpBuffer,
+		void * lpBuffer,
 		size_t nSize,
-		size_t* lpNumberOfBytesWritten = NULL,
+		size_t * lpNumberOfBytesWritten = NULL,
 		BOOL bIsForceWrite = FALSE) override {
-		return WriteProcessMemory_Fast(
+		return _InternalWriteProcessMemory_Fast(
 			hProcess,
 			lpBaseAddress,
 			lpBuffer,
@@ -149,13 +158,13 @@ public:
 
 	//驱动_关闭进程（进程句柄），返回值：TRUE成功，FALSE失败
 	BOOL CloseHandle(uint64_t hProcess) {
-		return CloseHandle(hProcess);
+		return _InternalCloseHandle(hProcess);
 	}
 
 	//驱动_获取进程内存块列表（进程句柄，是否仅显示物理内存，输出缓冲区，输出是否完整），返回值：TRUE成功，FALSE失败
 	//（参数showPhy说明: FALSE为显示全部内存，TRUE为只显示在物理内存中的内存，注意：如果进程内存不存在于物理内存中，驱动将无法读取该内存位置的值）
 	//（参数bOutListCompleted说明: 若输出FALSE，则代表输出缓冲区里的进程内存块列表不完整，若输出TRUE，则代表输出缓冲区里的进程内存块列表完整可靠）
-	BOOL VirtualQueryExFull(uint64_t hProcess, BOOL showPhy, std::vector<DRIVER_REGION_INFO>& vOutput, BOOL& bOutListCompleted) override {
+	BOOL VirtualQueryExFull(uint64_t hProcess, BOOL showPhy, std::vector<DRIVER_REGION_INFO> & vOutput, BOOL & bOutListCompleted) override {
 		return _InternalVirtualQueryExFull(hProcess, showPhy, vOutput, bOutListCompleted);
 	}
 
@@ -167,30 +176,30 @@ public:
 	//驱动_获取进程PID列表（获取方式，获取方式，输出缓冲区，输出是否完整），返回值：TRUE成功，FALSE失败
 	//（参数bIsSpeedMode说明: FALSE为稳定模式，TRUE为极速模式）
 	//（参数bOutListCompleted说明: 若输出FALSE，则代表输出缓冲区里的进程PID列表不完整，若输出TRUE，则代表输出缓冲区里的进程PID列表完整可靠）
-	BOOL GetProcessPidList(std::vector<int>& vOutput, BOOL bIsSpeedMode, BOOL& bOutListCompleted) {
+	BOOL GetProcessPidList(std::vector<int> & vOutput, BOOL bIsSpeedMode, BOOL & bOutListCompleted) {
 		return _InternalGetProcessPidList(vOutput, bIsSpeedMode, bOutListCompleted);
 	}
 
 	//驱动_获取进程权限等级（驱动连接句柄，进程句柄，输出UID，输出SUID，输出EUID，输出FSUID，输出GID，输出SGID，输出EGID，输出FSGID），返回值：TRUE成功，FALSE失败
 	BOOL GetProcessGroup(uint64_t hProcess,
-		uint64_t& nOutUID,
-		uint64_t& nOutSUID,
-		uint64_t& nOutEUID,
-		uint64_t& nOutFSUID,
-		uint64_t& nOutGID,
-		uint64_t& nOutSGID,
-		uint64_t& nOutEGID,
-		uint64_t& nOutFSGID) {
-			return _InternalGetProcessGroup(hProcess,
-				nOutUID,
-				nOutSUID,
-				nOutEUID,
-				nOutFSUID,
-				nOutGID,
-				nOutSGID,
-				nOutEGID,
-				nOutFSGID);
-		}
+		uint64_t & nOutUID,
+		uint64_t & nOutSUID,
+		uint64_t & nOutEUID,
+		uint64_t & nOutFSUID,
+		uint64_t & nOutGID,
+		uint64_t & nOutSGID,
+		uint64_t & nOutEGID,
+		uint64_t & nOutFSGID) {
+		return _InternalGetProcessGroup(hProcess,
+			nOutUID,
+			nOutSUID,
+			nOutEUID,
+			nOutFSUID,
+			nOutGID,
+			nOutSGID,
+			nOutEGID,
+			nOutFSGID);
+	}
 
 	//驱动_提升进程权限到Root（进程句柄），返回值：TRUE成功，FALSE失败
 	BOOL SetProcessRoot(uint64_t hProcess) {
@@ -198,12 +207,12 @@ public:
 	}
 
 	//驱动_获取进程占用物理内存大小（进程句柄，输出的占用物理内存大小），返回值：TRUE成功，FALSE失败
-	BOOL GetProcessRSS(uint64_t hProcess, uint64_t& outRss) {
+	BOOL GetProcessRSS(uint64_t hProcess, uint64_t & outRss) {
 		return _InternalGetProcessRSS(hProcess, outRss);
 	}
 
 	//驱动_获取进程命令行（进程句柄，输出缓冲区，输出缓冲区的大小），返回值：TRUE成功，FALSE失败
-	BOOL GetProcessCmdline(uint64_t hProcess, char* lpOutCmdlineBuf, size_t bufSize) {
+	BOOL GetProcessCmdline(uint64_t hProcess, char *lpOutCmdlineBuf, size_t bufSize) {
 		return _InternalGetProcessCmdline(hProcess, lpOutCmdlineBuf, bufSize);
 	}
 
@@ -217,15 +226,22 @@ public:
 		_InternalSetLinkFD(fd);
 	}
 
+	//设置是否使用躲避SELinux的通信方式
+	void SeUseBypassSELinuxMode(BOOL bUseBypassSELinuxMode) {
+		_rwProcMemDriver_UseBypassSELinuxMode(bUseBypassSELinuxMode);
+	}
+
 private:
-	BOOL _InternalConnectDriver(const char* lpszDriverFileNode, int& err) {
+	BOOL _InternalConnectDriver(const char* lpszDriverFileNodePath, BOOL bUseBypassSELinuxMode, int& err, const std::string &machineId = "") {
 #ifdef __linux__
 		if (m_nDriverLink >= 0) { return TRUE; }
-		m_nDriverLink = _rwProcMemDriver_Connect(lpszDriverFileNode);
+		m_nDriverLink = _rwProcMemDriver_Connect(lpszDriverFileNodePath);
 		if (m_nDriverLink < 0) {
 			err = m_nDriverLink;
 			return FALSE;
 		}
+		_rwProcMemDriver_UseBypassSELinuxMode(bUseBypassSELinuxMode);
+		_rwProcMemDriver_InitDeviceInfo(m_nDriverLink, machineId);
 		err = 0;
 		return TRUE;
 #else 
@@ -247,6 +263,14 @@ private:
 	BOOL _InternalIsDriverConnected() {
 #ifdef __linux__
 		return m_nDriverLink >= 0 ? TRUE : FALSE;
+#else
+		return FALSE;
+#endif
+	}
+
+	BOOL _InternalSetKey(char* key64) {
+#ifdef __linux__
+		return _rwProcMemDriver_SetKey(m_nDriverLink, key64);
 #else
 		return FALSE;
 #endif
@@ -347,18 +371,19 @@ private:
 		size_t* lpNumberOfBytesWritten = NULL,
 		BOOL bIsForceWrite = FALSE) {
 #ifdef __linux__
-			return _rwProcMemDriver_WriteProcessMemory_Fast(
-				m_nDriverLink,
-				hProcess,
-				lpBaseAddress,
-				lpBuffer,
-				nSize,
-				lpNumberOfBytesWritten,
-				bIsForceWrite);
+		return _rwProcMemDriver_WriteProcessMemory_Fast(
+			m_nDriverLink,
+			hProcess,
+			lpBaseAddress,
+			lpBuffer,
+			nSize,
+			lpNumberOfBytesWritten,
+			bIsForceWrite);
 #else
-			return FALSE;
+		return FALSE;
 #endif
-		}
+	}
+
 	BOOL _InternalCloseHandle(uint64_t hProcess) {
 #ifdef __linux__
 		return _rwProcMemDriver_CloseHandle(m_nDriverLink, hProcess);
@@ -454,27 +479,96 @@ private:
 	}
 
 #ifdef __linux__
-	inline int _rwProcMemDriver_Connect(const char * lpszDriverFileNode) {
-	int nDriverLink = open(lpszDriverFileNode, O_RDWR);
-	if (nDriverLink < 0) {
-		int last_err = errno;
-		TRACE("open error():%s\n", strerror(last_err));
-		return -last_err;
+	int _rwProcMemDriver_MyIoctl(int fd, unsigned int cmd, unsigned long buf, unsigned long bufSize) {
+		if (m_bUseBypassSELinuxMode == TRUE) {
+			//驱动通信方式：lseek，躲开系统SELinux拦截
+			char *lseekBuf = (char*)malloc(sizeof(cmd) + bufSize);
+			*(unsigned long*)lseekBuf = cmd;
+			memcpy((void*)((size_t)lseekBuf + (size_t)sizeof(cmd)), (void*)buf, bufSize);
+			uint64_t ret = lseek64(fd, (off64_t)lseekBuf, SEEK_CUR);
+			memcpy((void*)buf, (void*)((size_t)lseekBuf + (size_t)sizeof(cmd)), bufSize);
+			free(lseekBuf);
+			return ret;
+		} else {
+			//驱动通信方式：ioctl
+			return ioctl(fd, cmd, buf);
+		}
 	}
-	return nDriverLink;
+
+
+	int _rwProcMemDriver_Connect(const char * lpszDriverFileNodePath) {
+		int nDriverLink = open(lpszDriverFileNodePath, O_RDWR);
+		if (nDriverLink < 0) {
+			int last_err = errno;
+			if (last_err == EACCES) {
+				chmod(lpszDriverFileNodePath, 666);
+				nDriverLink = open(lpszDriverFileNodePath, O_RDWR);
+				last_err = errno;
+				chmod(lpszDriverFileNodePath, 0600);
+			}
+			if (nDriverLink < 0) {
+				TRACE("open error():%s\n", strerror(last_err));
+				return -last_err;
+			}
+		}
+		return nDriverLink;
 	}
-	inline BOOL _rwProcMemDriver_Disconnect(int nDriverLink) {
+
+	BOOL _rwProcMemDriver_Disconnect(int nDriverLink) {
 		if (nDriverLink < 0) { return FALSE; }
-		//�Ͽ���������
 		close(nDriverLink);
 		return TRUE;
 	}
-	inline BOOL _rwProcMemDriver_SetMaxDevFileOpen(int nDriverLink, uint64_t max) {
+
+	void _rwProcMemDriver_UseBypassSELinuxMode(BOOL bUseBypassSELinuxMode) {
+		m_bUseBypassSELinuxMode = bUseBypassSELinuxMode;
+	}
+
+	BOOL _rwProcMemDriver_InitDeviceInfo(int nDriverLink, const std::string & machineId) {
+		if (machineId.empty()) {
+			return FALSE;
+		}
+
+		struct init_device_info {
+			char machine[32];
+			char reserved[256];
+			char proc_self_status[4096];
+			char proc_self_cmdline[4096];
+			int proc_self_maps_cnt;
+		} oDevInfo;
+		memset(&oDevInfo, 0, sizeof(oDevInfo));
+
+		strncpy(oDevInfo.machine, machineId.c_str(), machineId.length());
+		oDevInfo.machine[sizeof(oDevInfo.machine) - 1] = '\0';
+
+		std::string strProcSelfStatus = _GetFileContent("/proc/self/status");
+		strncpy(oDevInfo.proc_self_status, strProcSelfStatus.c_str(), strProcSelfStatus.length());
+		oDevInfo.proc_self_status[sizeof(oDevInfo.proc_self_status) - 1] = '\0';
+		TRACE("InitDeviceInfo proc_self_status:%s\n", oDevInfo.proc_self_status);
+
+		std::string strProcSelfCmdline = _GetFileContent("/proc/self/cmdline");
+		strncpy(oDevInfo.proc_self_cmdline, strProcSelfCmdline.c_str(), strProcSelfCmdline.length());
+		oDevInfo.proc_self_cmdline[sizeof(oDevInfo.proc_self_cmdline) - 1] = '\0';
+		TRACE("InitDeviceInfo proc_self_cmdline:%s %d\n", oDevInfo.proc_self_cmdline);
+
+		oDevInfo.proc_self_maps_cnt = _GetFileLineCount("/proc/self/maps");
+		TRACE("InitDeviceInfo proc_self_maps_cnt:%d\n", oDevInfo.proc_self_maps_cnt);
+
+		int ret = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_INIT_DEVICE_INFO, (unsigned long)&oDevInfo, sizeof(oDevInfo));
+		return ret == 0 ? TRUE : FALSE;
+	}
+
+	BOOL _rwProcMemDriver_SetKey(int nDriverLink, char* key64) {
+		int ret = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_KEY, (unsigned long)key64, 64);
+		return ret == 0 ? TRUE : FALSE;
+	}
+
+	BOOL _rwProcMemDriver_SetMaxDevFileOpen(int nDriverLink, uint64_t max) {
 		if (nDriverLink < 0) { return FALSE; }
 		char buf[8] = { 0 };
 		*(uint64_t*)&buf[0] = max;
 
-		int res = ioctl(nDriverLink, IOCTL_SET_MAX_DEV_FILE_OPEN, (unsigned long)&buf, sizeof(buf));
+		int res = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_SET_MAX_DEV_FILE_OPEN, (unsigned long)&buf, sizeof(buf));
 		if (res != 0) {
 			TRACE("SetMaxDevFileOpen ioctl():%s\n", strerror(errno));
 			return FALSE;
@@ -483,9 +577,9 @@ private:
 	}
 
 
-	inline BOOL _rwProcMemDriver_HideKernelModule(int nDriverLink) {
+	BOOL _rwProcMemDriver_HideKernelModule(int nDriverLink) {
 		if (nDriverLink < 0) { return FALSE; }
-		int res = ioctl(nDriverLink, IOCTL_HIDE_KERNEL_MODULE, 0, 0);
+		int res = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_HIDE_KERNEL_MODULE, 0, 0);
 		if (res != 0) {
 			TRACE("HideKernelModule ioctl():%s\n", strerror(errno));
 			return FALSE;
@@ -495,12 +589,12 @@ private:
 
 
 
-	inline uint64_t _rwProcMemDriver_OpenProcess(int nDriverLink, uint64_t pid) {
+	uint64_t _rwProcMemDriver_OpenProcess(int nDriverLink, uint64_t pid) {
 		if (nDriverLink < 0) { return 0; }
 		char buf[8] = { 0 };
 		*(uint64_t*)&buf[0] = pid;
 
-		int res = ioctl(nDriverLink, IOCTL_OPEN_PROCESS, (unsigned long)&buf, sizeof(buf));
+		int res = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_OPEN_PROCESS, (unsigned long)&buf, sizeof(buf));
 		if (res != 0) {
 			TRACE("OpenProcess ioctl():%s\n", strerror(errno));
 			return 0;
@@ -508,7 +602,7 @@ private:
 		uint64_t ptr = *(uint64_t*)&buf[0];
 		return ptr;
 	}
-	inline BOOL _rwProcMemDriver_ReadProcessMemory(
+	BOOL _rwProcMemDriver_ReadProcessMemory(
 		int nDriverLink,
 		uint64_t hProcess,
 		uint64_t lpBaseAddress,
@@ -546,7 +640,7 @@ private:
 
 	}
 
-	inline BOOL _rwProcMemDriver_ReadProcessMemory_Fast(
+	BOOL _rwProcMemDriver_ReadProcessMemory_Fast(
 		int nDriverLink,
 		uint64_t hProcess,
 		uint64_t lpBaseAddress,
@@ -594,7 +688,7 @@ private:
 	}
 
 
-	inline BOOL _rwProcMemDriver_WriteProcessMemory(
+	BOOL _rwProcMemDriver_WriteProcessMemory(
 		int nDriverLink,
 		uint64_t hProcess,
 		uint64_t lpBaseAddress,
@@ -630,7 +724,7 @@ private:
 		return TRUE;
 
 	}
-	inline BOOL _rwProcMemDriver_WriteProcessMemory_Fast(
+	BOOL _rwProcMemDriver_WriteProcessMemory_Fast(
 		int nDriverLink,
 		uint64_t hProcess,
 		uint64_t lpBaseAddress,
@@ -672,14 +766,14 @@ private:
 
 	}
 
-	inline BOOL _rwProcMemDriver_CloseHandle(int nDriverLink, uint64_t hProcess) {
+	BOOL _rwProcMemDriver_CloseHandle(int nDriverLink, uint64_t hProcess) {
 		if (nDriverLink < 0) { return FALSE; }
 		if (!hProcess) { return FALSE; }
 
 		char buf[8] = { 0 };
 		*(uint64_t*)&buf[0] = hProcess;
 
-		int res = ioctl(nDriverLink, IOCTL_CLOSE_HANDLE, (unsigned long)&buf, sizeof(buf));
+		int res = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_CLOSE_HANDLE, (unsigned long)&buf, sizeof(buf));
 		if (res != 0) {
 			TRACE("CloseHandle ioctl():%s\n", strerror(errno));
 			return FALSE;
@@ -688,12 +782,12 @@ private:
 	}
 
 
-	BOOL _rwProcMemDriver_VirtualQueryExFull(int nDriverLink, uint64_t hProcess, BOOL showPhy, std::vector<DRIVER_REGION_INFO> & vOutput, BOOL * bOutListCompleted) {
+	BOOL _rwProcMemDriver_VirtualQueryExFull(int nDriverLink, uint64_t hProcess, BOOL showPhy, std::vector<DRIVER_REGION_INFO>& vOutput, BOOL * bOutListCompleted) {
 		if (nDriverLink < 0) { return FALSE; }
 		if (!hProcess) { return FALSE; }
 		char buf[8] = { 0 };
 		*(uint64_t*)&buf[0] = hProcess;
-		int count = ioctl(nDriverLink, IOCTL_GET_PROCESS_MAPS_COUNT, (unsigned long)&buf, sizeof(buf));
+		int count = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_GET_PROCESS_MAPS_COUNT, (unsigned long)&buf, sizeof(buf));
 		TRACE("VirtualQueryExFull count %d\n", count);
 		if (count <= 0) {
 			TRACE("VirtualQueryExFull ioctl():%s\n", strerror(errno));
@@ -709,7 +803,7 @@ private:
 		*(uint64_t*)&big_buf[8] = name_len;
 		*(uint64_t*)&big_buf[16] = big_buf_len;
 
-		int res = ioctl(nDriverLink, IOCTL_GET_PROCESS_MAPS_LIST, (unsigned long)big_buf, big_buf_len);
+		int res = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_GET_PROCESS_MAPS_LIST, (unsigned long)big_buf, big_buf_len);
 		TRACE("VirtualQueryExFull res %d\n", res);
 		if (res <= 0) {
 			TRACE("VirtualQueryExFull ioctl():%s\n", strerror(errno));
@@ -826,13 +920,13 @@ private:
 		*(uint64_t*)&ptr_buf[0] = hProcess;
 		*(uint64_t*)&ptr_buf[8] = lpBaseAddress;
 
-		if (ioctl(nDriverLink, IOCTL_CHECK_PROCESS_ADDR_PHY, (unsigned long)&ptr_buf, sizeof(ptr_buf)) == 1) {
+		if (_rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_CHECK_PROCESS_ADDR_PHY, (unsigned long)&ptr_buf, sizeof(ptr_buf)) == 1) {
 			return TRUE;
 		}
 		return FALSE;
 	}
 
-	inline BOOL _rwProcMemDriver_GetProcessPidList(int nDriverLink, BOOL bIsSpeedMode, std::vector<int> & vOutput, BOOL * bOutListCompleted) {
+	BOOL _rwProcMemDriver_GetProcessPidList(int nDriverLink, BOOL bIsSpeedMode, std::vector<int>& vOutput, BOOL * bOutListCompleted) {
 		if (nDriverLink < 0) { return FALSE; }
 		uint64_t len = 0;
 		int bufSize = 8 + 1 + len;
@@ -841,7 +935,7 @@ private:
 		*(uint64_t*)&buf[0] = len;
 		buf[8] = bIsSpeedMode == TRUE ? '\x01' : '\x00'; //获取进程列表方式：0为稳定模式，1为极速模式
 
-		int count1 = ioctl(nDriverLink, IOCTL_GET_PROCESS_PID_LIST, (unsigned long)buf, bufSize);
+		int count1 = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_GET_PROCESS_PID_LIST, (unsigned long)buf, bufSize);
 		free(buf);
 
 		TRACE("GetProcessPidList count1:%d\n", count1);
@@ -858,7 +952,7 @@ private:
 		memset(buf, 0, bufSize);
 		*(uint64_t*)&buf[0] = len;
 		//buf[8] = '\x00'; //获取进程列表方式：0为稳定模式，1为极速模式
-		int count2 = ioctl(nDriverLink, IOCTL_GET_PROCESS_PID_LIST, (unsigned long)buf, bufSize);
+		int count2 = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_GET_PROCESS_PID_LIST, (unsigned long)buf, bufSize);
 		free(buf);
 		TRACE("GetProcessPidList count2:%d\n", count2);
 		if (count2 <= 0) {
@@ -876,7 +970,7 @@ private:
 	}
 
 
-	inline BOOL _rwProcMemDriver_GetProcessGroup(int nDriverLink, uint64_t hProcess,
+	BOOL _rwProcMemDriver_GetProcessGroup(int nDriverLink, uint64_t hProcess,
 		uint64_t *nOutUID,
 		uint64_t *nOutSUID,
 		uint64_t *nOutEUID,
@@ -891,7 +985,7 @@ private:
 		char buf[64] = { 0 };
 		*(uint64_t*)&buf[0] = hProcess;
 
-		int res = ioctl(nDriverLink, IOCTL_GET_PROCESS_GROUP, (unsigned long)&buf, sizeof(buf));
+		int res = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_GET_PROCESS_GROUP, (unsigned long)&buf, sizeof(buf));
 		if (res != 0) {
 			TRACE("GetProcessGroup ioctl():%s\n", strerror(errno));
 			return FALSE;
@@ -906,14 +1000,14 @@ private:
 		*nOutFSGID = *(uint64_t*)&buf[56];
 		return TRUE;
 	}
-	inline BOOL _rwProcMemDriver_SetProcessRoot(int nDriverLink, uint64_t hProcess) {
+	BOOL _rwProcMemDriver_SetProcessRoot(int nDriverLink, uint64_t hProcess) {
 		if (nDriverLink < 0) { return FALSE; }
 		if (!hProcess) { return FALSE; }
 
 		char buf[8] = { 0 };
 		*(uint64_t*)&buf[0] = hProcess;
 
-		int res = ioctl(nDriverLink, IOCTL_SET_PROCESS_ROOT, (unsigned long)&buf, sizeof(buf));
+		int res = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_SET_PROCESS_ROOT, (unsigned long)&buf, sizeof(buf));
 		if (res != 0) {
 			TRACE("SetProcessRoot ioctl():%s\n", strerror(errno));
 			return FALSE;
@@ -921,12 +1015,12 @@ private:
 		return TRUE;
 	}
 
-	inline BOOL _rwProcMemDriver_GetProcessRSS(int nDriverLink, uint64_t hProcess, uint64_t *outRss) {
+	BOOL _rwProcMemDriver_GetProcessRSS(int nDriverLink, uint64_t hProcess, uint64_t *outRss) {
 		if (nDriverLink < 0) { return FALSE; }
 		if (!hProcess) { return FALSE; }
 		char buf[8] = { 0 };
 		*(uint64_t*)&buf[0] = hProcess;
-		int res = ioctl(nDriverLink, IOCTL_GET_PROCESS_RSS, (unsigned long)&buf, sizeof(buf));
+		int res = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_GET_PROCESS_RSS, (unsigned long)&buf, sizeof(buf));
 		if (res != 0) {
 			TRACE("GetProcessRSS ioctl():%s\n", strerror(errno));
 			return FALSE;
@@ -934,13 +1028,13 @@ private:
 		*outRss = *(uint64_t*)&buf[0];
 		return TRUE;
 	}
-	inline BOOL _rwProcMemDriver_GetProcessCmdline(int nDriverLink, uint64_t hProcess, char *lpOutCmdlineBuf, size_t bufSize) {
+	BOOL _rwProcMemDriver_GetProcessCmdline(int nDriverLink, uint64_t hProcess, char *lpOutCmdlineBuf, size_t bufSize) {
 		if (nDriverLink < 0) { return FALSE; }
 		if (!hProcess) { return FALSE; }
 		if (bufSize <= 0) { return FALSE; }
 		char buf[16] = { 0 };
 		*(uint64_t*)&buf[0] = hProcess;
-		int res = ioctl(nDriverLink, IOCTL_GET_PROCESS_CMDLINE_ADDR, (unsigned long)&buf, sizeof(buf));
+		int res = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_GET_PROCESS_CMDLINE_ADDR, (unsigned long)&buf, sizeof(buf));
 		if (res != 0) {
 			TRACE("GetProcessCmdline ioctl():%s\n", strerror(errno));
 			return FALSE;
@@ -961,8 +1055,43 @@ private:
 	}
 #endif /*__linux__*/
 
+	std::string _GetFileContent(const char* lpszFilePath) {
+		std::ifstream inFile(lpszFilePath);
+		if (!inFile.is_open()) {
+			return {};
+		}
+		const int size = 4096;
+		char szBuf[size] = { 0 };
+		std::shared_ptr<unsigned char> spBuf(new unsigned char[size], std::default_delete<unsigned char[]>());
+		if (!spBuf) {
+			inFile.close();
+			return {};
+		}
+		inFile.read((char*)spBuf.get(), size);
+		inFile.close();
+		std::string strFileContent = (char*)spBuf.get();
+		return strFileContent;
+	}
+
+	int _GetFileLineCount(const char* lpszFilePath) {
+		std::ifstream inFile(lpszFilePath);
+		if (!inFile.is_open()) {
+			return 0;
+		}
+
+		int cnt = 0;
+		std::string line;
+		while (getline(inFile, line)) {  // line中不包括每行的换行符  
+			cnt++;
+		}
+		inFile.close();
+		return cnt;
+	}
+
+
 private:
 	int m_nDriverLink = -1;
+	BOOL m_bUseBypassSELinuxMode = FALSE; //记录是否有SELinux拦截
 };
 
 

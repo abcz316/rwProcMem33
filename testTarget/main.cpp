@@ -10,38 +10,71 @@
 #include "../testMemSearch/MapRegionType.h"
 
 
-
-
-int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver) {
+//int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver) {
+//	int nTargetPid = 0;
+//
+//	//驱动_获取进程PID列表
+//	std::vector<int> vPID;
+//	BOOL bOutListCompleted;
+//	BOOL b = pDriver->GetProcessPidList(vPID, FALSE, bOutListCompleted);
+//	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
+//
+//	//打印进程列表信息
+//	for (int pid : vPID) {
+//		//驱动_打开进程
+//		uint64_t hProcess = pDriver->OpenProcess(pid);
+//		if (!hProcess) { continue; }
+//
+//		//驱动_获取进程命令行
+//		char cmdline[100] = { 0 };
+//		pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
+//
+//		//驱动_关闭进程
+//		pDriver->CloseHandle(hProcess);
+//
+//		if (strcmp(lpszCmdline, cmdline) == 0) {
+//			nTargetPid = pid;
+//			break;
+//		}
+//	}
+//	return nTargetPid;
+//}
+int findPID(const char* lpszCmdline, CMemoryReaderWriter* pDriver) {
 	int nTargetPid = 0;
+	DIR* dir = NULL;
+	struct dirent* ptr = NULL;
 
-	//驱动_获取进程PID列表
-	std::vector<int> vPID;
-	BOOL bOutListCompleted;
-	BOOL b = pDriver->GetProcessPidList(vPID, FALSE, bOutListCompleted);
-	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
+	dir = opendir("/proc");
+	if (dir) {
+		while ((ptr = readdir(dir)) != NULL) { // 循环读取路径下的每一个文件/文件夹
+			// 如果读取到的是"."或者".."则跳过，读取到的不是文件夹名字也跳过
+			if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0)) {
+				continue;
+			} else if (ptr->d_type != DT_DIR) {
+				continue;
+			} else if (strspn(ptr->d_name, "1234567890") != strlen(ptr->d_name)) {
+				continue;
+			}
 
-	//打印进程列表信息
-	for (int pid : vPID) {
-		//驱动_打开进程
-		uint64_t hProcess = pDriver->OpenProcess(pid);
-		if (!hProcess) { continue; }
+			int pid = atoi(ptr->d_name);
 
-		//驱动_获取进程命令行
-		char cmdline[100] = { 0 };
-		pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
+			uint64_t hProcess = pDriver->OpenProcess(pid);
+			if (!hProcess) { continue; }
 
-		//驱动_关闭进程
-		pDriver->CloseHandle(hProcess);
+			char cmdline[200] = { 0 };
+			pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
 
-		if (strcmp(lpszCmdline, cmdline) == 0) {
-			nTargetPid = pid;
-			break;
+			pDriver->CloseHandle(hProcess);
+
+			if (strcmp(lpszCmdline, cmdline) == 0) {
+				nTargetPid = pid;
+				break;
+			}
 		}
+		closedir(dir);
 	}
 	return nTargetPid;
 }
-
 
 
 
@@ -80,7 +113,7 @@ int main(int argc, char *argv[]) {
 
 	//连接驱动
 	int err = 0;
-	if (!rwDriver.ConnectDriver(devFileName.c_str(), err)) {
+	if (!rwDriver.ConnectDriver(devFileName.c_str(), FALSE, err)) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return 0;
