@@ -145,7 +145,94 @@ MY_STATIC inline void close_pagemap(struct file* lpPagemap) {
 #include <asm/pgtable.h>
 
 MY_STATIC inline size_t get_task_proc_phy_addr(struct task_struct* task, size_t virt_addr, pte_t *out_pte) {
-	
+	struct mm_struct *mm;
+	//////////////////////////////////////////////////////////////////////////
+	pgd_t *pgd;
+	p4d_t *p4d;
+	pud_t *pud;
+	pmd_t *pmd;
+	pte_t *pte;
+	unsigned long paddr = 0;
+	unsigned long page_addr = 0;
+	unsigned long page_offset = 0;
+	//////////////////////////////////////////////////////////////////////////
+	*(size_t*)out_pte = 0;
+
+	if (!task) {
+		return 0;
+	}
+	mm = get_task_mm(task);
+	if (!mm) {
+		return 0;
+	}
+
+
+	pgd = x_pgd_offset(mm, virt_addr);
+	if (pgd == NULL) {
+		printk_debug("pgd is null\n");
+		goto out;
+	}
+	printk_debug("pgd_val = 0x%lx pgd addr:0x%lx\n", (unsigned long int)pgd_val(*pgd), (unsigned long int)pgd_val(pgd));
+	printk_debug("init_mm pgd val:0x%lx,pgd addr:0x%lx\n", (unsigned long)pgd_val(*(mm->pgd)), pgd_val((mm->pgd)));
+	printk_debug("pgd_index = %d\n", pgd_index(virt_addr));
+	if (pgd_none(*pgd)) {
+		printk_debug("not mapped in pgd\n");
+		goto out;
+	}
+	printk_debug("pgd_offset ok\n");
+
+	/*
+	 * (p4ds are folded into pgds so this doesn't get actually called,
+	 * but the define is needed for a generic inline function.)
+	 */
+	p4d = p4d_offset(pgd, virt_addr);
+	//printk_debug("p4d_val = 0x%lx, p4d_index = %lu\n", p4d_val(*p4d), p4d_index(virt_addr));
+	printk_debug("p4d_val = 0x%lx\n", p4d_val(*p4d));
+	if (p4d_none(*p4d))
+	{
+		printk_debug("not mapped in p4d\n");
+		goto out;
+	}
+
+	pud = pud_offset(p4d, virt_addr);
+	printk_debug("pud_val = 0x%llx \n", pud_val(*pud));
+	if (pud_none(*pud)) {
+		printk_debug("not mapped in pud\n");
+		goto out;
+	}
+	printk_debug("pud_offset ok\n");
+
+	pmd = pmd_offset(pud, virt_addr);
+	printk_debug("pmd_val = 0x%llx\n", pmd_val(*pmd));
+	//printk_debug("pmd_index = %d\n", pmd_index(virt_addr));
+	if (pmd_none(*pmd)) {
+		printk_debug("not mapped in pmd\n");
+		goto out;
+	}
+	printk_debug("pmd_offset ok\n");
+
+	pte = pte_offset_kernel(pmd, virt_addr);
+	printk_debug("pte_val = 0x%llx\n", pte_val(*pte));
+	//printk_debug("pte_index = %d\n", pte_index(virt_addr));
+	if (pte_none(*pte)) {
+		printk_debug("not mapped in pte\n");
+		goto out;
+	}
+	printk_debug("pte_offset_kernel ok\n");
+
+	page_addr = page_to_phys(pte_page(*pte));
+
+	page_offset = virt_addr & ~PAGE_MASK;
+	paddr = page_addr | page_offset;
+
+	printk_debug("page_addr = %llx, page_offset = %llx\n", page_addr, page_offset);
+	printk_debug("vaddr = %llx, paddr = %llx\n", virt_addr, paddr);
+
+	*(size_t*)out_pte = (size_t)pte;
+
+out:
+	mmput(mm);
+	return paddr;
 }
 
 
