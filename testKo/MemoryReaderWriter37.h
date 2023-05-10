@@ -67,12 +67,6 @@ public:
 		return _InternalIsDriverConnected();
 	}
 
-	//驱动_设置密匙（身份信息，交互缓冲区），返回值：TRUE钥匙正确，FALSE钥匙错误
-	//（参数key说明：当传入的交互缓冲区全部为00时，将会从交互缓冲区输出64字节的“问题”以供开发者计算“答案”。当传入的交互缓冲区不为00时，将验证“答案”是否正确）
-	BOOL SetKey(char * key64) {
-		return _InternalSetKey(key64);
-	}
-
 	//驱动_设置驱动接口文件允许同时被使用的最大值（最大值），返回值：TRUE成功，FALSE失败
 	BOOL SetMaxDevFileOpen(uint64_t max) {
 		return _InternalSetMaxDevFileOpen(max);
@@ -263,14 +257,6 @@ private:
 	BOOL _InternalIsDriverConnected() {
 #ifdef __linux__
 		return m_nDriverLink >= 0 ? TRUE : FALSE;
-#else
-		return FALSE;
-#endif
-	}
-
-	BOOL _InternalSetKey(char* key64) {
-#ifdef __linux__
-		return _rwProcMemDriver_SetKey(m_nDriverLink, key64);
 #else
 		return FALSE;
 #endif
