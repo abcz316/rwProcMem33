@@ -153,7 +153,7 @@ void normal_val_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, size_t
 	if (vSearchResult.size()) {
 		printf("第一个地址为:%p\n", (void*)vSearchResult.at(0).addr);
 	}
-
+}
 
 //演示多线程正向遍历
 void loop_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, size_t nWorkThreadCount) {
@@ -294,7 +294,6 @@ void loop_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, size_t nWork
 		fclose(stream);
 	}
 
-}
 }
 
 //演示多线程反向遍历
@@ -638,7 +637,7 @@ int main(int argc, char *argv[]) {
 
 	//连接驱动
 	int err = 0;
-	if (!rwDriver.ConnectDriver(devFileName.c_str(), err)) {
+	if (!rwDriver.ConnectDriver(devFileName.c_str(), FALSE, err)) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return 0;
