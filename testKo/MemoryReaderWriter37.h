@@ -545,11 +545,6 @@ private:
 		return ret == 0 ? TRUE : FALSE;
 	}
 
-	BOOL _rwProcMemDriver_SetKey(int nDriverLink, char* key64) {
-		int ret = _rwProcMemDriver_MyIoctl(nDriverLink, IOCTL_KEY, (unsigned long)key64, 64);
-		return ret == 0 ? TRUE : FALSE;
-	}
-
 	BOOL _rwProcMemDriver_SetMaxDevFileOpen(int nDriverLink, uint64_t max) {
 		if (nDriverLink < 0) { return FALSE; }
 		char buf[8] = { 0 };
