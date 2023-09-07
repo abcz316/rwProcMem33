@@ -684,14 +684,14 @@ void __exit rwProcMem_dev_exit(void) {
 	proc_remove(g_rwProcMem_devp->proc_entry);
 #endif
 #ifdef CONFIG_USE_DEV_FILE_NODE
-	device_destroy(g_Class_devp, g_rwProcMem_devno); //删除设备文件（位置在/dev/xxxxx）
-	class_destroy(g_Class_devp); //删除设备类
+	device_destroy(g_Class_devp, g_rwProcMem_devno);
+	class_destroy(g_Class_devp);
 
-	cdev_del(g_rwProcMem_devp->pcdev); //注销cdev
-	unregister_chrdev_region(g_rwProcMem_devno, 1); //释放设备号
-	kfree(g_rwProcMem_devp->pcdev); // 释放设备结构体内存
+	cdev_del(g_rwProcMem_devp->pcdev);
+	unregister_chrdev_region(g_rwProcMem_devno, 1);
+	kfree(g_rwProcMem_devp->pcdev);
 #endif
-	kfree(g_rwProcMem_devp); // 释放设备结构体内存
+	kfree(g_rwProcMem_devp);
 	printk(KERN_EMERG "Goodbye, %s\n", DEV_FILENAME);
 }
 

@@ -3,8 +3,8 @@
 #include <linux/ctype.h>
 #include "ver_control.h"
 
-MY_STATIC ssize_t g_real_cred_offset_proc_root = 0; //task_struct里real_cred的偏移位置
-MY_STATIC bool g_init_real_cred_offset_success = false; //是否初始化找到过real_cred的偏移位置
+MY_STATIC ssize_t g_real_cred_offset_proc_root = 0;
+MY_STATIC bool g_init_real_cred_offset_success = false;
 
 MY_STATIC inline int init_proc_root_offset(const char* proc_self_status_content) {
 	size_t len = 0;

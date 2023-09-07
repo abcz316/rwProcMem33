@@ -68,8 +68,8 @@ MY_STATIC int init_mmap_lock_offset(int proc_self_maps_cnt) {
 		if (val == proc_self_maps_cnt) {
 			printk_debug(KERN_EMERG "val == proc_self_maps_cnt %zd:%zd:%p:%d\n", g_mmap_lock_offset_proc_maps, accurate_offset, rp, val);
 			//找到了
-			g_mmap_lock_offset_proc_maps += sizeof(val); //跳过自身
-			g_mmap_lock_offset_proc_maps += sizeof(int); //再跳过另一个int变量 spinlock_t page_table_lock
+			g_mmap_lock_offset_proc_maps += sizeof(val);
+			g_mmap_lock_offset_proc_maps += sizeof(int);
 			is_find_mmap_lock_offset = 1;
 			break;
 		}
