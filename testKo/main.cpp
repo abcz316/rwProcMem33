@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
 
 	//连接驱动
 	int err = 0;
-	if (!rwDriver.ConnectDriver(devFileName.c_str(), FALSE, err, "myMachineId")) {
+	if (!rwDriver.ConnectDriver(devFileName.c_str(), FALSE, err)) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return 0;

@@ -512,10 +512,6 @@ private:
 	}
 
 	BOOL _rwProcMemDriver_InitDeviceInfo(int nDriverLink, const std::string & machineId) {
-		if (machineId.empty()) {
-			return FALSE;
-		}
-
 		struct init_device_info {
 			char machine[32];
 			char reserved[256];
@@ -525,9 +521,11 @@ private:
 		} oDevInfo;
 		memset(&oDevInfo, 0, sizeof(oDevInfo));
 
-		strncpy(oDevInfo.machine, machineId.c_str(), machineId.length());
-		oDevInfo.machine[sizeof(oDevInfo.machine) - 1] = '\0';
-
+		if (!machineId.empty()) {
+			strncpy(oDevInfo.machine, machineId.c_str(), machineId.length());
+			oDevInfo.machine[sizeof(oDevInfo.machine) - 1] = '\0';
+		}
+		
 		std::string strProcSelfStatus = _GetFileContent("/proc/self/status");
 		strncpy(oDevInfo.proc_self_status, strProcSelfStatus.c_str(), strProcSelfStatus.length());
 		oDevInfo.proc_self_status[sizeof(oDevInfo.proc_self_status) - 1] = '\0';
