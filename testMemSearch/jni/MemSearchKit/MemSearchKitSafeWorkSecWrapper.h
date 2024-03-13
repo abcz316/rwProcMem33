@@ -5,7 +5,7 @@
 #include <mutex>
 #include <vector>
 #include <assert.h>
-#include "../../testKo/IMemReaderWriterProxy.h"
+#include "../../../testKo/jni/IMemReaderWriterProxy.h"
 
 #ifndef min
 #define min(a,b) (((a)<(b))?(a):(b))

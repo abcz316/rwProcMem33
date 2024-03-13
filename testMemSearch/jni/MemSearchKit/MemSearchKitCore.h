@@ -12,7 +12,7 @@
 #ifdef __linux__
 #include <unistd.h>
 #endif
-#include "../../testKo/IMemReaderWriterProxy.h"
+#include "../../../testKo/jni/IMemReaderWriterProxy.h"
 #include "MemSearchKitSafeWorkSecWrapper.h"
 #include "MemSearchKitSafeVector.h"
 #include "MemSearchKitSafeMap.h"

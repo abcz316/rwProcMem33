@@ -4,7 +4,7 @@
 #include <sys/queue.h>
 #include "porthelp.h"
 #include "context.h"
-#include "../testKo/MemoryReaderWriter37.h"
+#include "../../testKo/jni/MemoryReaderWriter37.h"
 /*
 
 #if defined(__arm__) || defined(__ANDROID__)
@@ -72,8 +72,8 @@ struct CeOpenProcess {
 	int pid;
 	uint64_t u64DriverProcessHandle;
 
-	//短时间内保留上次获取的内存Maps，避免频繁调用驱动获取
-	std::mutex mtxLockLastMaps; //访问冲突锁
+	//锟斤拷时锟斤拷锟节憋拷锟斤拷锟较次伙拷取锟斤拷锟节达拷Maps锟斤拷锟斤拷锟斤拷频锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷取
+	std::mutex mtxLockLastMaps; //锟斤拷锟绞筹拷突锟斤拷
 	std::vector<DRIVER_REGION_INFO> vLastMaps;
 	std::atomic<uint64_t> nLastGetMapsTime;
 };

@@ -7,6 +7,6 @@ LOCAL_CFLAGS += -fvisibility=hidden
 LOCAL_LDFLAGS += -fPIE -pie
 LOCAL_DISABLE_FATAL_LINKER_WARNINGS := true
 LOCAL_MODULE    := testMemSearch.out
-LOCAL_SRC_FILES :=  ../main.cpp
+LOCAL_SRC_FILES :=  testMemSearch.cpp
 
 include $(BUILD_EXECUTABLE)
