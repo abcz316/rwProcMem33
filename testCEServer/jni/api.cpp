@@ -8,10 +8,9 @@
 #include <inttypes.h>
 #include <cinttypes>
 #include "ceserver.h"
+#include "../../testKo/jni/MemoryReaderWriter37.h"
 
-CMemoryReaderWriter m_Driver;
-
-
+CMemoryReaderWriter g_driver;
 
 BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName, BOOL bUseBypassSELinuxMode) {
 	if (!lpszDevFileName) {
@@ -24,14 +23,13 @@ BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName, BOOL bUseBypassSELin
 
 	//连接驱动
 	int err = 0;
-	if (!m_Driver.ConnectDriver(lpszDevFileName, bUseBypassSELinuxMode, err)) {
+	if (!g_driver.ConnectDriver(lpszDevFileName, bUseBypassSELinuxMode, err)) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return FALSE;
 	}
 
-
-	m_Driver.SetMaxDevFileOpen(100);
+	g_driver.SetMaxDevFileOpen(100);
 	return TRUE;
 
 }
@@ -43,7 +41,7 @@ BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName, BOOL bUseBypassSELin
 //	std::vector<int> vPID;
 //	BOOL bOutListCompleted;
 //	BOOL b = pDriver->GetProcessPidList(vPID, FALSE, bOutListCompleted);
-//	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
+//	printf("Call GetProcessPidList return:%d\n", b);
 //	if (b == FALSE) {
 //		return FALSE;
 //	}
@@ -125,7 +123,7 @@ HANDLE CApi::CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID) {
 		CeProcessList * pCeProcessList = new CeProcessList();
 
 		//获取进程列表
-		GetProcessListInfo(&m_Driver, FALSE, pCeProcessList->vProcessList);
+		GetProcessListInfo(&g_driver, FALSE, pCeProcessList->vProcessList);
 
 
 		pCeProcessList->readIter = pCeProcessList->vProcessList.begin();
@@ -144,14 +142,14 @@ HANDLE CApi::CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID) {
 		uint64_t u64DriverProcessHandle = pCeOpenProcess->u64DriverProcessHandle;
 
 
-		//驱动_获取进程内存块列表（显示全部内存）
+		//驱动_获取进程内存块列表
 		std::vector<DRIVER_REGION_INFO> vMaps;
 		BOOL bOutListCompleted;
-		BOOL b = m_Driver.VirtualQueryExFull(u64DriverProcessHandle, FALSE, vMaps, bOutListCompleted);
-		printf("调用驱动 VirtualQueryExFull(显示全部内存) 返回值:%d\n", b);
-
+		BOOL b = g_driver.VirtualQueryExFull(u64DriverProcessHandle, FALSE, vMaps, bOutListCompleted);
+		printf("Call VirtualQueryExFull(FALSE) return:%d, size:%zu\n", b, vMaps.size());
+		fflush(stdout);
 		if (!vMaps.size()) {
-			printf("VirtualQueryExFull 失败\n");
+			printf("VirtualQueryExFull failed\n");
 			fflush(stdout);
 			return 0;
 		}
@@ -200,7 +198,7 @@ HANDLE CApi::CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID) {
 			}
 
 			uint32_t magic = 0;
-			BOOL b = m_Driver.ReadProcessMemory(u64DriverProcessHandle, rinfo.baseaddress, &magic, 4, NULL, FALSE);
+			BOOL b = g_driver.ReadProcessMemory(u64DriverProcessHandle, rinfo.baseaddress, &magic, 4, NULL, FALSE);
 			if (b == FALSE) {
 				//printf("%s is unreadable(%llx)\n", modulepath, start);
 				continue; //unreadable
@@ -308,14 +306,13 @@ HANDLE CApi::OpenProcess(DWORD pid) {
 	//still here, so not opened yet
 
 	//驱动_打开进程
-	uint64_t u64DriverProcessHandle = m_Driver.OpenProcess(pid);
+	uint64_t u64DriverProcessHandle = g_driver.OpenProcess(pid);
 	if (u64DriverProcessHandle == 0) {
 		return 0;
 	}
 	CeOpenProcess *pCeOpenProcess = new CeOpenProcess();
 	pCeOpenProcess->pid = pid;
 	pCeOpenProcess->u64DriverProcessHandle = u64DriverProcessHandle;
-	pCeOpenProcess->nLastGetMapsTime = 0;
 	return CPortHelper::CreateHandleFromPointer((uint64_t)pCeOpenProcess, htProcesHandle);
 }
 
@@ -337,7 +334,7 @@ void CApi::CloseHandle(HANDLE h) {
 	} else if (ht == htProcesHandle) {
 		auto pOpenProcess = (CeOpenProcess*)pl;
 
-		m_Driver.CloseHandle(pOpenProcess->u64DriverProcessHandle);
+		g_driver.CloseHandle(pOpenProcess->u64DriverProcessHandle);
 		delete pOpenProcess;
 	}
 	//else
@@ -383,32 +380,20 @@ int CApi::VirtualQueryExFull(HANDLE hProcess, uint32_t flags, std::vector<Region
 
 	vRinfo.clear();
 
-	//驱动_获取进程内存块列表（只显示在物理内存中的内存）
-	std::lock_guard<std::mutex> mtxLock(pCeOpenProcess->mtxLockLastMaps);
-	pCeOpenProcess->vLastMaps.clear();
+	//驱动_获取进程内存块列表
+	std::vector<DRIVER_REGION_INFO> vMaps;
 	BOOL bOutListCompleted;
-	m_Driver.VirtualQueryExFull(u64DriverProcessHandle, TRUE, pCeOpenProcess->vLastMaps, bOutListCompleted);
-	printf("m_Driver.VirtualQueryExFull(showPhy) :%zu\n", pCeOpenProcess->vLastMaps.size());
+	BOOL b = g_driver.VirtualQueryExFull(u64DriverProcessHandle, FALSE, vMaps, bOutListCompleted);
+	printf("Call VirtualQueryExFull(FALSE) return:%d, size:%zu\n", b, vMaps.size());
 	fflush(stdout);
-
-
-	if (!pCeOpenProcess->vLastMaps.size()) {
-		pCeOpenProcess->nLastGetMapsTime = 0;
-
-		printf("m_Driver.VirtualQueryExFull(showPhy)  failed.\n");
+	if (!vMaps.size()) {
+		printf("VirtualQueryExFull(FALSE) failed.\n");
 		fflush(stdout);
-
 		return 0;
-	} else {
-		//记录当前系统运行毫秒
-		struct timespec times = { 0, 0 };
-		clock_gettime(CLOCK_MONOTONIC, &times);
-		pCeOpenProcess->nLastGetMapsTime = times.tv_sec * 1000 + times.tv_nsec / 1000000;
-
 	}
 
 	//显示进程内存块地址列表
-	for (DRIVER_REGION_INFO rinfo : pCeOpenProcess->vLastMaps) {
+	for (const DRIVER_REGION_INFO & rinfo : vMaps) {
 		if (rinfo.protection == PAGE_NOACCESS) {
 			//此地址不可访问
 			continue;
@@ -450,45 +435,22 @@ int CApi::VirtualQueryEx(HANDLE hProcess, uint64_t lpAddress, RegionInfo & rinfo
 
 	//取出驱动进程句柄
 	uint64_t u64DriverProcessHandle = pCeOpenProcess->u64DriverProcessHandle;
-
-
-
-	//驱动_获取进程内存块列表（只显示在物理内存中的内存）
-	std::lock_guard<std::mutex> mtxLock(pCeOpenProcess->mtxLockLastMaps);
-
-	//记录当前系统运行毫秒
-	struct timespec times = { 0, 0 };
-	clock_gettime(CLOCK_MONOTONIC, &times);
-	auto nowTime = times.tv_sec * 1000 + times.tv_nsec / 1000000;
-	if ((nowTime - pCeOpenProcess->nLastGetMapsTime) > 1000 * 60) //每60秒获取一次内存列表
-	{
-		//上次的列表超时了，重新获取一份新的
-		pCeOpenProcess->vLastMaps.clear();
-		BOOL bOutListCompleted;
-		BOOL b = m_Driver.VirtualQueryExFull(u64DriverProcessHandle, TRUE, pCeOpenProcess->vLastMaps, bOutListCompleted);
-		printf("调用驱动 VirtualQueryExFull(只显示在物理内存中的内存) 返回值:%d\n", b);
+	std::vector<DRIVER_REGION_INFO> vMaps;
+	BOOL bOutListCompleted;
+	BOOL b = g_driver.VirtualQueryExFull(u64DriverProcessHandle, FALSE, vMaps, bOutListCompleted);
+	printf("Call VirtualQueryExFull(FALSE) return:%d, size:%zu\n", b, vMaps.size());
+	fflush(stdout);
+	if (!vMaps.size()) {
+		printf("VirtualQueryExFull failed\n");
 		fflush(stdout);
-
-		if (!pCeOpenProcess->vLastMaps.size()) {
-			pCeOpenProcess->nLastGetMapsTime = 0;
-			printf("VirtualQueryExFull 失败\n");
-			fflush(stdout);
-			return 0;
-		} else {
-			//记录这次列表的获取时间
-			memset(&times, 0, sizeof(times));
-			clock_gettime(CLOCK_MONOTONIC, &times);
-			pCeOpenProcess->nLastGetMapsTime = times.tv_sec * 1000 + times.tv_nsec / 1000000;
-		}
-
+		return 0;
 	}
-
 	rinfo.protection = 0;
 	rinfo.baseaddress = (uint64_t)lpAddress & ~0xfff;
 	lpAddress = (uint64_t)(rinfo.baseaddress);
 
 	//显示进程内存块地址列表
-	for (DRIVER_REGION_INFO r : pCeOpenProcess->vLastMaps) {
+	for (const DRIVER_REGION_INFO & r : vMaps) {
 		uint64_t stop = r.baseaddress + r.size;
 		if (stop > lpAddress) //we passed it
 		{
@@ -543,7 +505,7 @@ int CApi::ReadProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer, int 
 
 	//valid handle
 	//驱动_读取进程内存
-	m_Driver.ReadProcessMemory(u64DriverProcessHandle, (uint64_t)lpAddress, buffer, size, &bread, FALSE);
+	g_driver.ReadProcessMemory(u64DriverProcessHandle, (uint64_t)lpAddress, buffer, size, &bread, FALSE);
 	return (int)bread;
 }
 
@@ -565,7 +527,7 @@ int CApi::WriteProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer, int
 
 	//valid handle
 	//驱动_读取进程内存
-	m_Driver.WriteProcessMemory(u64DriverProcessHandle, (uint64_t)lpAddress, buffer, size, &written, FALSE);
+	g_driver.WriteProcessMemory(u64DriverProcessHandle, (uint64_t)lpAddress, buffer, size, &written, FALSE);
 
 	return (int)written;
 }

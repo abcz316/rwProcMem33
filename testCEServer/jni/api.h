@@ -2,9 +2,9 @@
 #include <stdint.h>
 #include <pthread.h>
 #include <sys/queue.h>
+#include <vector>
 #include "porthelp.h"
 #include "context.h"
-#include "../../testKo/jni/MemoryReaderWriter37.h"
 /*
 
 #if defined(__arm__) || defined(__ANDROID__)
@@ -59,7 +59,7 @@ struct MyProcessInfo {
 };
 
 struct CeProcessList {
-	std::vector<MyProcessInfo> vProcessList;
+	std::vector<struct MyProcessInfo> vProcessList;
 	decltype(vProcessList)::iterator readIter;
 };
 
@@ -71,11 +71,6 @@ struct CeModuleList {
 struct CeOpenProcess {
 	int pid;
 	uint64_t u64DriverProcessHandle;
-
-	//��ʱ���ڱ����ϴλ�ȡ���ڴ�Maps������Ƶ������������ȡ
-	std::mutex mtxLockLastMaps; //���ʳ�ͻ��
-	std::vector<DRIVER_REGION_INFO> vLastMaps;
-	std::atomic<uint64_t> nLastGetMapsTime;
 };
 
 class CApi {
