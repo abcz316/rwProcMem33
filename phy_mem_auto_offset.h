@@ -54,12 +54,13 @@ MY_STATIC int init_phy_total_memory_size(void) {
 #ifdef CONFIG_USE_PAGE_TABLE_CALC_PHY_ADDR
 MY_STATIC ssize_t g_pgd_offset_mm_struct = 0;
 MY_STATIC bool g_init_pgd_offset_success = false;
+
+#if MY_LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,75)
+
 MY_STATIC int init_pgd_offset(struct mm_struct *mm) {
 	int is_find_pgd_offset = 0;
-
-	g_init_pgd_offset_success = true;
+	g_init_pgd_offset_success = false;
 	for (g_pgd_offset_mm_struct = -40; g_pgd_offset_mm_struct <= 80; g_pgd_offset_mm_struct += 1) {
-		//精确偏移
 		char *rp;
 		size_t val;
 		ssize_t accurate_offset = (ssize_t)((size_t)&mm->pgd - (size_t)mm + g_pgd_offset_mm_struct);
@@ -71,23 +72,52 @@ MY_STATIC int init_pgd_offset(struct mm_struct *mm) {
 		printk_debug(KERN_EMERG "init_pgd_offset %zd:%zd:%p:%ld\n", g_pgd_offset_mm_struct, accurate_offset, rp, val);
 
 		if (val == TASK_SIZE) {
-			//找到了
-			g_pgd_offset_mm_struct += sizeof(void*) * 2; //再跳过两个变量
+			g_pgd_offset_mm_struct += sizeof(unsigned long);
 			printk_debug(KERN_EMERG "found g_init_pgd_offset_success:%zd\n", g_pgd_offset_mm_struct);
 			is_find_pgd_offset = 1;
 			break;
 		}
 	}
-
-
 	if (!is_find_pgd_offset) {
-		g_init_pgd_offset_success = false;
 		printk_debug(KERN_INFO "find pgd offset failed\n");
 		return -ESPIPE;
 	}
+	g_init_pgd_offset_success = true;
 	printk_debug(KERN_INFO "g_pgd_offset_mm_struct:%zu\n", g_pgd_offset_mm_struct);
 	return 0;
 }
+#else
+MY_STATIC int init_pgd_offset(struct mm_struct *mm) {
+	int is_find_pgd_offset = 0;
+	g_init_pgd_offset_success = false;
+	for (g_pgd_offset_mm_struct = -40; g_pgd_offset_mm_struct <= 80; g_pgd_offset_mm_struct += 1) {
+		char *rp;
+		size_t val;
+		ssize_t accurate_offset = (ssize_t)((size_t)&mm->pgd - (size_t)mm + g_pgd_offset_mm_struct);
+		if (accurate_offset >= sizeof(struct mm_struct) - sizeof(ssize_t)) {
+			return -EFAULT;
+		}
+		rp = (char*)((size_t)mm + (size_t)accurate_offset);
+		val = *(size_t*)(rp);
+		printk_debug(KERN_EMERG "init_pgd_offset %zd:%zd:%p:%ld\n", g_pgd_offset_mm_struct, accurate_offset, rp, val);
+
+		if (val == TASK_SIZE) {
+			g_pgd_offset_mm_struct += sizeof(unsigned long);
+			g_pgd_offset_mm_struct += sizeof(unsigned long);
+			printk_debug(KERN_EMERG "found g_init_pgd_offset_success:%zd\n", g_pgd_offset_mm_struct);
+			is_find_pgd_offset = 1;
+			break;
+		}
+	}
+	if (!is_find_pgd_offset) {
+		printk_debug(KERN_INFO "find pgd offset failed\n");
+		return -ESPIPE;
+	}
+	g_init_pgd_offset_success = true;
+	printk_debug(KERN_INFO "g_pgd_offset_mm_struct:%zu\n", g_pgd_offset_mm_struct);
+	return 0;
+}
+#endif
 
 MY_STATIC inline pgd_t *x_pgd_offset(struct mm_struct *mm, size_t addr) {
 	size_t pgd;

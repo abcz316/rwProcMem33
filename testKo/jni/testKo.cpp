@@ -7,7 +7,7 @@
 #include <dirent.h>
 #include <cinttypes>
 #include "MemoryReaderWriter37.h"
-#include "../testMemSearch/MapRegionType.h"
+#include "../testMemSearch/jni/MapRegionType.h"
 
 
 int main(int argc, char *argv[]) {

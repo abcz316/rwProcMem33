@@ -12,17 +12,20 @@ MY_STATIC inline int init_proc_root_offset(const char* proc_self_status_content)
 	char* lp_tmp_name = NULL;
 
 	char comm[TASK_COMM_LEN] = { 0 }; //executable name excluding path
-	char* lpFind = NULL;
+	char* lp_find_line_single = NULL;
+	const ssize_t offset_lookup_min = -100;
+	const ssize_t offset_lookup_max = 300;
+	const ssize_t min_real_cred_offset_safe = offset_lookup_min + sizeof(void*) * 3;
 
 	//有些内核没有导出get_task_comm，所以不能使用
 	//get_task_comm(comm, task);
 
-	lpFind = strchr(proc_self_status_content, '\n');
-	if (!lpFind) {
+	lp_find_line_single = strchr(proc_self_status_content, '\n');
+	if (!lp_find_line_single) {
 		return 0;
 	}
 
-	len = ((size_t)lpFind - (size_t)proc_self_status_content);
+	len = ((size_t)lp_find_line_single - (size_t)proc_self_status_content);
 	lp_tmp_line = (char*)kmalloc(len + 1, GFP_KERNEL);
 	lp_tmp_name = (char*)kmalloc(len + 1, GFP_KERNEL);
 	if (!lp_tmp_line || !lp_tmp_name) {
@@ -34,13 +37,10 @@ MY_STATIC inline int init_proc_root_offset(const char* proc_self_status_content)
 
 	printk_debug(KERN_INFO "lp_tmp_line:%s\n", lp_tmp_line);
 
-
-
-
 	sscanf(lp_tmp_line, "Name: %s", lp_tmp_name);
 	strlcpy(comm, lp_tmp_name, sizeof(comm));
 
-	printk_debug(KERN_EMERG "len:%d, comm:%s\n", strlen(comm), comm);
+	printk_debug(KERN_EMERG "len:%lu, comm:%s\n", strlen(comm), comm);
 
 
 	//
@@ -56,18 +56,32 @@ MY_STATIC inline int init_proc_root_offset(const char* proc_self_status_content)
 
 	g_init_real_cred_offset_success = false;
 
+	for (g_real_cred_offset_proc_root = offset_lookup_min; g_real_cred_offset_proc_root <= offset_lookup_max; g_real_cred_offset_proc_root++) {
 
-
-	for (g_real_cred_offset_proc_root = -100; g_real_cred_offset_proc_root <= 300; g_real_cred_offset_proc_root++) {
 		char* lpszComm = (char*)&current->real_cred;
 		lpszComm += g_real_cred_offset_proc_root;
 
-		printk_debug(KERN_EMERG " %x\n", *(unsigned char*)lpszComm);
+		printk_debug(KERN_EMERG "curent g_real_cred_offset_proc_root:%zd, bytes:%x\n", g_real_cred_offset_proc_root, *(unsigned char*)lpszComm);
 
+		if(g_real_cred_offset_proc_root < min_real_cred_offset_safe) {
+			continue;
+		}
 		if (strcmp(lpszComm, comm) == 0) {
-			g_real_cred_offset_proc_root -= sizeof(void*) * 2;
+			ssize_t maybe_real_cred_offset = g_real_cred_offset_proc_root - sizeof(void*) * 2;
+			char * p_test_mem1 = (char*)&current->real_cred + maybe_real_cred_offset;
+			char * p_test_mem2 = (char*)&current->real_cred + maybe_real_cred_offset + sizeof(void*);
+			if(memcmp(p_test_mem1, p_test_mem2, sizeof(void*)) != 0 ) {
+				maybe_real_cred_offset = g_real_cred_offset_proc_root - sizeof(void*) * 3;
+				p_test_mem1 = (char*)&current->real_cred + maybe_real_cred_offset;
+				p_test_mem2 = (char*)&current->real_cred + maybe_real_cred_offset + sizeof(void*);
+				if(memcmp(p_test_mem1, p_test_mem2, sizeof(void*)) != 0 ) {
+					break; // failed
+				}
+			}
 
-			printk_debug(KERN_EMERG "strcmp %zd\n", g_real_cred_offset_proc_root);
+			g_real_cred_offset_proc_root = maybe_real_cred_offset;
+
+			printk_debug(KERN_EMERG "strcmp found %zd\n", g_real_cred_offset_proc_root);
 
 			g_init_real_cred_offset_success = true;
 			break;

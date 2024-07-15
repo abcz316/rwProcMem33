@@ -172,6 +172,7 @@ MY_STATIC int init_map_count_offset(int proc_self_maps_cnt) {
 	return 0;
 }
 
+#if MY_LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,75)
 MY_STATIC int init_vm_file_offset(void) {
 	int is_find_vm_file_offset = 0;
 	struct mm_struct *mm;
@@ -191,7 +192,102 @@ MY_STATIC int init_vm_file_offset(void) {
 		return -4;
 	}
 
+	g_init_vm_file_offset_success = false;
+	{
+		VMA_ITERATOR(iter, mm, 0);
+		for_each_vma(iter, vma) {
+			if (is_find_vm_file_offset == 1) {
+				break;
+			}
+			for (g_vm_file_offset_proc_maps = -80; g_vm_file_offset_proc_maps <= 80; g_vm_file_offset_proc_maps += 1) {
+				char *rp;
+				size_t addr_val1;
+				size_t addr_val2;
+				unsigned long vm_pgoff;
+				ssize_t accurate_offset = (ssize_t)((size_t)&vma->vm_file - (size_t)vma + g_vm_file_offset_proc_maps);
+				/*if (accurate_offset >= sizeof(struct vm_area_struct) - sizeof(struct file *))
+				{
+					mmput(mm);
+					return -EFAULT;
+				}*/
+				rp = (char*)((size_t)vma + (size_t)accurate_offset);
+				addr_val1 = *(size_t*)(rp);
+				rp += (size_t)sizeof(void*);
+				addr_val2 = *(size_t*)(rp);
+				printk_debug(KERN_EMERG "init_vm_file_offset %zd:%zd:%p:%zu\n", g_vm_file_offset_proc_maps, accurate_offset, rp, addr_val1);
+				if (addr_val1 > 0 && addr_val2 > 0 && addr_val1 == addr_val2)
+				{
+					int vm_pgoff_offset = 0;
+					int found_vm_pgoff = 0;
+
+					printk_debug(KERN_EMERG "addr_val1 == addr_val2 %zd:%zd:%p:%zu\n", g_vm_file_offset_proc_maps, accurate_offset, rp, addr_val1);
+					rp += (size_t)sizeof(void*);
+					for (; vm_pgoff_offset < 8 * 5; vm_pgoff_offset += 4) {
+						vm_pgoff = *(unsigned long*)(rp);
+						if (vm_pgoff > 0 && vm_pgoff < 1000/*这个值是vm_pgoff我见过的最大值吧，如果最大值比1000还有大再改大*/) {
+							found_vm_pgoff = 1;
+							break;
+						}
+						rp += 4;
+					}
+					if (found_vm_pgoff) {
+						rp += (size_t)sizeof(unsigned long);
+						rp += (size_t)sizeof(struct file *);
+
+						addr_val1 = *(size_t*)(rp); //void * vm_private_data;
+						rp += (size_t)sizeof(void*);
+						addr_val2 = *(size_t*)(rp); //atomic_long_t swap_readahead_info;
+
+						if (addr_val1 == 0 && addr_val2 == 0) {
+							g_vm_file_offset_proc_maps += sizeof(void*) * 2;
+							g_vm_file_offset_proc_maps += vm_pgoff_offset;
+							g_vm_file_offset_proc_maps += sizeof(unsigned long);
+							printk_debug(KERN_EMERG "addr_val1 == addr_val2 == 0 %zd:%d\n", g_vm_file_offset_proc_maps, vm_pgoff_offset);
+							is_find_vm_file_offset = 1;
+							break;
+						}
+
+					}
+
+
+				}
+			}
+		}
+	}
+
+	up_read_mmap_lock(mm);
+	mmput(mm);
+
+	if (!is_find_vm_file_offset) {
+		printk_debug(KERN_INFO "find vm_file offset failed\n");
+		return -ESPIPE;
+	}
 	g_init_vm_file_offset_success = true;
+
+	return 0;
+}
+#else
+
+MY_STATIC int init_vm_file_offset(void) {
+	int is_find_vm_file_offset = 0;
+	struct mm_struct *mm;
+	struct vm_area_struct *vma;
+	struct task_struct * mytask = x_get_current();
+
+	if (mytask == NULL) {
+		return -EFAULT;
+	}
+	mm = get_task_mm(mytask);
+	if (!mm) {
+		return -3;
+	}
+
+	if (down_read_mmap_lock(mm) != 0) {
+		mmput(mm);
+		return -4;
+	}
+
+	g_init_vm_file_offset_success = false;
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (is_find_vm_file_offset == 1) {
 			//已经找到了
@@ -214,13 +310,13 @@ MY_STATIC int init_vm_file_offset(void) {
 			addr_val1 = *(size_t*)(rp);
 			rp += (size_t)sizeof(void*);
 			addr_val2 = *(size_t*)(rp);
-			printk_debug(KERN_EMERG "init_vm_file_offset %zd:%zd:%p:%p\n", g_vm_file_offset_proc_maps, accurate_offset, rp, addr_val1);
+			printk_debug(KERN_EMERG "init_vm_file_offset %zd:%zd:%p:%zu\n", g_vm_file_offset_proc_maps, accurate_offset, rp, addr_val1);
 			if (addr_val1 > 0 && addr_val2 > 0 && addr_val1 == addr_val2) //struct list_head anon_vma_chain;里面两个值一样
 			{
 				int vm_pgoff_offset = 0;
 				int found_vm_pgoff = 0;
 
-				printk_debug(KERN_EMERG "addr_val1 == addr_val2 %zd:%zd:%p:%p\n", g_vm_file_offset_proc_maps, accurate_offset, rp, addr_val1);
+				printk_debug(KERN_EMERG "addr_val1 == addr_val2 %zd:%zd:%p:%zu\n", g_vm_file_offset_proc_maps, accurate_offset, rp, addr_val1);
 				rp += (size_t)sizeof(void*);
 				for (; vm_pgoff_offset < 8 * 5; vm_pgoff_offset += 4) {
 					vm_pgoff = *(unsigned long*)(rp);
@@ -254,16 +350,18 @@ MY_STATIC int init_vm_file_offset(void) {
 			}
 		}
 	}
+
 	up_read_mmap_lock(mm);
 	mmput(mm);
 
-	if (!is_find_vm_file_offset) {
-		g_init_vm_file_offset_success = false;
+	if (!is_find_vm_file_offset) {	
 		printk_debug(KERN_INFO "find vm_file offset failed\n");
 		return -ESPIPE;
 	}
+	g_init_vm_file_offset_success = true;
 	return 0;
 }
+#endif
 
 MY_STATIC inline struct file * get_vm_file(struct vm_area_struct *vma) {
 	struct file * vm_file;

@@ -5,6 +5,7 @@
 #ifdef __KERNEL__
 #include "ver_control.h"
 #else
+#ifdef CONFIG_MY_CUSTOM_FILE_OPS_MODE
 #define MY_CUSTOM_FILE_OPS_MODE
 #endif
 
