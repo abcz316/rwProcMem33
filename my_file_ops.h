@@ -8,7 +8,7 @@
 #ifdef CONFIG_MY_CUSTOM_FILE_OPS_MODE
 #define MY_CUSTOM_FILE_OPS_MODE
 #endif
-
+#endif
 
 //这个结构体的大小在各大内核中老变，注意要调整偏移地址
 //kernel/include/linux/fs.h
