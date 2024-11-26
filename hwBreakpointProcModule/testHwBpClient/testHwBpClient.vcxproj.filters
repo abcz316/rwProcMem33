@@ -36,7 +36,7 @@
     <ClInclude Include="Global.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="NetworkManager.h">
+    <ClInclude Include="NetworkMgr.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="NetworkDlg.h">
@@ -59,7 +59,7 @@
     <ClCompile Include="Global.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="NetworkManager.cpp">
+    <ClCompile Include="NetworkMgr.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="NetworkDlg.cpp">

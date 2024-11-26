@@ -8,9 +8,9 @@
 #include <cinttypes>
 #include <WinSock2.h>
 #pragma comment(lib, "comsuppw.lib")
-#include "NetworkManager.h"
+#include "NetworkMgr.h"
 
-extern CNetworkManager g_NetworkManager;
+extern CNetworkMgr g_NetworkMgr;
 
 static std::string ws2s(const std::wstring& ws) {
 	_bstr_t t = ws.c_str();
@@ -86,6 +86,5 @@ static ssize_t sendall(SOCKET s, void *buf, size_t size, int flags) {
 
 	return totalsent;
 }
-
 
 #endif /* GLOBAL_H_ */

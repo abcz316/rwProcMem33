@@ -6,7 +6,7 @@ LOCAL_CFLAGS += -fPIE
 LOCAL_CFLAGS += -fvisibility=hidden
 LOCAL_LDFLAGS += -fPIE -pie
 LOCAL_DISABLE_FATAL_LINKER_WARNINGS := true
-LOCAL_MODULE    := testHwBp
-LOCAL_SRC_FILES :=  testHwBp.cpp
+LOCAL_MODULE    := testHwBpTarget
+LOCAL_SRC_FILES :=  testHwBpTarget.cpp
 
 include $(BUILD_EXECUTABLE)

@@ -5,6 +5,20 @@
 #pragma once
 #include "Global.h"
 
+enum {
+	HIT_RESULT_COL_ID = 0,
+	HIT_RESULT_COL_TIME,
+	HIT_RESULT_COL_PID,
+	HIT_RESULT_COL_TID,
+	HIT_RESULT_COL_THREAD_RANGE,
+	HIT_RESULT_COL_BP_ADDR,
+	HIT_RESULT_COL_BP_TYPE,
+	HIT_RESULT_COL_BP_LEN,
+	HIT_RESULT_COL_HIT_ADDR,
+	HIT_RESULT_COL_HIT_TOTAL_COUNT,
+	HIT_RESULT_COL_HIT_INFO,
+};
+
 // CtestHwBpClientDlg 对话框
 class CtestHwBpClientDlg : public CDialogEx {
 	// 构造
@@ -48,86 +62,17 @@ private:
 	int m_radio_type_r;
 	int m_radio_len_4;
 	int m_radio_region_all_thread;
-
-	BOOL m_checkbox_x0;
-	BOOL m_checkbox_x1;
-	BOOL m_checkbox_x2;
-	BOOL m_checkbox_x3;
-	BOOL m_checkbox_x4;
-	BOOL m_checkbox_x5;
-	BOOL m_checkbox_x6;
-	BOOL m_checkbox_x7;
-	BOOL m_checkbox_x8;
-	BOOL m_checkbox_x9;
-	BOOL m_checkbox_x10;
-	BOOL m_checkbox_x11;
-	BOOL m_checkbox_x12;
-	BOOL m_checkbox_x13;
-	BOOL m_checkbox_x14;
-	BOOL m_checkbox_x15;
-	BOOL m_checkbox_x16;
-	BOOL m_checkbox_x17;
-	BOOL m_checkbox_x18;
-	BOOL m_checkbox_x19;
-	BOOL m_checkbox_x20;
-	BOOL m_checkbox_x21;
-	BOOL m_checkbox_x22;
-	BOOL m_checkbox_x23;
-	BOOL m_checkbox_x24;
-	BOOL m_checkbox_x25;
-	BOOL m_checkbox_x26;
-	BOOL m_checkbox_x27;
-	BOOL m_checkbox_x28;
-	BOOL m_checkbox_x29;
-	BOOL m_checkbox_x30;
-	BOOL m_checkbox_sp;
-	BOOL m_checkbox_pc;
-	BOOL m_checkbox_pstate;
-	BOOL m_checkbox_orig_x0;
-	BOOL m_checkbox_syscallno;
-
-	CString m_edit_x0;
-	CString m_edit_x1;
-	CString m_edit_x2;
-	CString m_edit_x3;
-	CString m_edit_x4;
-	CString m_edit_x5;
-	CString m_edit_x6;
-	CString m_edit_x7;
-	CString m_edit_x8;
-	CString m_edit_x9;
-	CString m_edit_x10;
-	CString m_edit_x11;
-	CString m_edit_x12;
-	CString m_edit_x13;
-	CString m_edit_x14;
-	CString m_edit_x15;
-	CString m_edit_x16;
-	CString m_edit_x17;
-	CString m_edit_x18;
-	CString m_edit_x19;
-	CString m_edit_x20;
-	CString m_edit_x21;
-	CString m_edit_x22;
-	CString m_edit_x23;
-	CString m_edit_x24;
-	CString m_edit_x25;
-	CString m_edit_x26;
-	CString m_edit_x27;
-	CString m_edit_x28;
-	CString m_edit_x29;
-	CString m_edit_x30;
-	CString m_edit_sp;
-	CString m_edit_pc;
-	CString m_edit_pstate;
-	CString m_edit_orig_x0;
-	CString m_edit_syscallno;
 private:
-	void GetUserHitConditions(HIT_CONDITIONS & hitConditions);
 	int GetInputPid();
 	UINT64 GetInputAddress();
 	std::wstring GetInputAddressString();
 	uint32_t GetInputHwBpAddrLen();
 	uint32_t GetInputHwBpAddrType();
 	uint32_t GetInputHwBpKeepTimeMs();
+	std::wstring TimestampToDatetime(uint64_t timestamp);
+	BOOL PutTextToClipboard(LPCTSTR pTxtData);
+public:
+	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg void OnMenuitemCopySelected();
+	afx_msg void OnMenuitemCopyList();
 };

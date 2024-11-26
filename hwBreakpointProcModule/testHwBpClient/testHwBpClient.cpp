@@ -79,10 +79,9 @@ BOOL CtestHwBpClientApp::InitInstance() {
 	networkDlg.DoModal();
 
 	INT_PTR nResponse = 0;
-
-	if (g_NetworkManager.IsConnected()) {
+	if (g_NetworkMgr.IsConnected()) {
 		//网络连接成功，载入主窗口
-		g_NetworkManager.Disconnect();
+		g_NetworkMgr.Disconnect();
 
 		CtestHwBpClientDlg dlg;
 		m_pMainWnd = &dlg;

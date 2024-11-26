@@ -189,9 +189,6 @@ BOOL GetHwServerIP(HWND resultHwnd) {
 BOOL CNetworkDlg::OnInitDialog() {
 	CDialogEx::OnInitDialog();
 
-	// TODO:  在此添加额外的初始化
-
-
 	//初始化列表框
 	LONG lStyle;
 	lStyle = GetWindowLong(m_list_find_server.m_hWnd, GWL_STYLE);
@@ -256,7 +253,7 @@ void CNetworkDlg::OnBnClickedConnect() {
 		MessageBox(L"IP或端口不能为空");
 		return;
 	}
-	if (!g_NetworkManager.ConnectHwBpServer(ws2s(m_edit_ip.GetBuffer(0)), _wtoi(m_edit_port.GetBuffer(0)))) {
+	if (!g_NetworkMgr.ConnectHwBpServer(ws2s(m_edit_ip.GetBuffer(0)), _wtoi(m_edit_port.GetBuffer(0)))) {
 		MessageBox(L"连接失败");
 		return;
 	}

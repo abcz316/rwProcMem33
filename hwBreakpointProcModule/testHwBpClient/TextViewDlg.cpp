@@ -5,6 +5,7 @@
 #include "testHwBpClient.h"
 #include "TextViewDlg.h"
 #include "afxdialogex.h"
+#include "ScaleHelper.h"
 
 
 // CTextViewDlg 对话框
@@ -43,7 +44,7 @@ BOOL CTextViewDlg::OnInitDialog() {
 
 	UpdateData(FALSE);
 
-	m_font.CreateFont(16, 0, 0, 0, FW_EXTRABOLD, FALSE, FALSE, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS,
+	m_font.CreateFont(GetScaleWidth(16), 0, 0, 0, FW_EXTRABOLD, FALSE, FALSE, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS,
 		CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_MODERN,
 		L"新宋体");
 
