@@ -26,8 +26,8 @@ MY_STATIC inline int init_proc_root_offset(const char* proc_self_status_content)
 	}
 
 	len = ((size_t)lp_find_line_single - (size_t)proc_self_status_content);
-	lp_tmp_line = (char*)kmalloc(len + 1, GFP_KERNEL);
-	lp_tmp_name = (char*)kmalloc(len + 1, GFP_KERNEL);
+	lp_tmp_line = (char*)__kmalloc(len + 1, GFP_KERNEL);
+	lp_tmp_name = (char*)__kmalloc(len + 1, GFP_KERNEL);
 	if (!lp_tmp_line || !lp_tmp_name) {
 		return -ENOMEM;
 	}

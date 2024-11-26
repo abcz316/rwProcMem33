@@ -222,8 +222,8 @@ public:
 	}
 
 	//设置是否使用躲避SELinux的通信方式
-	void SeUseBypassSELinuxMode(BOOL bUseBypassSELinuxMode) {
-		_rwProcMemDriver_UseBypassSELinuxMode(bUseBypassSELinuxMode);
+	void SetUseBypassSELinuxMode(BOOL bUseBypassSELinuxMode) {
+		_InternalSetUseBypassSELinuxMode(bUseBypassSELinuxMode);
 	}
 
 private:
@@ -235,7 +235,7 @@ private:
 			err = m_nDriverLink;
 			return FALSE;
 		}
-		_rwProcMemDriver_UseBypassSELinuxMode(bUseBypassSELinuxMode);
+		_rwProcMemDriver_SetUseBypassSELinuxMode(bUseBypassSELinuxMode);
 		_rwProcMemDriver_InitDeviceInfo(m_nDriverLink, machineId);
 		err = 0;
 		return TRUE;
@@ -464,6 +464,12 @@ private:
 		m_nDriverLink = fd;
 #endif
 	}
+	
+	void _InternalSetUseBypassSELinuxMode(BOOL bUseBypassSELinuxMode) {
+#ifdef __linux__
+		 _rwProcMemDriver_SetUseBypassSELinuxMode(bUseBypassSELinuxMode);
+#endif
+	}
 
 #ifdef __linux__
 	int _rwProcMemDriver_MyIoctl(int fd, unsigned int cmd, unsigned long buf, unsigned long bufSize) {
@@ -507,7 +513,7 @@ private:
 		return TRUE;
 	}
 
-	void _rwProcMemDriver_UseBypassSELinuxMode(BOOL bUseBypassSELinuxMode) {
+	void _rwProcMemDriver_SetUseBypassSELinuxMode(BOOL bUseBypassSELinuxMode) {
 		m_bUseBypassSELinuxMode = bUseBypassSELinuxMode;
 	}
 

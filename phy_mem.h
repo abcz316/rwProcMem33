@@ -325,7 +325,7 @@ MY_STATIC inline size_t read_ram_physical_addr(size_t phy_addr, char* lpBuf, boo
 		printk_debug(KERN_INFO "Error in check_phys_addr_valid_range:%zu,size:%zu\n", phy_addr, read_size);
 		return 0;
 	}
-	bounce = kmalloc(PAGE_SIZE, GFP_KERNEL);
+	bounce = __kmalloc(PAGE_SIZE, GFP_KERNEL);
 	if (!bounce) {
 		return 0;
 	}

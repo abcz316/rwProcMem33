@@ -213,374 +213,388 @@ MY_STATIC ssize_t rwProcMem_write(struct file* filp, const char __user* buf, siz
 }
 
 
+MY_STATIC long OnIoctlInitDeviceInfo(unsigned long arg) {
+	size_t size = 0;
+	struct init_device_info* p_init_device_info = (struct init_device_info*)__kmalloc(sizeof(struct init_device_info), GFP_KERNEL);
+	if (!p_init_device_info) {
+		return -ENOMEM;
+	}
+	memset(p_init_device_info, 0, sizeof(struct init_device_info));
+
+	size = copy_from_user((void*)p_init_device_info, (void*)arg, sizeof(struct init_device_info));
+	if (size == 0) {
+		printk_debug(KERN_INFO "IOCTL_INIT_DEVICE_INFO\n");
+		init_mmap_lock_offset(p_init_device_info->proc_self_maps_cnt);
+		init_map_count_offset(p_init_device_info->proc_self_maps_cnt);
+		init_proc_cmdline_offset(p_init_device_info->proc_self_cmdline, get_task_proc_cmdline_addr);
+		init_proc_root_offset(p_init_device_info->proc_self_status);
+
+	}
+	kfree(p_init_device_info);
+	return size == 0  ? 0 : -EINVAL;
+}
+
+MY_STATIC long OnIoctlSetMaxOpenDevFile(unsigned long arg) {
+	char buf[8] = { 0 };
+	if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
+		size_t new_max_dev_open_count = *(size_t*)buf;
+
+		printk_debug(KERN_INFO "IOCTL_SET_MAX_OPEN_DEV_FILE\n");
+
+		printk_debug(KERN_INFO "new_max_dev_open_count:%zu,size:%ld\n", new_max_dev_open_count, sizeof(new_max_dev_open_count));
+
+		g_rwProcMem_devp->max_dev_open_count = new_max_dev_open_count;
+
+
+
+		if (g_rwProcMem_devp->cur_dev_open_count >= g_rwProcMem_devp->max_dev_open_count) {
+			if (!g_rwProcMem_devp->is_already_hide_dev_file) {
+				g_rwProcMem_devp->is_already_hide_dev_file = true;
+
+#ifdef CONFIG_USE_PROC_FILE_NODE
+				proc_remove(g_rwProcMem_devp->proc_entry);
+#endif
+#ifdef CONFIG_USE_DEV_FILE_NODE
+
+				device_destroy(g_Class_devp, g_rwProcMem_devno);
+				class_destroy(g_Class_devp);
+#endif
+			}
+
+		} else if (g_rwProcMem_devp->cur_dev_open_count < g_rwProcMem_devp->max_dev_open_count) {
+			if (g_rwProcMem_devp->is_already_hide_dev_file) {
+				g_rwProcMem_devp->is_already_hide_dev_file = false;
+
+#ifdef CONFIG_USE_PROC_FILE_NODE
+				g_rwProcMem_devp->proc_entry = proc_create(DEV_FILENAME, S_IRUGO | S_IWUGO, NULL, &rwProcMem_fops);
+#endif
+#ifdef CONFIG_USE_DEV_FILE_NODE
+				g_Class_devp = class_create(THIS_MODULE, DEV_FILENAME);
+				device_create(g_Class_devp, NULL, g_rwProcMem_devno, NULL, "%s", DEV_FILENAME);
+#endif
+			}
+		}
+		return 0;
+	}
+	return -EINVAL;
+}
+
+MY_STATIC long OnIoctlHideKernelMode(unsigned long arg) {
+	printk_debug(KERN_INFO "IOCTL_HIDE_KERNEL_MODULE\n");
+
+	if (g_rwProcMem_devp->is_already_hide_module_list == false) {
+		g_rwProcMem_devp->is_already_hide_module_list = true; 
+
+		list_del_init(&__this_module.list);
+
+		kobject_del(&THIS_MODULE->mkobj.kobj);
+	}
+	return 0;
+}
+
+MY_STATIC long OnIoctlOpenProcess(unsigned long arg) {
+	char buf[8] = { 0 };
+#ifdef CONFIG_VERIFY
+	if (o_copy_from_user((void*)buf, (void*)arg, 8) == 0)
+#else
+	if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0)
+#endif
+	{
+		uint64_t pid = *(uint64_t*)&buf;
+		struct pid * proc_pid_struct = NULL;
+
+		printk_debug(KERN_INFO "IOCTL_OPEN_PROCESS\n");
+
+		printk_debug(KERN_INFO "pid:%llu,size:%ld\n", pid, sizeof(pid));
+
+#ifdef CONFIG_VERIFY
+		proc_pid_struct = o_get_proc_pid_struct(pid);
+#else
+		proc_pid_struct = get_proc_pid_struct(pid);
+#endif
+		printk_debug(KERN_INFO "proc_pid_struct *:0x%p\n", (void*)proc_pid_struct);
+
+		if (!proc_pid_struct) {
+			return -EINVAL;
+		}
+
+		//memcpy(&buf, &proc_pid_struct, sizeof(proc_pid_struct));
+		*(size_t *)&buf[0] = (size_t)proc_pid_struct;
+
+#ifdef CONFIG_VERIFY
+		if (!!o_copy_to_user((void*)arg, (void*)buf, 8))
+#else
+		if (!!x_copy_to_user((void*)arg, (void*)buf, 8))
+#endif
+		{
+			return -EINVAL;
+		}
+		return 0;
+	}
+	return -EINVAL;
+}
+
+MY_STATIC long OnIoctlCloseProcess(unsigned long arg) {
+	char buf[8] = { 0 };
+	if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
+		struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
+		printk_debug(KERN_INFO "IOCTL_CLOSE_HANDLE\n");
+		printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
+		release_proc_pid_struct(proc_pid_struct);
+		return 0;
+	}
+	return -EFAULT;
+}
+
+MY_STATIC long OnIoctlGetProcessMapsCount(unsigned long arg) {
+	char buf[8] = { 0 };
+	if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
+		struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
+		printk_debug(KERN_INFO "IOCTL_GET_PROCESS_MAPS_COUNT\n");
+		printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
+
+		return get_proc_map_count(proc_pid_struct);
+	}
+	return -EINVAL;
+}
+
+MY_STATIC long OnIoctlGetProcessMapsList(unsigned long arg) {
+	char buf[24];
+	if (x_copy_from_user((void*)buf, (void*)arg, 24) == 0) {
+		struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
+		size_t name_len = *(size_t*)&buf[8];
+		size_t buf_size = *(size_t*)&buf[16];
+		int have_pass = 0;
+		int count = 0;
+		unsigned char ch;
+		printk_debug(KERN_INFO "IOCTL_GET_PROCESS_MAPS_LIST\n");
+		printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
+		printk_debug(KERN_INFO "name_len:%zu,size:%ld\n", name_len, sizeof(name_len));
+		printk_debug(KERN_INFO "buf_size:%zu,size:%ld\n", buf_size, sizeof(buf_size));
+
+		count = get_proc_maps_list(proc_pid_struct, name_len, (void*)((size_t)arg + (size_t)1), buf_size - 1, false, &have_pass);
+		ch = have_pass == 1 ? '\x01' : '\x00';
+		if (!!x_copy_to_user((void*)arg, &ch, 1)) {
+			return -EFAULT;
+		}
+		return count;
+	}
+	return -EINVAL;
+}
+
+MY_STATIC long OnIoctlCheckProcessAddrPhy(unsigned long arg) {
+	char buf[16] = { 0 };
+	if (x_copy_from_user((void*)buf, (void*)arg, 16) == 0) {
+		struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
+		size_t proc_virt_addr = *(size_t*)&buf[8];
+#ifdef CONFIG_USE_PAGEMAP_FILE_CALC_PHY_ADDR
+		struct file * pFile;
+#endif
+
+#ifdef CONFIG_USE_PAGE_TABLE_CALC_PHY_ADDR
+		pte_t *pte;
+#endif
+		size_t ret = 0;
+
+		printk_debug(KERN_INFO "IOCTL_CHECK_PROC_ADDR_PHY\n");
+
+		printk_debug(KERN_INFO "proc_pid_struct *:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
+
+		printk_debug(KERN_INFO "proc_virt_addr :0x%zx,size:%ld\n", proc_virt_addr, sizeof(proc_virt_addr));
+
+#ifdef CONFIG_USE_PAGEMAP_FILE_CALC_PHY_ADDR
+		pFile = open_pagemap(get_proc_pid(proc_pid_struct));
+		printk_debug(KERN_INFO "open_pagemap %p\n", pFile);
+		if (!pFile) { break; }
+		ret = get_pagemap_phy_addr(pFile, proc_virt_addr);
+		close_pagemap(pFile);
+#endif
+
+#ifdef CONFIG_USE_PAGE_TABLE_CALC_PHY_ADDR
+		ret = get_proc_phy_addr(proc_pid_struct, proc_virt_addr, (pte_t*)&pte);
+#endif
+
+		if (ret) {
+			return 1;
+		}
+		return 0;
+	}
+	return -EFAULT;
+
+}
+
+MY_STATIC long OnIoctlGetProcessPidList(unsigned long arg) {
+	char buf[9] = { 0 };
+	if (x_copy_from_user((void*)buf, (void*)arg, 9) == 0) {
+		uint64_t buf_size = *(uint64_t*)&buf;
+		bool is_speed_mode = buf[8] == '\x01' ? true : false;
+		ssize_t proc_count = 0;
+		printk_debug(KERN_INFO "IOCTL_GET_PROCESS_PID_LIST\n");
+		printk_debug(KERN_INFO "buf_size:%llu,size:%ld\n", buf_size, sizeof(buf_size));
+		printk_debug(KERN_INFO "is_speed_mode:%d,size:%ld\n", is_speed_mode, sizeof(is_speed_mode));
+
+		proc_count = get_proc_pid_list(!is_speed_mode, (char*)arg, buf_size, false);
+		return proc_count;
+	}
+	return -EFAULT;
+}
+
+MY_STATIC long OnIoctlGetProcessGroup(unsigned long arg) {
+	char buf[64] = { 0 };
+	if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
+		int res = 0;
+		struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
+		size_t nOutUID = 0;
+		size_t nOutSUID = 0;
+		size_t nOutEUID = 0;
+		size_t nOutFSUID = 0;
+		size_t nOutGID = 0;
+		size_t nOutSGID = 0;
+		size_t nOutEGID = 0;
+		size_t nOutFSGID = 0;
+
+		printk_debug(KERN_INFO "IOCTL_GET_PROCESS_GROUP\n");
+
+		printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
+
+		memset(buf, 0, 8);
+
+		res = get_proc_group(
+			proc_pid_struct,
+			&nOutUID,
+			&nOutSUID,
+			&nOutEUID,
+			&nOutFSUID,
+			&nOutGID,
+			&nOutSGID,
+			&nOutEGID,
+			&nOutFSGID);
+
+		*(size_t*)&buf[0] = nOutUID;
+		*(size_t*)&buf[8] = nOutSUID;
+		*(size_t*)&buf[16] = nOutEUID;
+		*(size_t*)&buf[24] = nOutFSUID;
+		*(size_t*)&buf[32] = nOutGID;
+		*(size_t*)&buf[40] = nOutSGID;
+		*(size_t*)&buf[48] = nOutEGID;
+		*(size_t*)&buf[56] = nOutFSGID;
+
+		if (!!x_copy_to_user((void*)arg, &buf, sizeof(buf)))
+		{
+			return -EINVAL;
+		}
+		return res;
+	}
+	return -EFAULT;
+}
+
+MY_STATIC long OnIoctlSetProcessRoot(unsigned long arg) {
+	char buf[8] = { 0 };
+	if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
+		struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
+		printk_debug(KERN_INFO "IOCTL_SET_PROCESS_ROOT\n");
+		printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
+		return set_proc_root(proc_pid_struct);
+	}
+	return -EFAULT;
+}
+
+MY_STATIC long OnIoctlGetProcessRss(unsigned long arg) {
+	char buf[8] = { 0 };
+	if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
+		struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
+		size_t rss;
+		printk_debug(KERN_INFO "IOCTL_GET_PROCESS_RSS\n");
+
+		printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
+
+		memset(&buf, 0, 8);
+		rss = read_proc_rss_size(proc_pid_struct);
+		memcpy((void*)buf, &rss, 8);
+
+		if (!!x_copy_to_user((void*)arg, &buf, 8)) {
+			return -EINVAL;
+		}
+		return 0;
+	}
+	return -EINVAL;
+}
+
+MY_STATIC long OnIoctlGetProcessCmdlineAddr(unsigned long arg) {
+	char buf[16] = { 0 };
+	if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
+		struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
+		size_t arg_start = 0, arg_end = 0;
+		int res;
+
+		printk_debug(KERN_INFO "IOCTL_GET_PROCESS_CMDLINE_ADDR\n");
+
+		printk_debug(KERN_INFO "proc_pid_struct *:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
+
+		memset(&buf, 0, 16);
+
+		res = get_proc_cmdline_addr(proc_pid_struct, &arg_start, &arg_end);
+
+		memcpy((void*)buf, &arg_start, 8);
+		memcpy((void*)((size_t)buf + (size_t)8), &arg_end, 8);
+		if (!!x_copy_to_user((void*)arg, &buf, 16))
+		{
+			return -EINVAL;
+		}
+
+		return res;
+	}
+
+	return -EINVAL;
+}
 
 MY_STATIC inline long DispatchCommand(unsigned int cmd, unsigned long arg) {
 
 	switch (cmd) {
 	case IOCTL_INIT_DEVICE_INFO:
-	{
-		size_t size = 0;
-		struct init_device_info* p_init_device_info = (struct init_device_info*)kmalloc(sizeof(struct init_device_info), GFP_KERNEL);
-		if (!p_init_device_info) {
-			return -ENOMEM;
-			break;
-		}
-		memset(p_init_device_info, 0, sizeof(struct init_device_info));
-
-		size = copy_from_user((void*)p_init_device_info, (void*)arg, sizeof(struct init_device_info));
-		if (size == 0) {
-			printk_debug(KERN_INFO "IOCTL_INIT_DEVICE_INFO\n");
-			init_mmap_lock_offset(p_init_device_info->proc_self_maps_cnt);
-			init_map_count_offset(p_init_device_info->proc_self_maps_cnt);
-			init_proc_cmdline_offset(p_init_device_info->proc_self_cmdline, get_task_proc_cmdline_addr);
-			init_proc_root_offset(p_init_device_info->proc_self_status);
-
-		}
-		kfree(p_init_device_info);
-
-		return size == 0  ? 0 : -EINVAL;
-		break;
-	}
-	case IOCTL_SET_MAX_DEV_FILE_OPEN:
-	{
-		char buf[8] = { 0 };
-		if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
-			size_t new_max_dev_open_count = *(size_t*)buf;
-
-			printk_debug(KERN_INFO "IOCTL_SET_MAX_DEV_FILE_OPEN\n");
-
-			printk_debug(KERN_INFO "new_max_dev_open_count:%zu,size:%ld\n", new_max_dev_open_count, sizeof(new_max_dev_open_count));
-
-			g_rwProcMem_devp->max_dev_open_count = new_max_dev_open_count;
-
-
-
-			if (g_rwProcMem_devp->cur_dev_open_count >= g_rwProcMem_devp->max_dev_open_count) {
-				if (!g_rwProcMem_devp->is_already_hide_dev_file) {
-					g_rwProcMem_devp->is_already_hide_dev_file = true;
-
-#ifdef CONFIG_USE_PROC_FILE_NODE
-					proc_remove(g_rwProcMem_devp->proc_entry);
-#endif
-#ifdef CONFIG_USE_DEV_FILE_NODE
-					device_destroy(g_Class_devp, g_rwProcMem_devno);
-					class_destroy(g_Class_devp);
-#endif
-				}
-
-			} else if (g_rwProcMem_devp->cur_dev_open_count < g_rwProcMem_devp->max_dev_open_count) {
-				if (g_rwProcMem_devp->is_already_hide_dev_file) {
-					g_rwProcMem_devp->is_already_hide_dev_file = false;
-
-#ifdef CONFIG_USE_PROC_FILE_NODE
-					g_rwProcMem_devp->proc_entry = proc_create(DEV_FILENAME, S_IRUGO | S_IWUGO, NULL, &rwProcMem_fops);
-#endif
-#ifdef CONFIG_USE_DEV_FILE_NODE
-					g_Class_devp = class_create(THIS_MODULE, DEV_FILENAME);
-					device_create(g_Class_devp, NULL, g_rwProcMem_devno, NULL, "%s", DEV_FILENAME); //创建设备文件
-#endif
-				}
-
-			}
-			return 0;
-		}
-		return -EINVAL;
-
-		break;
-	}
+		printk_debug(KERN_INFO "IOCTL_INIT_DEVICE_INFO\n");
+		return OnIoctlInitDeviceInfo(arg);
+	case IOCTL_SET_MAX_OPEN_DEV_FILE:
+		printk_debug(KERN_INFO "IOCTL_SET_MAX_OPEN_DEV_FILE\n");
+		return OnIoctlSetMaxOpenDevFile(arg);
 	case IOCTL_HIDE_KERNEL_MODULE:
-	{
 		printk_debug(KERN_INFO "IOCTL_HIDE_KERNEL_MODULE\n");
-
-		if (g_rwProcMem_devp->is_already_hide_module_list == false) {
-			g_rwProcMem_devp->is_already_hide_module_list = true;
-
-			list_del_init(&__this_module.list);
-
-			kobject_del(&THIS_MODULE->mkobj.kobj);
-		}
-		return 0;
-
-		break;
-	}
+		return OnIoctlHideKernelMode(arg);
 	case IOCTL_OPEN_PROCESS:
-	{
-		char buf[8] = { 0 };
-		if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0)
-		{
-			uint64_t pid = *(uint64_t*)&buf;
-			struct pid * proc_pid_struct = NULL;
-
-			printk_debug(KERN_INFO "IOCTL_OPEN_PROCESS\n");
-
-			printk_debug(KERN_INFO "pid:%llu,size:%ld\n", pid, sizeof(pid));
-
-			proc_pid_struct = get_proc_pid_struct(pid);
-			printk_debug(KERN_INFO "proc_pid_struct *:0x%p\n", (void*)proc_pid_struct);
-
-			if (!proc_pid_struct) {
-				return -EINVAL;
-			}
-
-			//memcpy(&buf, &proc_pid_struct, sizeof(proc_pid_struct));
-			*(size_t *)&buf[0] = (size_t)proc_pid_struct;
-
-			if (!!x_copy_to_user((void*)arg, (void*)buf, 8))
-			{
-				return -EINVAL;
-			}
-
-			return 0;
-
-		}
-
-		return -EINVAL;
-
-		break;
-	}
+		printk_debug(KERN_INFO "IOCTL_HWBP_OPEN_PROCESS\n");
+		return OnIoctlOpenProcess(arg);
 	case IOCTL_CLOSE_HANDLE:
-	{
-		char buf[8] = { 0 };
-		if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
-			struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
-			printk_debug(KERN_INFO "IOCTL_CLOSE_HANDLE\n");
-
-			printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
-
-			release_proc_pid_struct(proc_pid_struct);
-
-			return 0;
-
-		}
-		return -EFAULT;
-		break;
-	}
+		printk_debug(KERN_INFO "IOCTL_CLOSE_HANDLE\n");
+		return OnIoctlCloseProcess(arg);
 	case IOCTL_GET_PROCESS_MAPS_COUNT:
-	{
-		char buf[8] = { 0 };
-		if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
-			struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
-
-			printk_debug(KERN_INFO "IOCTL_GET_PROCESS_MAPS_COUNT\n");
-			printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
-
-			return get_proc_map_count(proc_pid_struct);
-		}
-		return -EINVAL;
-		break;
-	}
+		printk_debug(KERN_INFO "IOCTL_GET_PROCESS_MAPS_COUNT\n");
+		return OnIoctlGetProcessMapsCount(arg);
 	case IOCTL_GET_PROCESS_MAPS_LIST:
-	{
-		char buf[24];
-		if (x_copy_from_user((void*)buf, (void*)arg, 24) == 0) {
-			struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
-			size_t name_len = *(size_t*)&buf[8];
-			size_t buf_size = *(size_t*)&buf[16];
-			int have_pass = 0;
-			int count = 0;
-			unsigned char ch;
-			printk_debug(KERN_INFO "IOCTL_GET_PROCESS_MAPS_LIST\n");
-			printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
-			printk_debug(KERN_INFO "name_len:%zu,size:%ld\n", name_len, sizeof(name_len));
-			printk_debug(KERN_INFO "buf_size:%zu,size:%ld\n", buf_size, sizeof(buf_size));
-
-			count = get_proc_maps_list(proc_pid_struct, name_len, (void*)((size_t)arg + (size_t)1), buf_size - 1, false, &have_pass);
-			ch = have_pass == 1 ? '\x01' : '\x00';
-			if (!!x_copy_to_user((void*)arg, &ch, 1)) {
-				return -EFAULT;
-			}
-			return count;
-
-
-		}
-		return -EINVAL;
-		break;
-	}
+		printk_debug(KERN_INFO "IOCTL_GET_PROCESS_MAPS_LIST\n");
+		return OnIoctlGetProcessMapsList(arg);
 	case IOCTL_CHECK_PROCESS_ADDR_PHY:
-	{
-		char buf[16] = { 0 };
-		if (x_copy_from_user((void*)buf, (void*)arg, 16) == 0) {
-			struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
-			size_t proc_virt_addr = *(size_t*)&buf[8];
-#ifdef CONFIG_USE_PAGEMAP_FILE_CALC_PHY_ADDR
-			struct file * pFile;
-#endif
-
-#ifdef CONFIG_USE_PAGE_TABLE_CALC_PHY_ADDR
-			pte_t *pte;
-#endif
-			size_t ret = 0;
-
-			printk_debug(KERN_INFO "IOCTL_CHECK_PROC_ADDR_PHY\n");
-			printk_debug(KERN_INFO "proc_pid_struct *:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
-			printk_debug(KERN_INFO "proc_virt_addr :0x%zx,size:%ld\n", proc_virt_addr, sizeof(proc_virt_addr));
-
-#ifdef CONFIG_USE_PAGEMAP_FILE_CALC_PHY_ADDR
-			pFile = open_pagemap(get_proc_pid(proc_pid_struct));
-			printk_debug(KERN_INFO "open_pagemap %p\n", pFile);
-			if (!pFile) { break; }
-			ret = get_pagemap_phy_addr(pFile, proc_virt_addr);
-			close_pagemap(pFile);
-#endif
-
-#ifdef CONFIG_USE_PAGE_TABLE_CALC_PHY_ADDR
-			ret = get_proc_phy_addr(proc_pid_struct, proc_virt_addr, (pte_t*)&pte);
-#endif
-
-			if (ret) {
-				return 1;
-			}
-			return 0;
-		}
-		return -EFAULT;
-
-		break;
-	}
-
-
+		printk_debug(KERN_INFO "IOCTL_CHECK_PROCESS_ADDR_PHY\n");
+		return OnIoctlCheckProcessAddrPhy(arg);
 	case IOCTL_GET_PROCESS_PID_LIST:
-	{
-		char buf[9] = { 0 };
-		if (x_copy_from_user((void*)buf, (void*)arg, 9) == 0) {
-			uint64_t buf_size = *(uint64_t*)&buf;
-			bool is_speed_mode = buf[8] == '\x01' ? true : false;
-			ssize_t proc_count = 0;
-			printk_debug(KERN_INFO "IOCTL_GET_PROCESS_PID_LIST\n");
-
-			printk_debug(KERN_INFO "buf_size:%llu,size:%ld\n", buf_size, sizeof(buf_size));
-
-			printk_debug(KERN_INFO "is_speed_mode:%d,size:%ld\n", is_speed_mode, sizeof(is_speed_mode));
-
-			proc_count = get_proc_pid_list(!is_speed_mode, (char*)arg, buf_size, false);
-			return proc_count;
-		}
-		return -EFAULT;
-		break;
-	}
+		printk_debug(KERN_INFO "IOCTL_CHECK_PROCESS_PID_LIST\n");
+		return OnIoctlGetProcessPidList(arg);
 	case IOCTL_GET_PROCESS_GROUP:
-	{
-
-		char buf[64] = { 0 };
-		if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
-			int res = 0;
-			struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
-			size_t nOutUID = 0;
-			size_t nOutSUID = 0;
-			size_t nOutEUID = 0;
-			size_t nOutFSUID = 0;
-			size_t nOutGID = 0;
-			size_t nOutSGID = 0;
-			size_t nOutEGID = 0;
-			size_t nOutFSGID = 0;
-
-			printk_debug(KERN_INFO "IOCTL_GET_PROCESS_GROUP\n");
-
-			printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
-
-			memset(buf, 0, 8);
-
-			res = get_proc_group(
-				proc_pid_struct,
-				&nOutUID,
-				&nOutSUID,
-				&nOutEUID,
-				&nOutFSUID,
-				&nOutGID,
-				&nOutSGID,
-				&nOutEGID,
-				&nOutFSGID);
-
-			*(size_t*)&buf[0] = nOutUID;
-			*(size_t*)&buf[8] = nOutSUID;
-			*(size_t*)&buf[16] = nOutEUID;
-			*(size_t*)&buf[24] = nOutFSUID;
-			*(size_t*)&buf[32] = nOutGID;
-			*(size_t*)&buf[40] = nOutSGID;
-			*(size_t*)&buf[48] = nOutEGID;
-			*(size_t*)&buf[56] = nOutFSGID;
-
-			if (!!x_copy_to_user((void*)arg, &buf, sizeof(buf)))
-			{
-				return -EINVAL;
-			}
-			return res;
-		}
-		return -EFAULT;
-		break;
-	}
+		printk_debug(KERN_INFO "IOCTL_GET_PROCESS_GROUP\n");
+		return OnIoctlGetProcessGroup(arg);
 	case IOCTL_SET_PROCESS_ROOT:
-	{
-		char buf[8] = { 0 };
-		if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
-			struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
-			printk_debug(KERN_INFO "IOCTL_SET_PROCESS_ROOT\n");
-			printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
-			return set_proc_root(proc_pid_struct);
-		}
-		return -EFAULT;
-		break;
-	}
+		printk_debug(KERN_INFO "IOCTL_SET_PROCESS_ROOT\n");
+		return OnIoctlSetProcessRoot(arg);
 	case IOCTL_GET_PROCESS_RSS:
-	{
-		char buf[8] = { 0 };
-		if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
-			struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
-			size_t rss;
-			printk_debug(KERN_INFO "IOCTL_GET_PROCESS_RSS\n");
-			printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
-
-			memset(&buf, 0, 8);
-			rss = read_proc_rss_size(proc_pid_struct);
-			memcpy((void*)buf, &rss, 8);
-
-			if (!!x_copy_to_user((void*)arg, &buf, 8))
-			{
-				return -EINVAL;
-			}
-			return 0;
-		}
-		return -EINVAL;
-
-		break;
-	}
+		printk_debug(KERN_INFO "IOCTL_GET_PROCESS_RSS\n");
+		return OnIoctlGetProcessRss(arg);
 	case IOCTL_GET_PROCESS_CMDLINE_ADDR:
-	{
-		char buf[16] = { 0 };
-		if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
-			struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
-			size_t arg_start = 0, arg_end = 0;
-			int res;
-
-			printk_debug(KERN_INFO "IOCTL_GET_PROCESS_CMDLINE_ADDR\n");
-
-			printk_debug(KERN_INFO "proc_pid_struct *:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
-
-			memset(&buf, 0, 16);
-
-			res = get_proc_cmdline_addr(proc_pid_struct, &arg_start, &arg_end);
-
-			memcpy((void*)buf, &arg_start, 8);
-			memcpy((void*)((size_t)buf + (size_t)8), &arg_end, 8);
-			if (!!x_copy_to_user((void*)arg, &buf, 16))
-			{
-				return -EINVAL;
-			}
-
-			return res;
-		}
-
-		return -EINVAL;
-
-
-		break;
-	}
+		printk_debug(KERN_INFO "IOCTL_GET_PROCESS_CMDLINE_ADDR\n");
+		return OnIoctlGetProcessCmdlineAddr(arg);
 	default:
 		return -EINVAL;
 	}
 	return -EINVAL;
-
 }
-
 
 
 //MY_STATIC long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);
@@ -610,7 +624,7 @@ int __init rwProcMem_dev_init(void) {
 	int result;
 	printk(KERN_EMERG "Start init.\n");
 	
-	g_rwProcMem_devp = kmalloc(sizeof(struct rwProcMemDev), GFP_KERNEL);
+	g_rwProcMem_devp = __kmalloc(sizeof(struct rwProcMemDev), GFP_KERNEL);
 	if (!g_rwProcMem_devp) {
 		result = -ENOMEM;
 		goto _fail;
@@ -637,7 +651,7 @@ int __init rwProcMem_dev_init(void) {
 		return result;
 	}
 
-	g_rwProcMem_devp->pcdev = kmalloc(sizeof(struct cdev) * 3, GFP_KERNEL);
+	g_rwProcMem_devp->pcdev = __kmalloc(sizeof(struct cdev) * 3, GFP_KERNEL);
 	cdev_init(g_rwProcMem_devp->pcdev, (struct file_operations*)&rwProcMem_fops);
 	g_rwProcMem_devp->pcdev->owner = THIS_MODULE;
 	g_rwProcMem_devp->pcdev->ops = (struct file_operations*)&rwProcMem_fops;

@@ -14,7 +14,7 @@
 #include <linux/uaccess.h>
 #include <linux/kernel.h>
 #include <linux/version.h>
-#include <linux/slab.h> //kmalloc与kfree
+#include <linux/slab.h>
 
 #include "api_proxy.h"
 #include "my_file_ops.h"
@@ -38,10 +38,10 @@
 #define MAJOR_NUM 100
 
 #define IOCTL_INIT_DEVICE_INFO				_IOWR(MAJOR_NUM, 0, char*) //传入设备信息
-#define IOCTL_SET_MAX_DEV_FILE_OPEN			_IOWR(MAJOR_NUM, 1, char*) //设置驱动设备接口文件允许同时被使用的最大值
+#define IOCTL_SET_MAX_OPEN_DEV_FILE			_IOWR(MAJOR_NUM, 1, char*) //设置驱动设备接口文件允许同时被使用的最大值
 #define IOCTL_HIDE_KERNEL_MODULE			_IOWR(MAJOR_NUM, 2, char*) //隐藏驱动（卸载驱动需重启机器）
 #define IOCTL_OPEN_PROCESS 					_IOWR(MAJOR_NUM, 3, char*) //打开进程
-#define IOCTL_CLOSE_HANDLE 					_IOWR(MAJOR_NUM, 4, char*) //关闭进程
+#define IOCTL_CLOSE_PROCESS 					_IOWR(MAJOR_NUM, 4, char*) //关闭进程
 #define IOCTL_GET_PROCESS_MAPS_COUNT		_IOWR(MAJOR_NUM, 5, char*) //获取进程的内存块地址数量
 #define IOCTL_GET_PROCESS_MAPS_LIST			_IOWR(MAJOR_NUM, 6, char*) //获取进程的内存块地址列表
 #define IOCTL_CHECK_PROCESS_ADDR_PHY		_IOWR(MAJOR_NUM, 7, char*) //检查进程内存是否有物理内存位置

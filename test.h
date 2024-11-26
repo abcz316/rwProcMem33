@@ -101,7 +101,7 @@
 //
 //
 //MY_STATIC void test5(void) {
-//	int *pid = kmalloc(sizeof(int) * 100, GFP_KERNEL);
+//	int *pid = __kmalloc(sizeof(int) * 100, GFP_KERNEL);
 //	int i = 0;
 //	int count = get_proc_pid_list(false, (char*)pid, sizeof(int) * 100, true);
 //	printk(KERN_INFO "test5 count:%d\n", count);

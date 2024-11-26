@@ -25,7 +25,7 @@ MY_STATIC inline int init_proc_cmdline_offset(const char* proc_self_cmdline_cont
 		return -EFAULT;
 	}
 
-	new_cmd_line_buf = (char*)kmalloc(size, GFP_KERNEL);
+	new_cmd_line_buf = (char*)__kmalloc(size, GFP_KERNEL);
 	g_init_arg_start_offset_success = true;
 	for (g_arg_start_offset_proc_cmdline = -64; g_arg_start_offset_proc_cmdline <= 64; g_arg_start_offset_proc_cmdline += 1) {
 		size_t arg_start = 0, arg_end = 0;

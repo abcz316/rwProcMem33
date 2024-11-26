@@ -19,7 +19,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 //实现
 //////////////////////////////////////////////////////////////////////////
 #include <linux/err.h>
-#include <linux/slab.h> //kmalloc与kfree
+#include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/limits.h>
 #include <linux/dcache.h>
