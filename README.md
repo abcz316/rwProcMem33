@@ -40,7 +40,7 @@
 > **hwBreakpointProcModule**：硬件断点进程调试驱动
 >>* **hwBreakpointProc_module**：（*内核层*）驱动源码
 >>* **testHwBp**：（*应用层*）调用驱动demo
->>* **testHwBpTarget**t：（*应用层*）硬件断点第三方进程demo
+>>* **testHwBpTarget**：（*应用层*）硬件断点第三方进程demo
 >>* **testHwBpClient**：（*应用层*）硬件断点工具之远程客户端
 >>* **testHwBpServer**：（*应用层*）硬件断点工具之远程服务端
 
