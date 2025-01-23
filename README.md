@@ -1,4 +1,4 @@
-# 驱动名称：Linux ARM64内核硬件进程内存读写驱动37
+# 驱动1名称：Linux ARM64内核硬件进程内存读写驱动37
 本驱动支持所有能解锁BL的手机，无论小米、黑鲨、红魔、ROG、一加、三星、摩托罗拉等等，并且不需要手机厂商开放内核源码。只需要手动修改五六处地方，就可以跑在任意机型的内核上！具体修改过程不再本文章的论述中。本文章仅提供驱动源代码。
 
 ### 本驱动接口列表：
@@ -16,7 +16,7 @@
 12. 驱动_获取进程命令行: GetProcessCmdline
 
 
-# 驱动名称: Linux ARM64内核硬件断点进程调试驱动3
+# 驱动2名称: Linux ARM64内核硬件断点进程调试驱动3
 ### 本驱动接口列表：
 1.  驱动_打开进程: OpenProcess
 2.  驱动_关闭进程: CloseHandle
@@ -29,10 +29,25 @@
 9.  驱动_读取硬件断点命中信息: ReadHwBpInfo
 
 ## 目录说明：
-  * **rwProcMem33Module**：（*内核层*）进程内存读写驱动
-  * **hwBreakpointProcModule**： （*内核层*）硬件断点进程调试驱动
-  * **testKo**：（*应用层*）调用驱动demo
-  * **testTarge**t：（*应用层*）读取目标进程demo
-  * **testMemSearch**：（*应用层*）搜索进程内存demo
-  * **testDumpMem**：（*应用层*）保存目标内存demo
-  * **testCEServer**：（*应用层*）CheatEngine远程服务器，可配合CheatEngine7.1远程连接使用。
+> **rwProcMem33Module**：进程内存读写驱动
+>>* **rwProcMem_module**：（*内核层*）驱动源码
+>>* **testKo**：（*应用层*）调用驱动demo
+>>* **testTarge**t：（*应用层*）读取第三方进程demo
+>>* **testMemSearch**：（*应用层*）搜索第三方进程内存demo
+>>* **testDumpMem**：（*应用层*）保存第三方进程内内存demo
+>>* **testCEServer**：（*应用层*）CheatEngine远程服务器，可配合CheatEngine7.1远程连接使用
+
+> **hwBreakpointProcModule**：硬件断点进程调试驱动
+>>* **hwBreakpointProc_module**：（*内核层*）驱动源码
+>>* **testHwBp**：（*应用层*）调用驱动demo
+>>* **testHwBpTarget**t：（*应用层*）硬件断点第三方进程demo
+>>* **testHwBpClient**：（*应用层*）硬件断点工具之远程客户端
+>>* **testHwBpServer**：（*应用层*）硬件断点工具之远程服务端
+
+## 更新日志（2024-10）：
+1.支持Linux5.10、6.1
+
+2.修复硬件断点卡死
+
+3.修复搜索Kit的一些bug
+
