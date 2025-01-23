@@ -13,32 +13,40 @@
 
 using namespace MemorySearchKit;
 
+
 int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver) {
 	int nTargetPid = 0;
+	DIR* dir = NULL;
+	struct dirent* ptr = NULL;
 
-	//驱动_获取进程PID列表
-	std::vector<int> vPID;
-	BOOL bOutListCompleted;
-	BOOL b = pDriver->GetProcessPidList(vPID, FALSE, bOutListCompleted);
-	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
+	dir = opendir("/proc");
+	if (dir) {
+		while ((ptr = readdir(dir)) != NULL) { // 循环读取路径下的每一个文件/文件夹
+			// 如果读取到的是"."或者".."则跳过，读取到的不是文件夹名字也跳过
+			if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0)) {
+				continue;
+			} else if (ptr->d_type != DT_DIR) {
+				continue;
+			} else if (strspn(ptr->d_name, "1234567890") != strlen(ptr->d_name)) {
+				continue;
+			}
 
-	//打印进程列表信息
-	for (int pid : vPID) {
-		//驱动_打开进程
-		uint64_t hProcess = pDriver->OpenProcess(pid);
-		if (!hProcess) { continue; }
+			int pid = atoi(ptr->d_name);
 
-		//驱动_获取进程命令行
-		char cmdline[100] = { 0 };
-		pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
+			uint64_t hProcess = pDriver->OpenProcess(pid);
+			if (!hProcess) { continue; }
 
-		//驱动_关闭进程
-		pDriver->CloseHandle(hProcess);
+			char cmdline[200] = { 0 };
+			pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
 
-		if (strcmp(lpszCmdline, cmdline) == 0) {
-			nTargetPid = pid;
-			break;
+			pDriver->CloseHandle(hProcess);
+
+			if (strcmp(lpszCmdline, cmdline) == 0) {
+				nTargetPid = pid;
+				break;
+			}
 		}
+		closedir(dir);
 	}
 	return nTargetPid;
 }
@@ -137,6 +145,20 @@ void normal_val_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, size_t
 			vErrorList);
 	}
 
+	//减少添加的地址
+	std::vector<ADDR_RESULT_INFO> vTmpResultList;
+	vTmpResultList.assign(vSearchResult.begin(), vSearchResult.end());
+	for (auto& item : vSearchResult) {
+		int offset = 952 + 20;
+		if (item.addr < offset) {
+			continue;
+		}
+		item.addr -= offset;
+		vTmpResultList.push_back(item);
+	}
+	vSearchResult.clear();
+	vSearchResult.assign(vTmpResultList.begin(), vTmpResultList.end());
+
 	size_t count = 0;
 	for (size_t i = 0; i < vSearchResult.size(); i++) {
 
@@ -153,28 +175,30 @@ void normal_val_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, size_t
 	if (vSearchResult.size()) {
 		printf("第一个地址为:%p\n", (void*)vSearchResult.at(0).addr);
 	}
-}
 
+}
 //演示多线程正向遍历
 void loop_search(CMemoryReaderWriter *pRwDriver, uint64_t hProcess, size_t nWorkThreadCount) {
 
-
 	//获取进程内存块地址列表
 	const char * targetModuleName = "libxxx.so";
-	std::vector<DRIVER_REGION_INFO> vModuleList;
-	GetMemModuleDataAreaSection(pRwDriver, 1, targetModuleName, vModuleList);
+	std::vector<DRIVER_REGION_INFO> vDataList;
+	GetMemModuleDataAreaSection(pRwDriver, 1, targetModuleName, vDataList);
 
-	DRIVER_REGION_INFO execStart;
-	GetMemModuleExecStartAddr(pRwDriver, 1, targetModuleName, execStart);
-	if (!execStart.baseaddress) {
+	std::vector<DRIVER_REGION_INFO> vExecList;
+	GetModuleExecAreaSection(pRwDriver, 1, targetModuleName, vExecList);
+	if (vExecList.size() == 0) {
 		printf("GetMemModuleStartAddr失败");
 		return;
 	}
-	uint64_t execStartAddr = execStart.baseaddress;
+	uint64_t execStartAddr = vExecList[0].baseaddress;
 
 	//整理需要工作的内存区域
 	std::shared_ptr<MemSearchSafeWorkSecWrapper> spWorkMemWrapper = std::make_shared<MemSearchSafeWorkSecWrapper>();
-	for (auto & item : vModuleList) {
+	for (auto & item : vDataList) {
+		spWorkMemWrapper->push_back(item.baseaddress, item.size, 0, item.size);
+	}
+	for (auto & item : vExecList) {
 		spWorkMemWrapper->push_back(item.baseaddress, item.size, 0, item.size);
 	}
 	if (!spWorkMemWrapper->normal_block_count()) {
@@ -642,7 +666,6 @@ int main(int argc, char *argv[]) {
 		fflush(stdout);
 		return 0;
 	}
-
 
 
 	//获取目标进程PID

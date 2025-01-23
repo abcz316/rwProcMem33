@@ -8,7 +8,7 @@ namespace MemorySearchKit {
 	内存搜索数值
 	pReadWriteProxy：读取进程内存数据的接口
 	hProcess：被搜索的进程句柄
-	spvWaitScanMemSecList: 被搜索的进程内存区域
+	spvWaitScanMemBlockList: 被搜索的进程内存区域
 	value1: 要搜索的数值1
 	value2: 要搜索的数值2
 	errorRange: 误差范围（当搜索的数值为float或者double时此值有效，其余情况请填写0）
@@ -25,15 +25,13 @@ namespace MemorySearchKit {
 	*/
 	template<typename T> static MEM_SEARCH_STATUS SearchValue(
 		IMemReaderWriterProxy* pReadWriteProxy, uint64_t hProcess,
-		std::shared_ptr<MemSearchSafeWorkSecWrapper> spvWaitScanMemSecList,
+		std::shared_ptr<MemSearchSafeWorkBlockWrapper> spvWaitScanMemBlockList,
 		T value1, T value2, float errorRange, SCAN_TYPE scanType, size_t nThreadCount,
 		std::vector<ADDR_RESULT_INFO> & vResultList,
 		size_t nScanAlignBytesCount = sizeof(T),
 		std::atomic<bool> * pForceStopSignal = nullptr) {
-		
-
 		return Core::SearchValue(
-			pReadWriteProxy, hProcess, spvWaitScanMemSecList, value1, value2, errorRange, scanType,
+			pReadWriteProxy, hProcess, spvWaitScanMemBlockList, value1, value2, errorRange, scanType,
 			nThreadCount, vResultList, nScanAlignBytesCount, pForceStopSignal); 
 	}
 
@@ -81,7 +79,7 @@ namespace MemorySearchKit {
 	内存批量搜索值在两值之间的内存地址
 	pReadWriteProxy：读取进程内存数据的接口
 	hProcess：被搜索的进程句柄
-	spvWaitScanMemSecList: 被搜索的进程内存区域
+	spvWaitScanMemBlockList: 被搜索的进程内存区域
 	vBatchBetweenValue: 待搜索的批量两值之间的数值数组
 	nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 	vResultList：存放搜索完成的结果地址
@@ -91,7 +89,7 @@ namespace MemorySearchKit {
 	template<typename T> static MEM_SEARCH_STATUS SearchBatchBetweenValue(
 		IMemReaderWriterProxy* pReadWriteProxy,
 		uint64_t hProcess,
-		std::shared_ptr<MemSearchSafeWorkSecWrapper> spvWaitScanMemSecList,
+		std::shared_ptr<MemSearchSafeWorkBlockWrapper> spvWaitScanMemBlockList,
 		const std::vector<BATCH_BETWEEN_VAL<T>> & vBatchBetweenValue,
 		size_t nThreadCount,
 		std::vector<BATCH_BETWEEN_VAL_ADDR_RESULT<T>> & vResultList,
@@ -99,7 +97,7 @@ namespace MemorySearchKit {
 		std::atomic<bool> * pForceStopSignal = nullptr) {
 
 		return Core::SearchBatchBetweenValue(
-			pReadWriteProxy, hProcess, spvWaitScanMemSecList, vBatchBetweenValue,
+			pReadWriteProxy, hProcess, spvWaitScanMemBlockList, vBatchBetweenValue,
 			nThreadCount, vResultList, nScanAlignBytesCount, pForceStopSignal); 
 	}
 
@@ -108,7 +106,7 @@ namespace MemorySearchKit {
 	内存搜索字节特征码
 	pReadWriteProxy：读取进程内存数据的接口
 	hProcess：被搜索的进程句柄
-	spvWaitScanMemSecList: 被搜索的进程内存区域
+	spvWaitScanMemBlockList: 被搜索的进程内存区域
 	vFeaturesByte：字节特征码，如“char vBytes[] = {'\x68', '\x00', '\x00', '\x00', '\x40', '\x?3', '\x??', '\x7?', '\x??', '\x??', '\x??', '\x??', '\x??', '\x50', '\xE8};”
 	nFeaturesByteLen：字节特征码长度
 	vFuzzyBytes：模糊字节，不变动的位置用1表示，变动的位置用0表示，如“char vFuzzy[] = {'\x11', '\x11', '\x11', '\x11', '\x11', '\x01', '\x00', '\x10', '\x00', '\x00', '\x00', '\x00', '\x00', '\x11', '\x11};”
@@ -121,7 +119,7 @@ namespace MemorySearchKit {
 	static MEM_SEARCH_STATUS SearchFeaturesBytes(
 		IMemReaderWriterProxy* pReadWriteProxy,
 		uint64_t hProcess,
-		std::shared_ptr<MemSearchSafeWorkSecWrapper> spvWaitScanMemSecList,
+		std::shared_ptr<MemSearchSafeWorkBlockWrapper> spvWaitScanMemBlockList,
 		const char vFeaturesByte[],
 		size_t nFeaturesByteLen,
 		char vFuzzyBytes[],
@@ -132,7 +130,7 @@ namespace MemorySearchKit {
 		
 
 		return Core::SearchFeaturesBytes(
-			pReadWriteProxy, hProcess, spvWaitScanMemSecList, vFeaturesByte,
+			pReadWriteProxy, hProcess, spvWaitScanMemBlockList, vFeaturesByte,
 			nFeaturesByteLen, vFuzzyBytes, nThreadCount, vResultList,
 			nScanAlignBytesCount, pForceStopSignal); 
 	}
@@ -176,7 +174,7 @@ namespace MemorySearchKit {
 	内存搜索文本特征码
 	pReadWriteProxy：读取进程内存数据的接口
 	hProcess：被搜索的进程句柄
-	spvWaitScanMemSecList: 被搜索的进程内存区域
+	spvWaitScanMemBlockList: 被搜索的进程内存区域
 	strFeaturesByte: 十六进制的文本字节特征码，搜索规则与OD相同，如“68 00 00 00 40 ?3 7? ?? ?? ?? ?? ?? ?? 50 E8”
 	nThreadCount: 用于搜索内存的线程数，推荐设置为CPU数量
 	vResultList：存放搜索完成的结果地址
@@ -187,7 +185,7 @@ namespace MemorySearchKit {
 	static MEM_SEARCH_STATUS SearchFeaturesByteString(
 		IMemReaderWriterProxy* pReadWriteProxy,
 		uint64_t hProcess,
-		std::shared_ptr<MemSearchSafeWorkSecWrapper> spvWaitScanMemSecList,
+		std::shared_ptr<MemSearchSafeWorkBlockWrapper> spvWaitScanMemBlockList,
 		std::string strFeaturesByte,
 		size_t nThreadCount,
 		std::vector<ADDR_RESULT_INFO> & vResultList,
@@ -196,7 +194,7 @@ namespace MemorySearchKit {
 		
 
 		return Core::SearchFeaturesByteString(
-			pReadWriteProxy, hProcess, spvWaitScanMemSecList, strFeaturesByte,
+			pReadWriteProxy, hProcess, spvWaitScanMemBlockList, strFeaturesByte,
 			nThreadCount, vResultList, nScanAlignBytesCount, pForceStopSignal); 
 	}
 
@@ -237,19 +235,19 @@ namespace MemorySearchKit {
 	拷贝进程内存数据
 	pReadWriteProxy：读取进程内存数据的接口
 	hProcess：被搜索的进程句柄
-	spvWaitScanMemSecList: 被拷贝的进程内存区域
+	spvWaitScanMemBlockList: 被拷贝的进程内存区域
 	nThreadCount：用于拷贝内存的线程数，推荐设置为CPU数量
 	std::atomic<bool> * pForceStopSignal: 强制中止所有任务的信号
 	*/
 	static MEM_SEARCH_STATUS CopyProcessMemData(
 		IMemReaderWriterProxy* pReadWriteProxy,
 		uint64_t hProcess,
-		std::shared_ptr<MemSearchSafeWorkSecWrapper> spvWaitScanMemSecList,
+		std::shared_ptr<MemSearchSafeWorkBlockWrapper> spvWaitScanMemBlockList,
 		size_t nThreadCount,
 		std::atomic<bool> * pForceStopSignal = nullptr) {
 
 		return Core::CopyProcessMemData(
-			pReadWriteProxy, hProcess, spvWaitScanMemSecList,
+			pReadWriteProxy, hProcess, spvWaitScanMemBlockList,
 			nThreadCount, pForceStopSignal);
 	}
 
@@ -264,7 +262,7 @@ namespace MemorySearchKit {
 		std::function<void(size_t thread_id, std::atomic<bool> *pForceStopSignal)> OnThreadExecut,
 		std::atomic<bool> * pForceStopSignal = nullptr) {
 
-		Core::MultiThreadExecOnCpu(
+		Core::MultiThreadOnCpu(
 			nThreadCount, std::move(OnThreadExecut), pForceStopSignal);
 	}
 

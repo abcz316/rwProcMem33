@@ -78,7 +78,6 @@ template<typename T> struct MemSearchSafeVector {
 	void assign(MemSearchSafeVector& src) {
 		std::lock_guard<std::mutex> mlock(m_lockBlockAccess);
 		m_vBlock.assign(src.begin(), src.end());
-		m_nFastBlockCount = m_vBlock.size();
 	}
 	//根据数组下标获取成员对象
 	const T& at(size_t i) {

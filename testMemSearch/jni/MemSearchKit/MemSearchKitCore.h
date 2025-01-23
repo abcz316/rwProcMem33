@@ -7,19 +7,19 @@
 #include <thread>
 #include <sstream>
 #include <functional>
-#include <chrono>
 #include <assert.h>
 #ifdef __linux__
 #include <unistd.h>
 #endif
 #include "../../../testKo/jni/IMemReaderWriterProxy.h"
-#include "MemSearchKitSafeWorkSecWrapper.h"
+#include "MemSearchKitSafeWorkBlockWrapper.h"
 #include "MemSearchKitSafeVector.h"
 #include "MemSearchKitSafeMap.h"
 #include "MemSearchKitCompVal.h"
 #include "MemSearchKitString.h"
 
 namespace MemorySearchKit {
+	const int TASK_BLOCK_SIZE = 1024 * 1024 * 10;
 
 	struct COPY_MEM_INFO {
 		uint64_t npSectionAddr = 0; //进程内存地址
@@ -94,37 +94,23 @@ namespace MemorySearchKit {
 		void OnThreadExecute(size_t thread_id，std::atomic<bool> *pForceStopSignal)：每条线程要执行的任务回调（线程ID号，中止信号）
 		std::atomic<bool> * pForceStopSignal: 强制中止所有任务的信号
 		*/
-		static void MultiThreadExecOnCpu(
+		static void MultiThreadOnCpu(
 			size_t nThreadCount,
 			std::function<void(size_t thread_id, std::atomic<bool>* pForceStopSignal)> OnThreadExecute,
 			std::atomic<bool>* pForceStopSignal/* = nullptr*/) {
-
-			std::vector<std::shared_ptr<std::mutex>> vspMtxThreadExist;
-			std::atomic<int> nThreadStart{ 0 };
-			std::atomic<int> nThreadEnd{ 0 };
+			std::vector<std::shared_ptr<std::thread>> vThread;
 			for (int i = 0; i < nThreadCount; ++i) {
-				vspMtxThreadExist.push_back(std::make_shared<std::mutex>());
-			}
-
-			//开始分配线程
-			for (int i = 0; i < nThreadCount; i++) {
-				std::shared_ptr<std::mutex> spMtxThread = vspMtxThreadExist[i];
-				//工作线程
-				std::thread td(
-					[i, OnThreadExecute, spMtxThread, &nThreadStart, &nThreadEnd, pForceStopSignal]()->void {
-						std::lock_guard<std::mutex> mlock(*spMtxThread);
-						nThreadStart++;
+				//开始分配线程
+				std::shared_ptr<std::thread> td = std::make_shared<std::thread>(
+					[i, OnThreadExecute, pForceStopSignal]()->void {
 						OnThreadExecute(i, pForceStopSignal);
-						nThreadEnd++;
-					});
-				td.detach();
+					}
+				);
+				vThread.push_back(td);
 			}
 			//等待所有线程启动
-			while (nThreadStart < nThreadCount) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(0));
-			}
-			for (auto spMtxThread : vspMtxThreadExist) {
-				std::lock_guard<std::mutex> mlock(*spMtxThread);
+			for (auto & item : vThread) {
+				item->join();
 			}
 		}
 
@@ -132,7 +118,7 @@ namespace MemorySearchKit {
 		内存搜索数值
 		pReadWriteProxy：读取进程内存数据的接口
 		hProcess：被搜索的进程句柄
-		spvWaitScanMemSecList: 被搜索的进程内存区域
+		spvWaitScanMemBlockList: 被搜索的进程内存区域
 		value1: 要搜索的数值1
 		value2: 要搜索的数值2
 		errorRange: 误差范围（当搜索的数值为float或者double时此值有效，其余情况请填写0）
@@ -149,7 +135,7 @@ namespace MemorySearchKit {
 		template<typename T> static MEM_SEARCH_STATUS SearchValue(
 			IMemReaderWriterProxy* pReadWriteProxy,
 			uint64_t hProcess,
-			std::shared_ptr<MemSearchSafeWorkSecWrapper> spvWaitScanMemSecList,
+			std::shared_ptr<MemSearchSafeWorkBlockWrapper> spvWaitScanMemBlockList,
 			T value1, T value2, float errorRange, SCAN_TYPE scanType, size_t nThreadCount,
 			std::vector<ADDR_RESULT_INFO>& vResultList,
 			size_t nScanAlignBytesCount/* = sizeof(T)*/,
@@ -166,53 +152,39 @@ namespace MemorySearchKit {
 			if (!spMemDataProvider) {
 				return MEM_SEARCH_FAILED_ALLOC_MEM;
 			}
-			spvWaitScanMemSecList->set_mem_data_provider(spMemDataProvider.get());
+			spvWaitScanMemBlockList->set_mem_data_provider(spMemDataProvider.get());
 
+			size_t splitSize = TASK_BLOCK_SIZE;
 
 			//自动排序容器
 			MemSearchSafeMap<uint64_t, ADDR_RESULT_INFO> sortResultMap;
 
-			MultiThreadExecOnCpu(nThreadCount, [pReadWriteProxy, nThreadCount, hProcess,
-				spvWaitScanMemSecList, value1, value2, errorRange, scanType,
+			MultiThreadOnCpu(nThreadCount, [pReadWriteProxy, nThreadCount, splitSize, hProcess,
+				spvWaitScanMemBlockList, value1, value2, errorRange, scanType,
 				&sortResultMap, nScanAlignBytesCount](size_t thread_id, std::atomic<bool>* pForceStopSignal)->void {
 
 					std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
 
 					bool isFloatVal = typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0));
-
-					uint64_t curMemBlockStartAddr = 0;
-					uint64_t curMemBlockSize = 0;
-					std::shared_ptr<std::atomic<uint64_t>> spOutCurWorkOffset;
-					std::shared_ptr<unsigned char> spOutMemDataBlock;
 					while (!pForceStopSignal || !*pForceStopSignal) {
-						if (!spOutCurWorkOffset) {
-							if (!spvWaitScanMemSecList->get_need_work_mem_sec(curMemBlockStartAddr, curMemBlockSize, spOutCurWorkOffset, spOutMemDataBlock)) {
-								break; //没任务了
-							}
-						}
-						//分配当前线程取本次工作内存的size
-						size_t splitSize = curMemBlockSize / nThreadCount;
-						auto yu = splitSize % max(sizeof(T), nScanAlignBytesCount);
-						splitSize -= yu;
+						uint64_t curMemBlockStartAddr = 0;
+						uint64_t curMemBlockSize = 0;
+						std::shared_ptr<unsigned char> spOutMemData;
+						uint64_t outCurWorkOffset = 0;
 
-						uint64_t curWorkOffset = spOutCurWorkOffset->fetch_add(splitSize);
-
-						if (curWorkOffset >= curMemBlockSize) {
-							spOutCurWorkOffset = nullptr;
-							spOutMemDataBlock = nullptr;
-							continue;
+						spvWaitScanMemBlockList->release_useless_mem_block();
+						if (!spvWaitScanMemBlockList->get_need_work_mem_block(splitSize, curMemBlockStartAddr, curMemBlockSize, spOutMemData, outCurWorkOffset)) {
+							break; //没任务了
 						}
 
 						//读取这个目标内存section的内存数据时直接指针取值，节省开销
-						size_t nRealReadSize = min(curMemBlockSize - curWorkOffset, splitSize);
+						size_t nRealReadSize = min(curMemBlockSize - outCurWorkOffset, splitSize);
 						if (nRealReadSize == 0) {
 							continue;
 						}
-						char* pReadBuf = (char*)((char*)spOutMemDataBlock.get() + curWorkOffset);
-
+						char* pReadBuf = (char*)((char*)spOutMemData.get() + outCurWorkOffset);
 						//寻找数值
 						std::vector<size_t> vFindAddr;
-
 
 						switch (scanType) {
 						case SCAN_TYPE::ACCURATE_VAL:
@@ -245,7 +217,7 @@ namespace MemorySearchKit {
 
 						for (size_t addr : vFindAddr) {
 							ADDR_RESULT_INFO aInfo;
-							aInfo.addr = (uint64_t)addr - (uint64_t)pReadBuf + curMemBlockStartAddr + curWorkOffset/*每个线程的起始位置*/;
+							aInfo.addr = (uint64_t)addr - (uint64_t)pReadBuf + curMemBlockStartAddr + outCurWorkOffset/*每个线程的起始位置*/;
 							aInfo.size = sizeof(T);
 
 							std::shared_ptr<unsigned char> sp(new unsigned char[aInfo.size], std::default_delete<unsigned char[]>());
@@ -254,7 +226,6 @@ namespace MemorySearchKit {
 							aInfo.spSaveData = sp;
 							vThreadOutput.push_back(aInfo);
 						}
-
 					}
 					//将当前线程的搜索结果，汇总到父线程的全部搜索结果数组里
 					for (ADDR_RESULT_INFO& newAddr : vThreadOutput) {
@@ -314,7 +285,7 @@ namespace MemorySearchKit {
 			bool isFloatVal = typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0));
 
 			//内存搜索线程
-			MultiThreadExecOnCpu(nThreadCount,
+			MultiThreadOnCpu(nThreadCount,
 				[pReadWriteProxy, hProcess, &vSafeWaitScanMemAddr, nThreadCount,
 				value1, value2, errorRange, scanType, isFloatVal, &sortResultMap, &sortErrorMap](size_t thread_id, std::atomic<bool>* pForceStopSignal)->void {
 
@@ -470,7 +441,7 @@ namespace MemorySearchKit {
 		内存批量搜索值在两值之间的内存地址
 		pReadWriteProxy：读取进程内存数据的接口
 		hProcess：被搜索的进程句柄
-		spvWaitScanMemSecList: 被搜索的进程内存区域
+		spvWaitScanMemBlockList: 被搜索的进程内存区域
 		vBatchBetweenValue: 待搜索的多个两值之间的数值数组
 		nThreadCount：用于搜索内存的线程数，推荐设置为CPU数量
 		vResultList：存放搜索完成的结果地址
@@ -480,7 +451,7 @@ namespace MemorySearchKit {
 		template<typename T> static MEM_SEARCH_STATUS SearchBatchBetweenValue(
 			IMemReaderWriterProxy* pReadWriteProxy,
 			uint64_t hProcess,
-			std::shared_ptr<MemSearchSafeWorkSecWrapper> spvWaitScanMemSecList,
+			std::shared_ptr<MemSearchSafeWorkBlockWrapper> spvWaitScanMemBlockList,
 			const std::vector<BATCH_BETWEEN_VAL<T>>& vBatchBetweenValue,
 			size_t nThreadCount,
 			std::vector<BATCH_BETWEEN_VAL_ADDR_RESULT<T>>& vResultList,
@@ -498,51 +469,35 @@ namespace MemorySearchKit {
 			if (!spMemDataProvider) {
 				return MEM_SEARCH_FAILED_ALLOC_MEM;
 			}
-			spvWaitScanMemSecList->set_mem_data_provider(spMemDataProvider.get());
-
-
+			spvWaitScanMemBlockList->set_mem_data_provider(spMemDataProvider.get());
+			size_t splitSize = TASK_BLOCK_SIZE;
 
 			size_t nBetweenValCount = vBatchBetweenValue.size();
 
 			//自动排序
 			MemSearchSafeMap<uint64_t, BATCH_BETWEEN_VAL_ADDR_RESULT<T>> sortResultMap;
-			MultiThreadExecOnCpu(nThreadCount,
-				[pReadWriteProxy, hProcess, spvWaitScanMemSecList, nThreadCount,
+			MultiThreadOnCpu(nThreadCount,
+				[pReadWriteProxy, hProcess, spvWaitScanMemBlockList, nThreadCount, splitSize,
 				&vBatchBetweenValue, nBetweenValCount, &sortResultMap, nScanAlignBytesCount]
 			(size_t thread_id, std::atomic<bool>* pForceStopSignal)-> void {
 
 					std::vector<BATCH_BETWEEN_VAL_ADDR_RESULT<T>> vThreadOutput; //存放当前线程的搜索结果
-
-					uint64_t curMemBlockStartAddr = 0;
-					uint64_t curMemBlockSize = 0;
-					std::shared_ptr<std::atomic<uint64_t>> spOutCurWorkOffset;
-					std::shared_ptr<unsigned char> spOutMemDataBlock;
-
 					while (!pForceStopSignal || !*pForceStopSignal) {
-						if (!spOutCurWorkOffset) {
-							if (!spvWaitScanMemSecList->get_need_work_mem_sec(curMemBlockStartAddr, curMemBlockSize, spOutCurWorkOffset, spOutMemDataBlock)) {
-								break; //没任务了
-							}
+						uint64_t curMemBlockStartAddr = 0;
+						uint64_t curMemBlockSize = 0;
+						std::shared_ptr<unsigned char> spOutMemData;
+						uint64_t outCurWorkOffset = 0;
+
+						spvWaitScanMemBlockList->release_useless_mem_block();
+						if (!spvWaitScanMemBlockList->get_need_work_mem_block(splitSize, curMemBlockStartAddr, curMemBlockSize, spOutMemData, outCurWorkOffset)) {
+							break; //没任务了
 						}
-						//分配当前线程取本次工作内存的size
-						size_t splitSize = curMemBlockSize / nThreadCount;
-						auto yu = splitSize % max(sizeof(T), nScanAlignBytesCount);
-						splitSize -= yu;
-
-						uint64_t curWorkOffset = spOutCurWorkOffset->fetch_add(splitSize);
-
-						if (curWorkOffset >= curMemBlockSize) {
-							spOutCurWorkOffset = nullptr;
-							spOutMemDataBlock = nullptr;
-							continue;
-						}
-
 						//读取这个目标内存section的内存数据时直接指针取值，节省开销
-						size_t nRealReadSize = min(curMemBlockSize - curWorkOffset, splitSize);
+						size_t nRealReadSize = min(curMemBlockSize - outCurWorkOffset, splitSize);
 						if (nRealReadSize == 0) {
 							continue;
 						}
-						char* pReadBuf = (char*)((char*)spOutMemDataBlock.get() + curWorkOffset);
+						char* pReadBuf = (char*)((char*)spOutMemData.get() + outCurWorkOffset);
 
 						for (size_t i = 0; i < nBetweenValCount; i++) {
 							auto& item = vBatchBetweenValue.at(i);
@@ -555,7 +510,7 @@ namespace MemorySearchKit {
 
 							for (size_t addr : vFindAddr) {
 								BATCH_BETWEEN_VAL_ADDR_RESULT<T> baInfo;
-								baInfo.addrInfo.addr = (uint64_t)addr - (uint64_t)pReadBuf + curMemBlockStartAddr + curWorkOffset/*每个线程的起始位置*/;
+								baInfo.addrInfo.addr = (uint64_t)addr - (uint64_t)pReadBuf + curMemBlockStartAddr + outCurWorkOffset/*每个线程的起始位置*/;
 								baInfo.addrInfo.size = sizeof(T);
 								std::shared_ptr<unsigned char> sp(new unsigned char[baInfo.addrInfo.size], std::default_delete<unsigned char[]>());
 								memcpy(sp.get(), (void*)addr, baInfo.addrInfo.size);
@@ -582,7 +537,7 @@ namespace MemorySearchKit {
 		内存搜索字节特征码
 		pReadWriteProxy：读取进程内存数据的接口
 		hProcess：被搜索的进程句柄
-		spvWaitScanMemSecList: 被搜索的进程内存区域
+		spvWaitScanMemBlockList: 被搜索的进程内存区域
 		vFeaturesByte：字节特征码，如“char vBytes[] = {'\x68', '\x00', '\x00', '\x00', '\x40', '\x?3', '\x??', '\x7?', '\x??', '\x??', '\x??', '\x??', '\x??', '\x50', '\xE8};”
 		nFeaturesByteLen：字节特征码长度
 		vFuzzyBytes：模糊字节，不变动的位置用1表示，变动的位置用0表示，如“char vFuzzy[] = {'\x11', '\x11', '\x11', '\x11', '\x11', '\x01', '\x00', '\x10', '\x00', '\x00', '\x00', '\x00', '\x00', '\x11', '\x11};”
@@ -594,7 +549,7 @@ namespace MemorySearchKit {
 		static MEM_SEARCH_STATUS SearchFeaturesBytes(
 			IMemReaderWriterProxy* pReadWriteProxy,
 			uint64_t hProcess,
-			std::shared_ptr<MemSearchSafeWorkSecWrapper> spvWaitScanMemSecList,
+			std::shared_ptr<MemSearchSafeWorkBlockWrapper> spvWaitScanMemBlockList,
 			const char vFeaturesByte[],
 			size_t nFeaturesByteLen,
 			char vFuzzyBytes[],
@@ -614,8 +569,8 @@ namespace MemorySearchKit {
 			if (!spMemDataProvider) {
 				return MEM_SEARCH_FAILED_ALLOC_MEM;
 			}
-			spvWaitScanMemSecList->set_mem_data_provider(spMemDataProvider.get());
-
+			spvWaitScanMemBlockList->set_mem_data_provider(spMemDataProvider.get());
+			size_t splitSize = TASK_BLOCK_SIZE;
 
 			//生成特征码容错文本
 			std::string strFuzzyCode; //如：xxxxx????????xx
@@ -643,41 +598,30 @@ namespace MemorySearchKit {
 			MemSearchSafeMap<uint64_t, ADDR_RESULT_INFO> sortResultMap;
 
 			//内存搜索线程
-			MultiThreadExecOnCpu(nThreadCount,
-				[pReadWriteProxy, hProcess, nThreadCount, spvWaitScanMemSecList,
+			MultiThreadOnCpu(nThreadCount,
+				[pReadWriteProxy, hProcess, nThreadCount, splitSize, spvWaitScanMemBlockList,
 				vFeaturesByte, nFeaturesByteLen, spStrFuzzyCode, isSimpleSearch,
 				nScanAlignBytesCount, &sortResultMap](size_t thread_id, std::atomic<bool>* pForceStopSignal)->void {
 
 					std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
 
-					uint64_t curMemBlockStartAddr = 0;
-					uint64_t curMemBlockSize = 0;
-					std::shared_ptr<std::atomic<uint64_t>> spOutCurWorkOffset;
-					std::shared_ptr<unsigned char> spOutMemDataBlock;
 					while (!pForceStopSignal || !*pForceStopSignal) {
-						if (!spOutCurWorkOffset) {
-							if (!spvWaitScanMemSecList->get_need_work_mem_sec(curMemBlockStartAddr, curMemBlockSize, spOutCurWorkOffset, spOutMemDataBlock)) {
-								break; //没任务了
-							}
-						}
-						//分配当前线程取本次工作内存的size
-						size_t splitSize = curMemBlockSize / nThreadCount;
-						auto yu = splitSize % max(nFeaturesByteLen, nScanAlignBytesCount);
-						splitSize -= yu;
+						uint64_t curMemBlockStartAddr = 0;
+						uint64_t curMemBlockSize = 0;
+						std::shared_ptr<unsigned char> spOutMemData;
+						uint64_t outCurWorkOffset = 0;
 
-						uint64_t curWorkOffset = spOutCurWorkOffset->fetch_add(splitSize);
-
-						if (curWorkOffset >= curMemBlockSize) {
-							spOutCurWorkOffset = nullptr;
-							spOutMemDataBlock = nullptr;
-							continue;
+						spvWaitScanMemBlockList->release_useless_mem_block();
+						if (!spvWaitScanMemBlockList->get_need_work_mem_block(splitSize, curMemBlockStartAddr, curMemBlockSize, spOutMemData, outCurWorkOffset)) {
+							break; //没任务了
 						}
+
 						//读取这个目标内存section的内存数据时直接指针取值，节省开销
-						size_t nRealReadSize = min((curMemBlockSize - curWorkOffset), splitSize);
+						size_t nRealReadSize = min((curMemBlockSize - outCurWorkOffset), splitSize);
 						if (nRealReadSize == 0) {
 							continue;
 						}
-						char* pReadBuf = (char*)((char*)spOutMemDataBlock.get() + curWorkOffset);
+						char* pReadBuf = (char*)((char*)spOutMemData.get() + outCurWorkOffset);
 
 
 						//寻找字节集
@@ -695,7 +639,7 @@ namespace MemorySearchKit {
 						for (size_t addr : vFindAddr) {
 							//保存搜索结果
 							ADDR_RESULT_INFO aInfo;
-							aInfo.addr = (uint64_t)addr - (uint64_t)pReadBuf + curMemBlockStartAddr + curWorkOffset/*每个线程的起始位置*/;
+							aInfo.addr = (uint64_t)addr - (uint64_t)pReadBuf + curMemBlockStartAddr + outCurWorkOffset/*每个线程的起始位置*/;
 							aInfo.size = nFeaturesByteLen;
 							std::shared_ptr<unsigned char> sp(new unsigned char[aInfo.size], std::default_delete<unsigned char[]>());
 							memcpy(sp.get(), (void*)addr, aInfo.size);
@@ -772,7 +716,7 @@ namespace MemorySearchKit {
 			MemSearchSafeMap<uint64_t, ADDR_RESULT_INFO> sortErrorMap;
 
 			//内存搜索线程
-			MultiThreadExecOnCpu(nThreadCount,
+			MultiThreadOnCpu(nThreadCount,
 				[pReadWriteProxy, &vSafeWaitScanMemAddr, hProcess, nThreadCount,
 				vFeaturesByte, nFeaturesByteLen, spStrFuzzyCode, isSimpleSearch, nScanAlignBytesCount,
 				&sortResultMap, &sortErrorMap](size_t thread_id, std::atomic<bool>* pForceStopSignal)->void {
@@ -842,7 +786,7 @@ namespace MemorySearchKit {
 		内存搜索文本特征码
 		pReadWriteProxy：读取进程内存数据的接口
 		hProcess：被搜索的进程句柄
-		spvWaitScanMemSecList: 被搜索的进程内存区域
+		spvWaitScanMemBlockList: 被搜索的进程内存区域
 		strFeaturesByte: 十六进制的文本字节特征码，搜索规则与OD相同，如“68 00 00 00 40 ?3 7? ?? ?? ?? ?? ?? ?? 50 E8”
 		nThreadCount: 用于搜索内存的线程数，推荐设置为CPU数量
 		vResultList：存放搜索完成的结果地址
@@ -852,7 +796,7 @@ namespace MemorySearchKit {
 		static MEM_SEARCH_STATUS SearchFeaturesByteString(
 			IMemReaderWriterProxy* pReadWriteProxy,
 			uint64_t hProcess,
-			std::shared_ptr<MemSearchSafeWorkSecWrapper> spvWaitScanMemSecList,
+			std::shared_ptr<MemSearchSafeWorkBlockWrapper> spvWaitScanMemBlockList,
 			std::string strFeaturesByte,
 			size_t nThreadCount,
 			std::vector<ADDR_RESULT_INFO>& vResultList,
@@ -911,7 +855,7 @@ namespace MemorySearchKit {
 			return SearchFeaturesBytes(
 				pReadWriteProxy,
 				hProcess,
-				spvWaitScanMemSecList,
+				spvWaitScanMemBlockList,
 				upFeaturesBytesBuf.get(),
 				strFeaturesByte.length() / 2,
 				upFuzzyBytesBuf.get(),
@@ -1009,38 +953,34 @@ namespace MemorySearchKit {
 		拷贝进程内存数据
 		pReadWriteProxy：读取进程内存数据的接口
 		hProcess：被搜索的进程句柄
-		spvWaitScanMemSecList: 被拷贝的进程内存区域
+		spvWaitScanMemBlockList: 被拷贝的进程内存区域
 		nThreadCount：用于拷贝内存的线程数，推荐设置为CPU数量
 		std::atomic<bool> * pForceStopSignal: 强制中止所有任务的信号
 		*/
 		static MEM_SEARCH_STATUS CopyProcessMemData(
 			IMemReaderWriterProxy* pReadWriteProxy,
 			uint64_t hProcess,
-			std::shared_ptr<MemSearchSafeWorkSecWrapper> spvWaitScanMemSecList,
+			std::shared_ptr<MemSearchSafeWorkBlockWrapper> spvWaitScanMemBlockList,
 			size_t nThreadCount,
 			std::atomic<bool>* pForceStopSignal/* = nullptr*/) {
 			assert(pReadWriteProxy);
 			if (!pReadWriteProxy) {
 				return MEM_SEARCH_FAILED_INVALID_PARAM;
 			}
-
-			MultiThreadExecOnCpu(nThreadCount,
-				[pReadWriteProxy, hProcess, spvWaitScanMemSecList](size_t thread_id, std::atomic<bool>* pForceStopSignal)->void {
+			
+			MultiThreadOnCpu(nThreadCount,
+				[pReadWriteProxy, hProcess, spvWaitScanMemBlockList](size_t thread_id, std::atomic<bool>* pForceStopSignal)->void {
 					std::vector<COPY_MEM_INFO> vThreadOutput; //存放当前线程的搜索结果
 
-					uint64_t curMemBlockStartAddr = 0;
-					uint64_t curMemBlockSize = 0;
-					std::shared_ptr<std::atomic<uint64_t>> spOutCurWorkOffset;
-					std::shared_ptr<unsigned char> spOutMemDataBlock;
 					while (!pForceStopSignal || !*pForceStopSignal) {
-						if (!spOutCurWorkOffset) {
-							if (!spvWaitScanMemSecList->get_need_work_mem_sec(curMemBlockStartAddr, curMemBlockSize, spOutCurWorkOffset, spOutMemDataBlock, false)) {
-								break; //没任务了
-							}
+						uint64_t curMemBlockStartAddr = 0;
+						uint64_t curMemBlockSize = 0;
+						std::shared_ptr<unsigned char> spOutMemData;
+						uint64_t outCurWorkOffset = 0;
+
+						if (!spvWaitScanMemBlockList->get_need_work_mem_block(0, curMemBlockStartAddr, curMemBlockSize, spOutMemData, outCurWorkOffset)) {
+							break; //没任务了
 						}
-						spOutCurWorkOffset->fetch_add(curMemBlockSize);
-						spOutCurWorkOffset = nullptr;
-						spOutMemDataBlock = nullptr;
 						if (pForceStopSignal && *pForceStopSignal) {
 							break;
 						}
