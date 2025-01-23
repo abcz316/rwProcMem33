@@ -1,5 +1,5 @@
-﻿#ifndef MEM_SEARCH_KIT_SAFE_WORK_SEC_WRAPPER_H_
-#define MEM_SEARCH_KIT_SAFE_WORK_SEC_WRAPPER_H_
+﻿#ifndef MEM_SEARCH_KIT_SAFE_WORK_BLOCK_WRAPPER_H_
+#define MEM_SEARCH_KIT_SAFE_WORK_BLOCK_WRAPPER_H_
 #include <string>
 #include <memory>
 #include <mutex>
@@ -231,5 +231,5 @@ private:
 
 	IMemDataProvider *m_pMemDataProvider = nullptr;
 };
-#endif /* MEM_SEARCH_KIT_SAFE_WORK_SEC_WRAPPER_H_ */
+#endif /* MEM_SEARCH_KIT_SAFE_WORK_BLOCK_WRAPPER_H_ */
 
