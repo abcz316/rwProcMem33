@@ -27,7 +27,7 @@
 7.  驱动_暂停硬件断点: SuspendProcessHwBp
 8.  驱动_恢复硬件断点: ResumeProcessHwBp
 9.  驱动_读取硬件断点命中信息: ReadHwBpInfo
-10. 驱动_设置无条件Hook跳转: SetHookPc
+10. 驱动_设置无条件Hook跳转: SetHookPC
 
 ## 目录说明：
 > **rwProcMem33Module**：进程内存读写驱动
