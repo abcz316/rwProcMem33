@@ -95,6 +95,7 @@ int main(int argc, char *argv[]) {
 		"\t7.  驱动_暂停硬件断点: SuspendProcessHwBp\n"
 		"\t8.  驱动_恢复硬件断点: ResumeProcessHwBp\n"
 		"\t9.  驱动_读取硬件断点命中信息: ReadHwBpInfo\n"
+		"\t10. 驱动_设置无条件Hook跳转: SetHookPC\n"
 		"\t以上所有功能不注入、不附加进程, 不打开进程任何文件, 所有操作均为内核操作\n"
 		"======================================================\n"
 	);

@@ -141,7 +141,8 @@ public:
 	BOOL ReadHwBpInfo(uint64_t hHwbp, uint64_t & nHitTotalCount, std::vector<HW_HIT_ITEM> & vOutput) {
 		return _InternalReadHwBpInfo(hHwbp, nHitTotalCount, vOutput);
 	}
-	
+
+	//驱动_设置无条件Hook跳转（pc：硬件执行断点触发后，要跳转到的进程内存地址），返回值：TRUE成功，FALSE失败
 	BOOL SetHookPC(uint64_t pc) {
 		return _hwbpProcDriver_SetHookPC(m_nDriverLink, pc);
 	}
