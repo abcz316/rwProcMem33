@@ -338,7 +338,7 @@ MY_STATIC long OnIoctlCloseProcess(unsigned long arg) {
 	char buf[8] = { 0 };
 	if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0) {
 		struct pid * proc_pid_struct = (struct pid *)*(size_t*)buf;
-		printk_debug(KERN_INFO "IOCTL_CLOSE_HANDLE\n");
+		printk_debug(KERN_INFO "IOCTL_CLOSE_PROCESS\n");
 		printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
 		release_proc_pid_struct(proc_pid_struct);
 		return 0;
@@ -563,8 +563,8 @@ MY_STATIC inline long DispatchCommand(unsigned int cmd, unsigned long arg) {
 	case IOCTL_OPEN_PROCESS:
 		printk_debug(KERN_INFO "IOCTL_HWBP_OPEN_PROCESS\n");
 		return OnIoctlOpenProcess(arg);
-	case IOCTL_CLOSE_HANDLE:
-		printk_debug(KERN_INFO "IOCTL_CLOSE_HANDLE\n");
+	case IOCTL_CLOSE_PROCESS:
+		printk_debug(KERN_INFO "IOCTL_CLOSE_PROCESS\n");
 		return OnIoctlCloseProcess(arg);
 	case IOCTL_GET_PROCESS_MAPS_COUNT:
 		printk_debug(KERN_INFO "IOCTL_GET_PROCESS_MAPS_COUNT\n");
