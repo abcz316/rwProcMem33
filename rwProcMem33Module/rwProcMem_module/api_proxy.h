@@ -1,7 +1,7 @@
 ﻿#ifndef API_PROXY_H_
 #define API_PROXY_H_
 #include "ver_control.h"
-#include "linux_kernel_api/linux_kernel_api.h"
+#include "linux_kernel_api.h"
 #include <linux/ctype.h>
 #include <asm/uaccess.h>
 #include <linux/uaccess.h>
