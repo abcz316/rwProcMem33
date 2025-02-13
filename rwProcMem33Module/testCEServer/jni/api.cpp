@@ -524,10 +524,10 @@ int CApi::WriteProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer, int
 	//取出驱动进程句柄
 	uint64_t u64DriverProcessHandle = pCeOpenProcess->u64DriverProcessHandle;
 
-
-	//valid handle
-	//驱动_读取进程内存
-	g_driver.WriteProcessMemory(u64DriverProcessHandle, (uint64_t)lpAddress, buffer, size, &written, FALSE);
+	//驱动_写进程内存，分开两次写，因为强写需要改变物理内存页属性，怕出现意外死机，所以先尝试普通写入。
+	if(!g_driver.WriteProcessMemory(u64DriverProcessHandle, (uint64_t)lpAddress, buffer, size, &written, FALSE)) {
+		g_driver.WriteProcessMemory(u64DriverProcessHandle, (uint64_t)lpAddress, buffer, size, &written, TRUE);
+	}
 
 	return (int)written;
 }
