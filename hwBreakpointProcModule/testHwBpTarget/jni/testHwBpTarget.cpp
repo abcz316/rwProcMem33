@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
 	size_t argv_hwbp_addr = 0;
 	int argv_hwbp_len = 0;
 	int argv_hwbp_type = 0;
-	int argv_sleep_time = 0;
+	int argv_sleep_time = 1;
 
 	while ((opt = getopt(argc, argv, "p:a:l:t:s:")) != -1) {
 		switch (opt) {
@@ -124,8 +124,8 @@ int main(int argc, char *argv[]) {
 			argv_sleep_time = atoi(optarg);
 			break;
 		default:
-			printf("Usage: %s [-p <attach_pid>] [-a <memory_hex_addr>] [-l <hw_breakpoint_len>] [-t <hw_breakpoint_type>] arg1 ...\n", argv[0]);
-			printf("Example: %s -p 8072 -a 9ECF6140 -l 8 -t rw\n", argv[0]);
+			printf("Usage: %s [-p <attach_pid>] [-a <memory_hex_addr>] [-l <hw_breakpoint_len>] [-t <hw_breakpoint_type>]  [-s <hw_breakpoint_wait_time_sec>] ...\n", argv[0]);
+			printf("Example: %s -p 8072 -a 9ECF6140 -l 8 -t rw -s 3\n", argv[0]);
 			return 0;
 			break;
 		}
