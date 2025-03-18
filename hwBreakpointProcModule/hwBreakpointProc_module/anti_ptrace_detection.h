@@ -34,7 +34,7 @@ static bool is_my_hwbp_handle_addr(size_t addr) {
 		}
 	}
 	mutex_unlock(g_p_hwbp_handle_info_mutex);
-	return false;
+	return found;
 }
 
 static int entry_ptrace_handler(struct kretprobe_instance *ri, struct pt_regs *regs) {
