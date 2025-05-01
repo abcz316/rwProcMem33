@@ -172,8 +172,8 @@ MY_STATIC inline size_t get_task_proc_phy_addr(struct task_struct* task, size_t 
 		printk_debug("pgd is null\n");
 		goto out;
 	}
-	printk_debug("pgd_val = 0x%lx pgd addr:0x%p\n", (unsigned long int)pgd_val(*pgd), (void*)pgd);
-	printk_debug("init_mm pgd val:0x%lx,pgd addr:0x%p\n", (unsigned long)pgd_val(*(mm->pgd)), (void*)mm->pgd);
+	//printk_debug("pgd_val = 0x%lx pgd addr:0x%p\n", (unsigned long int)pgd_val(*pgd), (void*)pgd);
+	//printk_debug("init_mm pgd val:0x%lx,pgd addr:0x%p\n", (unsigned long)pgd_val(*(mm->pgd)), (void*)mm->pgd);
 	printk_debug("pgd_index = %zu\n", pgd_index(virt_addr));
 	if (pgd_none(*pgd)) {
 		printk_debug("not mapped in pgd\n");
@@ -273,7 +273,7 @@ MY_STATIC inline int change_pte_write_status(pte_t* pte, bool can_write) {
 	if (!pte) { return 0; }
 	if (can_write) {
 		//ARM64：删除内存“仅可读”属性，此时内存内存可读、可写
-		set_pte(pte, pte_mkwrite(*pte));
+		set_pte(pte, x_pte_mkwrite(*pte));
 	} else {
 		//ARM64：设置内存“仅可读”属性，此时内存内存可读、不可写
 		set_pte(pte, pte_wrprotect(*pte));
@@ -284,11 +284,11 @@ MY_STATIC inline int change_pte_exec_status(pte_t* pte, bool can_exec) {
 	if (!pte) { return 0; }
 	if (can_exec) {
 #ifdef pte_mknexec
-		set_pte(pte, pte_mknexec(*pte));
+		set_pte(pte, x_pte_mkwrite(*pte));
 #endif
 	} else {
 #ifdef pte_mkexec
-		set_pte(pte, pte_mkexec(*pte));
+		set_pte(pte, x_pte_mkwrite(*pte));
 #endif
 	}
 	return 1;
@@ -325,7 +325,7 @@ MY_STATIC inline size_t read_ram_physical_addr(size_t phy_addr, char* lpBuf, boo
 		printk_debug(KERN_INFO "Error in check_phys_addr_valid_range:%zu,size:%zu\n", phy_addr, read_size);
 		return 0;
 	}
-	bounce = __kmalloc(PAGE_SIZE, GFP_KERNEL);
+	bounce = kmalloc(PAGE_SIZE, GFP_KERNEL);
 	if (!bounce) {
 		return 0;
 	}

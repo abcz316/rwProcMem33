@@ -264,15 +264,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				pid_t tid = vm_is_stack(task, vma, 1);
 				if (tid != 0) {
@@ -466,15 +462,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				pid_t tid = my_vm_is_stack(task, vma, 1);
 				if (tid != 0) {
@@ -661,15 +653,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				pid_t tid = pid_of_stack(task, vma, 1);
 				if (tid != 0) {
@@ -681,9 +669,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 					 /* Thread stack in /proc/PID/maps */
 					if (vma->vm_start <= mm->start_stack &&
 						vma->vm_end >= mm->start_stack) {
-						if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-							strcat(new_path, "[stack]");
-						}
+						snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 					} else {
 						snprintf(new_path, sizeof(new_path), "[stack:%d]", tid);
 					}
@@ -832,20 +818,14 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				if (is_stack(vma)) {
-					if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-						strcat(new_path, "[stack]");
-					}
+					snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 				}
 			}
 
@@ -1003,15 +983,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				pid_t tid = is_stack(task, vma, 1);
 				if (tid != 0) {
@@ -1181,15 +1157,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				pid_t tid = is_stack(task, vma, 1);
 				if (tid != 0) {
@@ -1348,15 +1320,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				pid_t tid = is_stack(task, vma);
 				if (tid != 0) {
@@ -1366,9 +1334,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-						strcat(new_path, "[stack]");
-					}
+					snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 				}
 
 			}
@@ -1518,15 +1484,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 			}
 
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				pid_t tid = is_stack(task, vma);
 				if (tid != 0) {
@@ -1536,9 +1498,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-						strcat(new_path, "[stack]");
-					}
+					snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 				}
 
 			}
@@ -1687,15 +1647,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -1704,9 +1660,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-						strcat(new_path, "[stack]");
-					}
+					snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 				}
 
 			}
@@ -1854,15 +1808,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -1871,9 +1821,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-						strcat(new_path, "[stack]");
-					}
+					snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 				}
 
 			}
@@ -2024,15 +1972,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -2041,9 +1985,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-						strcat(new_path, "[stack]");
-					}
+					snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 				}
 
 			}
@@ -2192,15 +2134,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -2209,9 +2147,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-						strcat(new_path, "[stack]");
-					}
+					snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 				}
 
 			}
@@ -2361,15 +2297,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -2378,9 +2310,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-						strcat(new_path, "[stack]");
-					}
+					snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 				}
 
 			}
@@ -2531,15 +2461,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -2548,9 +2474,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-						strcat(new_path, "[stack]");
-					}
+					snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 				}
 
 			}
@@ -2698,15 +2622,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -2715,9 +2635,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-						strcat(new_path, "[stack]");
-					}
+					snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 				}
 
 			}
@@ -2860,15 +2778,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -2877,9 +2791,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-						strcat(new_path, "[stack]");
-					}
+					snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 				}
 
 			}
@@ -3022,15 +2934,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -3039,9 +2947,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-						strcat(new_path, "[stack]");
-					}
+					snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 				}
 
 			}
@@ -3184,15 +3090,11 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				strncat(new_path, path, sizeof(new_path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-				strcat(new_path, "[vdso]");
-			}
+			snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[heap]");
-				}
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -3201,9 +3103,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-						strcat(new_path, "[stack]");
-					}
+					snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 				}
 
 			}
@@ -3263,7 +3163,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 #endif
 
 #if MY_LINUX_VERSION_CODE == KERNEL_VERSION(6,1,75)
-
+#include <linux/mm_inline.h>
 /*
  * Indicate if the VMA is a stack for the given task; for
  * /proc/PID/maps that is the stack of the main task.
@@ -3322,6 +3222,7 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 			unsigned long start, end;
 			unsigned char flags[4];
 			struct file* vm_file;
+			struct anon_vma_name *anon_name = NULL;
 			if (copy_pos >= end_pos) {
 				if (have_pass) {
 					*have_pass = 1;
@@ -3348,32 +3249,26 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 				if (path > 0) {
 					strncat(new_path, path, sizeof(new_path) - 1);
 				}
-			} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-				if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-					strcat(new_path, "[vdso]");
-				}
+			} else if (!vma->vm_mm) {
+				snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
+			} else if (vma->vm_start <= mm->brk &&
+				vma->vm_end >= mm->start_brk) {
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
+			} else if (is_stack(vma)) {
+				/*
+				* Thread stack in /proc/PID/task/TID/maps or
+				* the main process stack.
+				*/
+
+				/* Thread stack in /proc/PID/maps */
+				snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
 			} else {
-				if (vma->vm_start <= mm->brk &&
-					vma->vm_end >= mm->start_brk) {
-					if ((sizeof(new_path) - strlen(new_path) - 7) >= 0) {
-						strcat(new_path, "[heap]");
-					}
-				} else {
-					if (is_stack(vma)) {
-						/*
-						* Thread stack in /proc/PID/task/TID/maps or
-						* the main process stack.
-						*/
-
-						/* Thread stack in /proc/PID/maps */
-						if ((sizeof(new_path) - strlen(new_path) - 8) >= 0) {
-							strcat(new_path, "[stack]");
-						}
-					}
-
+				anon_name = anon_vma_name(vma);
+				if(anon_name) {
+					snprintf(new_path, sizeof(new_path), "[anon:%s]", anon_name->name);
 				}
-
 			}
+			
 			if (is_kernel_buf) {
 				memcpy((void*)copy_pos, &start, 8);
 				copy_pos += 8;
@@ -3421,9 +3316,148 @@ MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_le
 			success++;
 		}
 	}
-	
+	up_read_mmap_lock(mm);
+	mmput(mm);
+
+	return success;
+}
+#endif
 
 
+#if MY_LINUX_VERSION_CODE == KERNEL_VERSION(6,6,30)
+#include <linux/mm_inline.h>
+
+MY_STATIC int get_proc_maps_list(struct pid* proc_pid_struct, size_t max_path_length, char* lpBuf, size_t buf_size, bool is_kernel_buf, int* have_pass) {
+	struct task_struct* task;
+	struct mm_struct* mm;
+	struct vm_area_struct* vma;
+	char new_path[MY_PATH_MAX_LEN];
+	char path_buf[MY_PATH_MAX_LEN];
+	int success = 0;
+	size_t copy_pos;
+	size_t end_pos;
+
+
+	if (max_path_length <= 0) {
+		return -1;
+	}
+
+	task = pid_task(proc_pid_struct, PIDTYPE_PID);
+	if (!task) {
+		return -2;
+	}
+
+	mm = get_task_mm(task);
+
+	if (!mm) {
+		return -3;
+	}
+	if (is_kernel_buf) {
+		memset(lpBuf, 0, buf_size);
+	}
+	//else if (clear_user(lpBuf, buf_size)) { return -4; } //清空用户的缓冲区
+
+	copy_pos = (size_t)lpBuf;
+	end_pos = (size_t)((size_t)lpBuf + buf_size);
+
+	if (down_read_mmap_lock(mm) != 0) {
+		mmput(mm);
+		return -4;
+	}
+
+	{
+		VMA_ITERATOR(iter, mm, 0);
+		for_each_vma(iter, vma) {
+			unsigned long start, end;
+			unsigned char flags[4];
+			struct file* vm_file;
+			struct anon_vma_name *anon_name = NULL;
+			if (copy_pos >= end_pos) {
+				if (have_pass) {
+					*have_pass = 1;
+				}
+				break;
+			}
+			start = vma->vm_start;
+			end = vma->vm_end;
+
+
+
+			flags[0] = vma->vm_flags & VM_READ ? '\x01' : '\x00';
+			flags[1] = vma->vm_flags & VM_WRITE ? '\x01' : '\x00';
+			flags[2] = vma->vm_flags & VM_EXEC ? '\x01' : '\x00';
+			flags[3] = vma->vm_flags & VM_MAYSHARE ? '\x01' : '\x00';
+
+
+			memset(new_path, 0, sizeof(new_path));
+			vm_file = get_vm_file(vma);
+			if (vm_file) {
+				char* path;
+				memset(path_buf, 0, sizeof(path_buf));
+				path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+				if (path > 0) {
+					strncat(new_path, path, sizeof(new_path) - 1);
+				}
+			} else if (!vma->vm_mm) {
+				snprintf(new_path, sizeof(new_path), "%s[vdso]", new_path);
+			} else if (vma_is_initial_heap(vma)) {
+				snprintf(new_path, sizeof(new_path), "%s[heap]", new_path);
+			} else if (vma_is_initial_stack(vma)) {
+				snprintf(new_path, sizeof(new_path), "%s[stack]", new_path);
+			} else {
+				anon_name = anon_vma_name(vma);
+				if(anon_name) {
+					snprintf(new_path, sizeof(new_path), "[anon:%s]", anon_name->name);
+				}
+			}
+			
+			if (is_kernel_buf) {
+				memcpy((void*)copy_pos, &start, 8);
+				copy_pos += 8;
+				memcpy((void*)copy_pos, &end, 8);
+				copy_pos += 8;
+				memcpy((void*)copy_pos, &flags, 4);
+				copy_pos += 4;
+				memcpy((void*)copy_pos, &new_path, max_path_length > MY_PATH_MAX_LEN ? MY_PATH_MAX_LEN : max_path_length - 1);
+				copy_pos += max_path_length;
+			} else {
+				//内核空间->用户空间交换数据
+				if (!!x_copy_to_user((void*)copy_pos, &start, 8)) {
+					if (have_pass) {
+						*have_pass = 1;
+					}
+					break;
+				}
+				copy_pos += 8;
+
+				if (!!x_copy_to_user((void*)copy_pos, &end, 8)) {
+					if (have_pass) {
+						*have_pass = 1;
+					}
+					break;
+				}
+				copy_pos += 8;
+
+				if (!!x_copy_to_user((void*)copy_pos, &flags, 4)) {
+					if (have_pass) {
+						*have_pass = 1;
+					}
+					break;
+				}
+				copy_pos += 4;
+
+				if (!!x_copy_to_user((void*)copy_pos, &new_path, max_path_length > MY_PATH_MAX_LEN ? MY_PATH_MAX_LEN : max_path_length - 1)) {
+					if (have_pass) {
+						*have_pass = 1;
+					}
+					break;
+				}
+				copy_pos += max_path_length;
+
+			}
+			success++;
+		}
+	}
 	up_read_mmap_lock(mm);
 	mmput(mm);
 

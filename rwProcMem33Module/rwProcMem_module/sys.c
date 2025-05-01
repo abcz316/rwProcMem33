@@ -35,7 +35,7 @@ MY_STATIC int rwProcMem_release(struct inode *inode, struct file *filp) {
 			//			g_rwProcMem_devp->proc_entry = proc_create(DEV_FILENAME, S_IRUGO | S_IWUGO, NULL, &rwProcMem_fops);
 			//#endif
 #ifdef CONFIG_USE_DEV_FILE_NODE
-			g_Class_devp = class_create(THIS_MODULE, DEV_FILENAME);
+			g_Class_devp = x_class_create(DEV_FILENAME);
 			device_create(g_Class_devp, NULL, g_rwProcMem_devno, NULL, "%s", DEV_FILENAME);
 #endif
 
@@ -215,7 +215,7 @@ MY_STATIC ssize_t rwProcMem_write(struct file* filp, const char __user* buf, siz
 
 MY_STATIC long OnIoctlInitDeviceInfo(unsigned long arg) {
 	size_t size = 0;
-	struct init_device_info* p_init_device_info = (struct init_device_info*)__kmalloc(sizeof(struct init_device_info), GFP_KERNEL);
+	struct init_device_info* p_init_device_info = (struct init_device_info*)kmalloc(sizeof(struct init_device_info), GFP_KERNEL);
 	if (!p_init_device_info) {
 		return -ENOMEM;
 	}
@@ -269,7 +269,7 @@ MY_STATIC long OnIoctlSetMaxOpenDevFile(unsigned long arg) {
 				g_rwProcMem_devp->proc_entry = proc_create(DEV_FILENAME, S_IRUGO | S_IWUGO, NULL, &rwProcMem_fops);
 #endif
 #ifdef CONFIG_USE_DEV_FILE_NODE
-				g_Class_devp = class_create(THIS_MODULE, DEV_FILENAME);
+				g_Class_devp = x_class_create(DEV_FILENAME);
 				device_create(g_Class_devp, NULL, g_rwProcMem_devno, NULL, "%s", DEV_FILENAME);
 #endif
 			}
@@ -624,7 +624,7 @@ int __init rwProcMem_dev_init(void) {
 	int result;
 	printk(KERN_EMERG "Start init.\n");
 	
-	g_rwProcMem_devp = __kmalloc(sizeof(struct rwProcMemDev), GFP_KERNEL);
+	g_rwProcMem_devp = kmalloc(sizeof(struct rwProcMemDev), GFP_KERNEL);
 	if (!g_rwProcMem_devp) {
 		result = -ENOMEM;
 		goto _fail;
@@ -651,7 +651,7 @@ int __init rwProcMem_dev_init(void) {
 		return result;
 	}
 
-	g_rwProcMem_devp->pcdev = __kmalloc(sizeof(struct cdev) * 3, GFP_KERNEL);
+	g_rwProcMem_devp->pcdev = kmalloc(sizeof(struct cdev) * 3, GFP_KERNEL);
 	cdev_init(g_rwProcMem_devp->pcdev, (struct file_operations*)&rwProcMem_fops);
 	g_rwProcMem_devp->pcdev->owner = THIS_MODULE;
 	g_rwProcMem_devp->pcdev->ops = (struct file_operations*)&rwProcMem_fops;
@@ -660,7 +660,7 @@ int __init rwProcMem_dev_init(void) {
 		result = -EFAULT;
 		goto _fail;
 	}
-	g_Class_devp = class_create(THIS_MODULE, DEV_FILENAME);
+	g_Class_devp = x_class_create(DEV_FILENAME);
 	device_create(g_Class_devp, NULL, g_rwProcMem_devno, NULL, "%s", DEV_FILENAME);
 #endif
 

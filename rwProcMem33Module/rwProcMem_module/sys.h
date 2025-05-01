@@ -29,10 +29,6 @@
 #ifdef CONFIG_USE_PROC_FILE_NODE
 #include <linux/proc_fs.h>
 #endif
-#ifdef CONFIG_USE_DEV_FILE_NODE
-#include <linux/cdev.h>
-#include <linux/device.h> //device_create创建设备文件（/dev/xxxxxxxx）
-#endif
 //////////////////////////////////////////////////////////////////
 
 #define MAJOR_NUM 100
