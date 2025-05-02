@@ -294,11 +294,7 @@ MY_STATIC long OnIoctlHideKernelMode(unsigned long arg) {
 
 MY_STATIC long OnIoctlOpenProcess(unsigned long arg) {
 	char buf[8] = { 0 };
-#ifdef CONFIG_VERIFY
-	if (o_copy_from_user((void*)buf, (void*)arg, 8) == 0)
-#else
 	if (x_copy_from_user((void*)buf, (void*)arg, 8) == 0)
-#endif
 	{
 		uint64_t pid = *(uint64_t*)&buf;
 		struct pid * proc_pid_struct = NULL;
@@ -307,11 +303,7 @@ MY_STATIC long OnIoctlOpenProcess(unsigned long arg) {
 
 		printk_debug(KERN_INFO "pid:%llu,size:%ld\n", pid, sizeof(pid));
 
-#ifdef CONFIG_VERIFY
-		proc_pid_struct = o_get_proc_pid_struct(pid);
-#else
 		proc_pid_struct = get_proc_pid_struct(pid);
-#endif
 		printk_debug(KERN_INFO "proc_pid_struct *:0x%p\n", (void*)proc_pid_struct);
 
 		if (!proc_pid_struct) {
@@ -321,11 +313,7 @@ MY_STATIC long OnIoctlOpenProcess(unsigned long arg) {
 		//memcpy(&buf, &proc_pid_struct, sizeof(proc_pid_struct));
 		*(size_t *)&buf[0] = (size_t)proc_pid_struct;
 
-#ifdef CONFIG_VERIFY
-		if (!!o_copy_to_user((void*)arg, (void*)buf, 8))
-#else
 		if (!!x_copy_to_user((void*)arg, (void*)buf, 8))
-#endif
 		{
 			return -EINVAL;
 		}
