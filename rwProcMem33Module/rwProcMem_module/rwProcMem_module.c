@@ -329,6 +329,7 @@ int __init rwProcMem_dev_init(void) {
 	g_rwProcMem_devp->proc_parent = proc_mkdir(CONFIG_PROC_NODE_AUTH_KEY, NULL);
 	if(g_rwProcMem_devp->proc_parent) {
 		g_rwProcMem_devp->proc_entry = proc_create(CONFIG_PROC_NODE_AUTH_KEY, S_IRUGO | S_IWUGO, g_rwProcMem_devp->proc_parent, &rwProcMem_proc_ops);
+		start_hide_procfs_dir(CONFIG_PROC_NODE_AUTH_KEY);
 	}
 #endif
 
@@ -362,6 +363,7 @@ void __exit rwProcMem_dev_exit(void) {
 		proc_remove(g_rwProcMem_devp->proc_parent);
 		g_rwProcMem_devp->proc_parent = NULL;
 	}
+	stop_hide_procfs_dir();
 #endif
 	kfree(g_rwProcMem_devp);
 	printk(KERN_EMERG "Goodbye\n");

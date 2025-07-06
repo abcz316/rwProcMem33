@@ -6,6 +6,8 @@
 
 // 生成proc用户层交互节点文件
 #define CONFIG_USE_PROC_FILE_NODE
+// 隐蔽通信密钥
+#define CONFIG_PROC_NODE_AUTH_KEY "e84523d7b60d5d341a7c4d1861773ecd"
 
 // 打印内核调试信息
 //#define CONFIG_DEBUG_PRINTK

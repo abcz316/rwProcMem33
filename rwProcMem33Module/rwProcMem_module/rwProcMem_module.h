@@ -25,6 +25,7 @@
 #include "test.h"
 #ifdef CONFIG_USE_PROC_FILE_NODE
 #include <linux/proc_fs.h>
+#include "hide_procfs_dir.h"
 #endif
 //////////////////////////////////////////////////////////////////
 
