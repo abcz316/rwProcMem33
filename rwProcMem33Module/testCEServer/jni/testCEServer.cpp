@@ -795,12 +795,16 @@ void IdentifierThread() {
 
 
 int main(int argc, char *argv[]) {
+	//驱动默认隐蔽通信密匙
+	std::string procNodeAuthKey = "e84523d7b60d5d341a7c4d1861773ecd";
+	if (argc > 1) {
+		procNodeAuthKey = argv[1];
+	}
 	//初始化读写驱动
-	if (!CApi::InitReadWriteDriver(argc > 1 ? argv[1] : NULL, FALSE)) {
+	if (!CApi::InitReadWriteDriver(procNodeAuthKey.c_str(), FALSE)) {
 		printf("Init read write driver failed.\n");
 		return 0;
 	}
-
 
 	socklen_t clisize;
 	struct sockaddr_in addr, addr_client;

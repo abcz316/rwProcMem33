@@ -4,7 +4,7 @@
 
 #ifndef MEMSEARCHER_MAPREGIONTYPE_H
 #define MEMSEARCHER_MAPREGIONTYPE_H
-#include "../../testKo/jni/MemoryReaderWriter37.h"
+#include "../../testKo/jni/MemoryReaderWriter38.h"
 #ifndef __linux__
 #include <windows.h>
 #endif

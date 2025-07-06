@@ -42,12 +42,13 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
 
-
+
 
 int
 _zip_mkstemp(char *path)

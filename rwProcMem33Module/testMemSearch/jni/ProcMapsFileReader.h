@@ -4,7 +4,7 @@
 
 #ifndef PROC_MAPS_FILE_READER_H
 #define PROC_MAPS_FILE_READER_H
-#include "../../testKo/jni/MemoryReaderWriter37.h"
+#include "../../testKo/jni/MemoryReaderWriter38.h"
 #ifndef __linux__
 #include <windows.h>
 #endif
@@ -16,8 +16,7 @@ class ProcMapsFileReader : public IMemReaderWriterProxy {
 	~ProcMapsFileReader() {}
 	BOOL VirtualQueryExFull(uint64_t hProcess,
 							BOOL showPhy,
-							std::vector<DRIVER_REGION_INFO>& vOutput,
-							BOOL& bOutListCompleted) override {
+							std::vector<DRIVER_REGION_INFO>& vOutput) override {
 		vOutput.clear();
 		std::stringstream ss;
 		ss << "/proc/" << pid << "/maps";
@@ -67,17 +66,9 @@ class ProcMapsFileReader : public IMemReaderWriterProxy {
 		}
 
 		mapsFile.close();
-		bOutListCompleted = TRUE;
 		return TRUE;
 	}
 	BOOL ReadProcessMemory(
-		uint64_t hProcess,
-		uint64_t lpBaseAddress,
-		void *lpBuffer,
-		size_t nSize,
-		size_t * lpNumberOfBytesRead = NULL,
-		BOOL bIsForceRead = FALSE) override { return FALSE; }
-	BOOL ReadProcessMemory_Fast(
 		uint64_t hProcess,
 		uint64_t lpBaseAddress,
 		void *lpBuffer,
@@ -91,14 +82,7 @@ class ProcMapsFileReader : public IMemReaderWriterProxy {
 		size_t nSize,
 		size_t * lpNumberOfBytesWritten = NULL,
 		BOOL bIsForceWrite = FALSE) override { return FALSE; }
-	BOOL WriteProcessMemory_Fast(
-		uint64_t hProcess,
-		uint64_t lpBaseAddress,
-		void * lpBuffer,
-		size_t nSize,
-		size_t * lpNumberOfBytesWritten = NULL,
-		BOOL bIsForceWrite = FALSE) override { return FALSE; }
-	BOOL CheckMemAddrIsValid(
+	BOOL CheckProcessMemAddrValid(
 		uint64_t hProcess,
 		uint64_t lpBaseAddress) override { return FALSE; }
    private:

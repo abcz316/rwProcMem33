@@ -48,21 +48,7 @@ struct IMemReaderWriterProxy {
 		size_t nSize,
 		size_t * lpNumberOfBytesRead = NULL,
 		BOOL bIsForceRead = FALSE) = 0;
-	virtual BOOL ReadProcessMemory_Fast(
-		uint64_t hProcess,
-		uint64_t lpBaseAddress,
-		void *lpBuffer,
-		size_t nSize,
-		size_t * lpNumberOfBytesRead = NULL,
-		BOOL bIsForceRead = FALSE) = 0;
 	virtual BOOL WriteProcessMemory(
-		uint64_t hProcess,
-		uint64_t lpBaseAddress,
-		void * lpBuffer,
-		size_t nSize,
-		size_t * lpNumberOfBytesWritten = NULL,
-		BOOL bIsForceWrite = FALSE) = 0;
-	virtual BOOL WriteProcessMemory_Fast(
 		uint64_t hProcess,
 		uint64_t lpBaseAddress,
 		void * lpBuffer,
@@ -72,10 +58,9 @@ struct IMemReaderWriterProxy {
 	virtual BOOL VirtualQueryExFull(
 		uint64_t hProcess,
 		BOOL showPhy,
-		std::vector<DRIVER_REGION_INFO> & vOutput,
-		BOOL & bOutListCompleted) = 0;
+		std::vector<DRIVER_REGION_INFO> & vOutput) = 0;
 
-	virtual BOOL CheckMemAddrIsValid(
+	virtual BOOL CheckProcessMemAddrValid(
 		uint64_t hProcess,
 		uint64_t lpBaseAddress) = 0;
 };

@@ -8,30 +8,21 @@
 #include <inttypes.h>
 #include <cinttypes>
 #include "ceserver.h"
-#include "../../testKo/jni/MemoryReaderWriter37.h"
+#include "../../testKo/jni/MemoryReaderWriter38.h"
 
 CMemoryReaderWriter g_driver;
 
-BOOL CApi::InitReadWriteDriver(const char* lpszDevFileName, BOOL bUseBypassSELinuxMode) {
-	if (!lpszDevFileName) {
-		//驱动默认文件名
-		lpszDevFileName = RWPROCMEM_FILE_NODE;
-	}
 
-	printf("Connecting rwDriver:%s\n", lpszDevFileName);
-
-
+BOOL CApi::InitReadWriteDriver(const char* procNodeAuthKey, BOOL bUseBypassSELinuxMode) {
+	printf("Connecting rwDriver:%s\n", procNodeAuthKey);
 	//连接驱动
-	int err = 0;
-	if (!g_driver.ConnectDriver(lpszDevFileName, bUseBypassSELinuxMode, err)) {
+	int err = g_driver.ConnectDriver(procNodeAuthKey);
+	if (err) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return FALSE;
 	}
-
-	g_driver.SetMaxDevFileOpen(100);
 	return TRUE;
-
 }
 
 
@@ -97,7 +88,7 @@ BOOL GetProcessListInfo(CMemoryReaderWriter* pDriver, BOOL bGetPhyMemorySize, st
 			pInfo.pid = pid;
 			if (bGetPhyMemorySize) {
 				uint64_t outRss = 0;
-				pDriver->GetProcessRSS(hProcess, outRss);
+				pDriver->GetProcessPhyMemSize(hProcess, outRss);
 				pInfo.total_rss = outRss;
 			}
 			char cmdline[200] = { 0 };
@@ -144,8 +135,7 @@ HANDLE CApi::CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID) {
 
 		//驱动_获取进程内存块列表
 		std::vector<DRIVER_REGION_INFO> vMaps;
-		BOOL bOutListCompleted;
-		BOOL b = g_driver.VirtualQueryExFull(u64DriverProcessHandle, FALSE, vMaps, bOutListCompleted);
+		BOOL b = g_driver.VirtualQueryExFull(u64DriverProcessHandle, FALSE, vMaps);
 		printf("Call VirtualQueryExFull(FALSE) return:%d, size:%zu\n", b, vMaps.size());
 		fflush(stdout);
 		if (!vMaps.size()) {
@@ -382,8 +372,7 @@ int CApi::VirtualQueryExFull(HANDLE hProcess, uint32_t flags, std::vector<Region
 
 	//驱动_获取进程内存块列表
 	std::vector<DRIVER_REGION_INFO> vMaps;
-	BOOL bOutListCompleted;
-	BOOL b = g_driver.VirtualQueryExFull(u64DriverProcessHandle, FALSE, vMaps, bOutListCompleted);
+	BOOL b = g_driver.VirtualQueryExFull(u64DriverProcessHandle, FALSE, vMaps);
 	printf("Call VirtualQueryExFull(FALSE) return:%d, size:%zu\n", b, vMaps.size());
 	fflush(stdout);
 	if (!vMaps.size()) {
@@ -436,8 +425,7 @@ int CApi::VirtualQueryEx(HANDLE hProcess, uint64_t lpAddress, RegionInfo & rinfo
 	//取出驱动进程句柄
 	uint64_t u64DriverProcessHandle = pCeOpenProcess->u64DriverProcessHandle;
 	std::vector<DRIVER_REGION_INFO> vMaps;
-	BOOL bOutListCompleted;
-	BOOL b = g_driver.VirtualQueryExFull(u64DriverProcessHandle, FALSE, vMaps, bOutListCompleted);
+	BOOL b = g_driver.VirtualQueryExFull(u64DriverProcessHandle, FALSE, vMaps);
 	printf("Call VirtualQueryExFull(FALSE) return:%d, size:%zu\n", b, vMaps.size());
 	fflush(stdout);
 	if (!vMaps.size()) {
@@ -503,7 +491,6 @@ int CApi::ReadProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer, int 
 	//取出驱动进程句柄
 	uint64_t u64DriverProcessHandle = pCeOpenProcess->u64DriverProcessHandle;
 
-	//valid handle
 	//驱动_读取进程内存
 	g_driver.ReadProcessMemory(u64DriverProcessHandle, (uint64_t)lpAddress, buffer, size, &bread, FALSE);
 	return (int)bread;
@@ -524,7 +511,7 @@ int CApi::WriteProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer, int
 	//取出驱动进程句柄
 	uint64_t u64DriverProcessHandle = pCeOpenProcess->u64DriverProcessHandle;
 
-	//驱动_写进程内存，分开两次写，因为强写需要改变物理内存页属性，怕出现意外死机，所以先尝试普通写入。
+	//驱动_写取进程内存，分开两次写，因为强写需要改变物理内存页属性，怕出现意外死机，所以先尝试普通写入。
 	if(!g_driver.WriteProcessMemory(u64DriverProcessHandle, (uint64_t)lpAddress, buffer, size, &written, FALSE)) {
 		g_driver.WriteProcessMemory(u64DriverProcessHandle, (uint64_t)lpAddress, buffer, size, &written, TRUE);
 	}

@@ -75,7 +75,7 @@ struct CeOpenProcess {
 
 class CApi {
 public:
-	static BOOL InitReadWriteDriver(const char* lpszDevFileName, BOOL bUseBypassSELinuxMode);
+	static BOOL InitReadWriteDriver(const char* procNodeAuthKey, BOOL bUseBypassSELinuxMode);
 	static HANDLE CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID);
 	static BOOL Process32First(HANDLE hSnapshot, ProcessListEntry & processentry);
 	static BOOL Process32Next(HANDLE hSnapshot, ProcessListEntry &processentry);

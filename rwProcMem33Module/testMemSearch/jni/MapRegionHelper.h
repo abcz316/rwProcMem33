@@ -4,7 +4,7 @@
 
 #ifndef MEMSEARCHER_MAPREGIONHELPER_H
 #define MEMSEARCHER_MAPREGIONHELPER_H
-#include "../../testKo/jni/MemoryReaderWriter37.h"
+#include "../../testKo/jni/MemoryReaderWriter38.h"
 #include "MemSearchKit/MemSearchKitUmbrella.h"
 #include "ProcMapsFileReader.h"
 
@@ -38,8 +38,7 @@ struct MemRegionItem {
 // 获取进程的指定内存范围列表
 static BOOL GetMemRegions(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, RegionType type, std::vector<MemRegionItem> & vOutput) {
 	std::vector<DRIVER_REGION_INFO> vMapsList;
-	BOOL bOutListCompleted;
-	IReadWriteProxy->VirtualQueryExFull(hProcess, FALSE, vMapsList, bOutListCompleted);
+	IReadWriteProxy->VirtualQueryExFull(hProcess, FALSE, vMapsList);
 	if (vMapsList.empty()) {
 		return FALSE;
 	}
@@ -102,8 +101,7 @@ static BOOL GetMemRegions(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProc
 static BOOL GetModuleFirstAddr(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName, uint64_t & firstAddr) {
 	//驱动_获取进程内存块地址列表
 	std::vector<DRIVER_REGION_INFO> vMapsList;
-	BOOL bOutListCompleted;
-	IReadWriteProxy->VirtualQueryExFull(hProcess, FALSE, vMapsList, bOutListCompleted);
+	IReadWriteProxy->VirtualQueryExFull(hProcess, FALSE, vMapsList);
 	if (vMapsList.size() == 0) {
 		//无内存
 		return FALSE;
@@ -123,8 +121,7 @@ static BOOL GetModuleExecAreaSection(IMemReaderWriterProxy *IReadWriteProxy, uin
 	std::vector<DRIVER_REGION_INFO> & vOut) {
 	//驱动_获取进程内存块地址列表
 	std::vector<DRIVER_REGION_INFO> vMapsList;
-	BOOL bOutListCompleted;
-	IReadWriteProxy->VirtualQueryExFull(hProcess, FALSE, vMapsList, bOutListCompleted);
+	IReadWriteProxy->VirtualQueryExFull(hProcess, FALSE, vMapsList);
 	if (vMapsList.size() == 0) {
 		//无内存
 		return FALSE;
@@ -145,8 +142,7 @@ static BOOL GetModuleDataAreaSection(IMemReaderWriterProxy *IReadWriteProxy, uin
 	std::vector<DRIVER_REGION_INFO> & vOut) {
 	//1.获取进程内存块地址列表
 	std::vector<DRIVER_REGION_INFO> vMapsList;
-	BOOL bOutListCompleted;
-	IReadWriteProxy->VirtualQueryExFull(hProcess, FALSE, vMapsList, bOutListCompleted);
+	IReadWriteProxy->VirtualQueryExFull(hProcess, FALSE, vMapsList);
 	if (vMapsList.size() == 0) {
 		//无内存
 		return FALSE;

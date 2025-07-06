@@ -5,11 +5,11 @@
 #include <linux/pid.h>
 #include "ver_control.h"
 
-MY_STATIC inline struct pid * get_proc_pid_struct(int pid);
-MY_STATIC inline int get_proc_pid(struct pid* proc_pid_struct);
-MY_STATIC inline void release_proc_pid_struct(struct pid* proc_pid_struct);
-MY_STATIC inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t * arg_start, size_t * arg_end);
-MY_STATIC inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * arg_start, size_t * arg_end);
+static inline struct pid * get_proc_pid_struct(int pid);
+static inline int get_proc_pid(struct pid* proc_pid_struct);
+static inline void release_proc_pid_struct(struct pid* proc_pid_struct);
+static inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t * arg_start, size_t * arg_end);
+static inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * arg_start, size_t * arg_end);
 
 
 //实现
@@ -18,18 +18,19 @@ MY_STATIC inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t
 #include "proc_cmdline_auto_offset.h"
 #include "api_proxy.h"
 
-MY_STATIC inline struct pid * get_proc_pid_struct(int pid) {
+static inline struct pid * get_proc_pid_struct(int pid) {
 	return find_get_pid(pid);
 }
 
-MY_STATIC inline int get_proc_pid(struct pid* proc_pid_struct) {
+static inline int get_proc_pid(struct pid* proc_pid_struct) {
 	return proc_pid_struct->numbers[0].nr;
 }
-MY_STATIC inline void release_proc_pid_struct(struct pid* proc_pid_struct) {
+
+static inline void release_proc_pid_struct(struct pid* proc_pid_struct) {
 	put_pid(proc_pid_struct);
 }
 
-MY_STATIC inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t * arg_start, size_t * arg_end) {
+static inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t * arg_start, size_t * arg_end) {
 	int ret = 0;
 	struct task_struct *task = NULL;
 
@@ -44,7 +45,8 @@ MY_STATIC inline int get_proc_cmdline_addr(struct pid* proc_pid_struct, size_t *
 	ret = get_task_proc_cmdline_addr(task, arg_start, arg_end);
 	return ret;
 }
-MY_STATIC inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * arg_start, size_t * arg_end) {
+
+static inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t * arg_start, size_t * arg_end) {
 	if (g_init_arg_start_offset_success) {
 		struct mm_struct *mm;
 		ssize_t accurate_offset;
@@ -53,7 +55,7 @@ MY_STATIC inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t
 		if (!mm) { return -EFAULT; }
 
 		//精确偏移
-		accurate_offset = (ssize_t)((size_t)&mm->arg_start - (size_t)mm + g_arg_start_offset_proc_cmdline);
+		accurate_offset = (ssize_t)((size_t)&mm->arg_start - (size_t)mm + g_arg_start_offset);
 		if (accurate_offset >= sizeof(struct mm_struct) - sizeof(ssize_t)) {
 			mmput(mm);
 			return -EFAULT;
@@ -76,5 +78,4 @@ MY_STATIC inline int get_task_proc_cmdline_addr(struct task_struct *task, size_t
 	}
 	return -ESPIPE;
 }
-
 #endif /* PROC_CMDLINE_H_ */

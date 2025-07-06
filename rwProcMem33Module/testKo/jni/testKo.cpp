@@ -6,27 +6,25 @@
 #include <vector>
 #include <dirent.h>
 #include <cinttypes>
-#include "MemoryReaderWriter37.h"
+#include <algorithm>
+#include "MemoryReaderWriter38.h"
 #include "../../testMemSearch/jni/MapRegionType.h"
-
 
 int main(int argc, char *argv[]) {
 	printf(
 		"======================================================\n"
-		"本驱动名称: Linux ARM64 硬件读写进程内存驱动37\n"
+		"本驱动名称: Linux ARM64 硬件读写进程内存驱动38\n"
 		"本驱动接口列表：\n"
-		"\t1.	驱动_设置驱动设备接口文件允许同时被使用的最大值: SetMaxDevFileOpen\n"
-		"\t2.	驱动_隐藏驱动（卸载驱动需重启机器）: HideKernelModule\n"
-		"\t3.	驱动_打开进程: OpenProcess\n"
-		"\t4.	驱动_读取进程内存: ReadProcessMemory\n"
-		"\t5.	驱动_写入进程内存: WriteProcessMemory\n"
-		"\t6.	驱动_关闭进程: CloseHandle\n"
-		"\t7.	驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、只显示在物理内存中的内存）\n"
-		"\t8.	驱动_获取进程PID列表: GetProcessPidList\n"
-		"\t9.	驱动_获取进程权限等级: GetProcessGroup\n"
-		"\t10.	驱动_提升进程权限到Root: SetProcessRoot\n"
-		"\t11.	驱动_获取进程占用物理内存大小: GetProcessRSS\n"
-		"\t12.	驱动_获取进程命令行: GetProcessCmdline\n"
+		"\t1.	驱动_打开进程: OpenProcess\n"
+		"\t2.	驱动_读取进程内存: ReadProcessMemory\n"
+		"\t3.	驱动_写入进程内存: WriteProcessMemory\n"
+		"\t4.	驱动_关闭进程: CloseHandle\n"
+		"\t5.	驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、仅显示物理内存）\n"
+		"\t6.	驱动_获取进程PID列表: GetPidList\n"
+		"\t7.	驱动_提升进程权限到Root: SetProcessRoot\n"
+		"\t8.	驱动_获取进程占用物理内存大小: GetProcessRSS\n"
+		"\t9.	驱动_获取进程命令行: GetProcessCmdline\n"
+		"\t10.	驱动_隐藏驱动: HideKernelModule\n"
 		"\t以上所有功能不注入、不附加进程，不打开进程任何文件，所有操作均为内核操作\n"
 		"======================================================\n"
 	);
@@ -46,36 +44,22 @@ int main(int argc, char *argv[]) {
 
 	CMemoryReaderWriter rwDriver;
 
-	//驱动默认文件名
-	std::string devFileName = RWPROCMEM_FILE_NODE;
+	//驱动默认隐蔽通信密匙
+	std::string procNodeAuthKey = "e84523d7b60d5d341a7c4d1861773ecd";
 	if (argc > 1) {
-		//如果用户自定义输入驱动名
-		devFileName = argv[1];
+		//用户自定义输入驱动隐蔽通信密匙
+		procNodeAuthKey = argv[1];
 	}
-	printf("Connecting rwDriver:%s\n", devFileName.c_str());
-
+	printf("Connecting rwDriver auth key:%s\n", procNodeAuthKey.c_str());
 
 	//连接驱动
-	int err = 0;
-	if (!rwDriver.ConnectDriver(devFileName.c_str(), FALSE, err)) {
+	int err = rwDriver.ConnectDriver(procNodeAuthKey.c_str());
+	if (err) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return 0;
 	}
-
-	//驱动_是否使用躲避SELinux的通信方式（按需选择）
-	rwDriver.SetUseBypassSELinuxMode(TRUE);
-
-	//驱动_设置驱动设备接口文件允许同时被使用的最大值
-	BOOL b = rwDriver.SetMaxDevFileOpen(2);
-	printf("调用驱动 SetMaxDevFileOpen 返回值:%d\n", b);
-
-	/*
-	//驱动_隐藏驱动（卸载驱动需重启机器）
-	b = rwDriver.HideKernelModule();
-	printf("调用驱动 HideKernelModule 返回值:%d\n", b);
-	*/
-
+	
 	//驱动_打开进程
 	uint64_t hProcess = rwDriver.OpenProcess(pid);
 	printf("调用驱动 OpenProcess 返回值:%" PRIu64 "\n", hProcess);
@@ -85,29 +69,23 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
-
 	//驱动_读取进程内存
 	char readBuf[1024] = { 0 };
 	size_t real_read = 0;
-	//如果是单线程读内存，还可另选用极速版函数：ReadProcessMemory_Fast
 	BOOL read_res = rwDriver.ReadProcessMemory(hProcess, (uint64_t)pBuf, &readBuf, sizeof(readBuf), &real_read, FALSE);
 	printf("调用驱动 ReadProcessMemory 读取内存地址:%p,返回值:%d,读取到的内容:%s,实际读取大小:%zu\n", pBuf, read_res, readBuf, real_read);
 
 	//驱动_写入进程内存
-	memset(readBuf, 0, sizeof(readBuf));
 	snprintf(readBuf, sizeof(readBuf), "%s", "写入456");
 	size_t real_write = 0;
-	//如果是单线程写内存，还可另选用极速版函数：WriteProcessMemory_Fast
 	BOOL write_res = rwDriver.WriteProcessMemory(hProcess, (uint64_t)pBuf, &readBuf, sizeof(readBuf), &real_write, FALSE);
 	printf("调用驱动 WriteProcessMemory 写入内存地址:%p,返回值:%d,写入的内容:%s,实际写入大小:%zu\n", pBuf, write_res, readBuf, real_write);
-
 	printf("当前缓冲区内容 :%s,当前缓冲区的内存地址:%p\n", szBuf, pBuf);
 
 
 	//驱动_获取进程内存块列表（显示全部内存）
 	std::vector<DRIVER_REGION_INFO> vMaps;
-	BOOL bOutListCompleted;
-	b = rwDriver.VirtualQueryExFull(hProcess, FALSE, vMaps, bOutListCompleted);
+	BOOL b = rwDriver.VirtualQueryExFull(hProcess, FALSE, vMaps);
 	printf("调用驱动 VirtualQueryExFull(显示全部内存) 返回值:%d\n", b);
 
 	//显示进程内存块地址列表
@@ -115,40 +93,27 @@ int main(int argc, char *argv[]) {
 		printf("---Start:%p,Size:%" PRIu64 ",Type:%s,Name:%s\n", (void*)rinfo.baseaddress, rinfo.size, MapsTypeToString(&rinfo).c_str(), rinfo.name);
 	}
 
-
-	//驱动_获取进程内存块列表（只显示在物理内存中的内存）
+	//驱动_获取进程内存块列表（仅显示物理内存）
 	vMaps.clear();
-	b = rwDriver.VirtualQueryExFull(hProcess, TRUE, vMaps, bOutListCompleted);
-	printf("调用驱动 VirtualQueryExFull(只显示在物理内存中的内存) 返回值:%d\n", b);
+	printf("正在调用驱动接口 VirtualQueryExFull（仅显示物理内存），该操作可能耗时较长，请耐心等待…\n");
+	b = rwDriver.VirtualQueryExFull(hProcess, TRUE, vMaps);
+	printf("调用驱动 VirtualQueryExFull(仅显示物理内存) 返回值:%d\n", b);
 
 	//显示进程内存块地址列表
 	for (DRIVER_REGION_INFO rinfo : vMaps) {
 		printf("+++Start:%p,Size:%" PRIu64 ",Type:%s,Name:%s\n", (void*)rinfo.baseaddress, rinfo.size, MapsTypeToString(&rinfo).c_str(), rinfo.name);
 	}
 
-
-
-	//驱动_获取进程占用物理内存大小
+	//驱动_获取进程物理内存占用大小
 	uint64_t outRss = 0;
-	b = rwDriver.GetProcessRSS(hProcess, outRss);
-	printf("调用驱动 GetProcessRSS 返回值:%d,当前进程占用物理内存大小:%" PRIu64 "KB\n", b, outRss);
+	b = rwDriver.GetProcessPhyMemSize(hProcess, outRss);
+	printf("调用驱动 GetProcessPhyMemSize 返回值:%d,当前进程物理内存占用大小:%" PRIu64 "KB\n", b, outRss);
 
 
 	//驱动_获取进程命令行
 	char cmdline[100] = { 0 };
 	b = rwDriver.GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
 	printf("调用驱动 GetProcessCmdline 返回值:%d,当前进程命令行:%s\n", b, cmdline);
-
-
-	//驱动_获取进程权限等级
-	uint64_t  nOutUID, nOutSUID, nOutEUID, nOutFSUID, nOutGID, nOutSGID, nOutEGID, nOutFSGID;
-	b = rwDriver.GetProcessGroup(hProcess, nOutUID, nOutSUID, nOutEUID, nOutFSUID, nOutGID, nOutSGID, nOutEGID, nOutFSGID);
-	printf("调用驱动 GetProcessGroup 返回值:%d,"
-		"nOutUID:%" PRIu64 ", nOutSUID:%" PRIu64 ", nOutEUID:%" PRIu64 ","
-		"nOutFSUID:%" PRIu64 ", nOutGID:%" PRIu64 ", nOutSGID:%" PRIu64 ","
-		"nOutEGID:%" PRIu64 ", nOutFSGID:%" PRIu64 "\n",
-		b, nOutUID, nOutSUID, nOutEUID, nOutFSUID, nOutGID, nOutSGID, nOutEGID, nOutFSGID);
-
 
 	//驱动_关闭进程
 	rwDriver.CloseHandle(hProcess);
@@ -157,18 +122,18 @@ int main(int argc, char *argv[]) {
 
 	//驱动_获取进程PID列表
 	std::vector<int> vPID;
-	b = rwDriver.GetProcessPidList(vPID, FALSE, bOutListCompleted);
-	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
-
-	//打印进程列表信息
-	for (int pid : vPID) {
+	b = rwDriver.GetPidList(vPID);
+	printf("调用驱动 GetPidList 返回值:%d, size:%zu\n", b, vPID.size());
+	printf("打印进程列表信息(仅演示最后10个进程)\n");
+	for(size_t i = (vPID.size() > 10 ? vPID.size() - 10 : 0); i < vPID.size(); ++i) {
+		int pid = vPID[i];
 		//驱动_打开进程
 		uint64_t hProcess = rwDriver.OpenProcess(pid);
 		if (!hProcess) { continue; }
 
-		//驱动_获取进程占用物理内存大小
+		//驱动_获取进程物理内存占用大小
 		uint64_t outRss = 0;
-		rwDriver.GetProcessRSS(hProcess, outRss);
+		rwDriver.GetProcessPhyMemSize(hProcess, outRss);
 
 		//驱动_获取进程命令行
 		char cmdline[100] = { 0 };
@@ -186,6 +151,9 @@ int main(int argc, char *argv[]) {
 		printf("pid:%d,rss:%" PRIu64 ",cmdline:%s\n", pid, outRss, cmdline);
 	}
 
+	//驱动_隐藏驱动
+	b = rwDriver.HideKernelModule();
+	printf("调用驱动 HideKernelModule 返回值:%d\n", b);
 
 	fflush(stdout);
 	return 0;

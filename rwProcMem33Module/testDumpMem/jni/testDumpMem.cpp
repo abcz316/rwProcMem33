@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <signal.h>
 #include <memory>
 #include <sstream>
 #include <cinttypes>
@@ -12,9 +13,8 @@
 #include <sys/stat.h>
 #include <zlib.h>
 #include "libzip/zip.h"
-#include "../../testKo/jni/MemoryReaderWriter37.h"
-#include "../../testMemSearch/jni/MapRegionType.h"
-
+#include "../../../testKo/jni/MemoryReaderWriter38.h"
+#include "../../../testMemSearch/jni/MapRegionType.h"
 constexpr uint64_t kMaxDumpMemRegionSize = 2147483648;
 
 std::string& replace_all_distinct(std::string& str, const std::string& old_value, const std::string& new_value) {
@@ -28,120 +28,90 @@ std::string& replace_all_distinct(std::string& str, const std::string& old_value
 	return str;
 }
 
-//int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver) {
-//	int nTargetPid = 0;
-//
-//	//驱动_获取进程PID列表
-//	std::vector<int> vPID;
-//	BOOL bOutListCompleted;
-//	BOOL b = pDriver->GetProcessPidList(vPID, FALSE, bOutListCompleted);
-//	printf("调用驱动 GetProcessPidList 返回值:%d\n", b);
-//
-//	//打印进程列表信息
-//	for (int pid : vPID) {
-//		//驱动_打开进程
-//		uint64_t hProcess = pDriver->OpenProcess(pid);
-//		if (!hProcess) { continue; }
-//
-//		//驱动_获取进程命令行
-//		char cmdline[100] = { 0 };
-//		pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
-//
-//		//驱动_关闭进程
-//		pDriver->CloseHandle(hProcess);
-//
-//		if (strcmp(lpszCmdline, cmdline) == 0) {
-//			nTargetPid = pid;
-//			break;
-//		}
-//	}
-//	return nTargetPid;
-//}
-
-int findPID(const char *lpszCmdline, CMemoryReaderWriter *pDriver) {
+int findPID(CMemoryReaderWriter *pDriver, const char *lpszCmdline) {
 	int nTargetPid = 0;
-	DIR* dir = NULL;
-	struct dirent* ptr = NULL;
 
-	dir = opendir("/proc");
-	if (dir) {
-		while ((ptr = readdir(dir)) != NULL) { // 循环读取路径下的每一个文件/文件夹
-			// 如果读取到的是"."或者".."则跳过，读取到的不是文件夹名字也跳过
-			if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0)) {
-				continue;
-			} else if (ptr->d_type != DT_DIR) {
-				continue;
-			} else if (strspn(ptr->d_name, "1234567890") != strlen(ptr->d_name)) {
-				continue;
-			}
+	//驱动_获取进程PID列表
+	std::vector<int> vPID;
+	BOOL b = pDriver->GetPidList(vPID);
+	printf("调用驱动 GetPidList 返回值:%d\n", b);
 
-			int pid = atoi(ptr->d_name);
+	//打印进程列表信息
+	for (int pid : vPID) {
+		//驱动_打开进程
+		uint64_t hProcess = pDriver->OpenProcess(pid);
+		if (!hProcess) { continue; }
 
-			uint64_t hProcess = pDriver->OpenProcess(pid);
-			if (!hProcess) { continue; }
+		//驱动_获取进程命令行
+		char cmdline[100] = { 0 };
+		pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
 
-			char cmdline[200] = { 0 };
-			pDriver->GetProcessCmdline(hProcess, cmdline, sizeof(cmdline));
+		//驱动_关闭进程
+		pDriver->CloseHandle(hProcess);
 
-			pDriver->CloseHandle(hProcess);
-
-			if (strcmp(lpszCmdline, cmdline) == 0) {
-				nTargetPid = pid;
-				break;
-			}
+		if (strcmp(lpszCmdline, cmdline) == 0) {
+			nTargetPid = pid;
+			break;
 		}
-		closedir(dir);
 	}
 	return nTargetPid;
 }
 
-
-
-
 int main(int argc, char *argv[]) {
 	printf(
 		"======================================================\n"
-		"本驱动名称: Linux ARM64 硬件读写进程内存驱动37\n"
+		"本驱动名称: Linux ARM64 硬件读写进程内存驱动38\n"
 		"本驱动接口列表：\n"
-		"\t1.	 驱动_设置驱动设备接口文件允许同时被使用的最大值: SetMaxDevFileOpen\n"
-		"\t2.	 驱动_隐藏驱动（卸载驱动需重启机器）: HideKernelModule\n"
-		"\t3.	 驱动_打开进程: OpenProcess\n"
-		"\t4.	 驱动_读取进程内存: ReadProcessMemory\n"
-		"\t5.	 驱动_写入进程内存: WriteProcessMemory\n"
-		"\t6.	 驱动_关闭进程: CloseHandle\n"
-		"\t7.	 驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、只显示在物理内存中的内存）\n"
-		"\t8.	 驱动_获取进程PID列表: GetProcessPidList\n"
-		"\t9.	 驱动_获取进程权限等级: GetProcessGroup\n"
-		"\t10.驱动_提升进程权限到Root: SetProcessRoot\n"
-		"\t11.驱动_获取进程占用物理内存大小: GetProcessRSS\n"
-		"\t12.驱动_获取进程命令行: GetProcessCmdline\n"
+		"\t1.	驱动_打开进程: OpenProcess\n"
+		"\t2.	驱动_读取进程内存: ReadProcessMemory\n"
+		"\t3.	驱动_写入进程内存: WriteProcessMemory\n"
+		"\t4.	驱动_关闭进程: CloseHandle\n"
+		"\t5.	驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、仅显示物理内存）\n"
+		"\t6.	驱动_获取进程PID列表: GetPidList\n"
+		"\t7.	驱动_提升进程权限到Root: SetProcessRoot\n"
+		"\t8.	驱动_获取进程占用物理内存大小: GetProcessRSS\n"
+		"\t9.	驱动_获取进程命令行: GetProcessCmdline\n"
+		"\t10.	驱动_隐藏驱动: HideKernelModule\n"
 		"\t以上所有功能不注入、不附加进程，不打开进程任何文件，所有操作均为内核操作\n"
 		"======================================================\n"
 	);
 
 	CMemoryReaderWriter rwDriver;
-	std::string targetProcessName = "com.wdf0453.f5cde5";
-	std::string devFileName = RWPROCMEM_FILE_NODE;
+
+	std::string targetProcessName;
+	bool targetProcessNeedSuspend = false;
+	//驱动默认隐蔽通信密匙
+	std::string procNodeAuthKey = "e84523d7b60d5d341a7c4d1861773ecd";
 	if (argc > 1) {
 		targetProcessName = argv[1];
 	}
 	if (argc > 2) {
-		devFileName = argv[2];
+		if(strcmp(argv[2], "suspend") == 0) {
+			targetProcessNeedSuspend = true;
+		}
 	}
-	printf("Connecting rwDriver:%s\n", devFileName.c_str());
+	if (argc > 3) {
+		//用户自定义输入驱动隐蔽通信密匙
+		procNodeAuthKey = argv[3];
+	}
 
+	if(targetProcessName.empty()) {
+		printf("Target process name is empty.\n");
+		return 0;
+	}
+	printf("Target process name is %s\n", targetProcessName.c_str());
+	printf("Target process need suspend: %s\n", targetProcessNeedSuspend ? "true" : "false");
+	printf("Connecting rwDriver auth key:%s\n", procNodeAuthKey.c_str());
 
 	//连接驱动
-	int err = 0;
-	if (!rwDriver.ConnectDriver(devFileName.c_str(), FALSE, err)) {
+	int err = rwDriver.ConnectDriver(procNodeAuthKey.c_str());
+	if (err) {
 		printf("Connect rwDriver failed. error:%d\n", err);
 		fflush(stdout);
 		return 0;
 	}
-
-
 	//获取目标进程PID
-	pid_t pid = findPID(targetProcessName.c_str(), &rwDriver);
+	pid_t pid = findPID(&rwDriver, targetProcessName.c_str());
 	if (pid == 0) {
 		printf("找不到进程\n");
 		return 0;
@@ -169,11 +139,14 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
+	if(targetProcessNeedSuspend) {
+		kill(pid, SIGSTOP);
+		printf("suspend target process done.\n");
+	}
 
 	//驱动_获取进程内存块列表（只显示在物理内存中的内存）
 	std::vector<DRIVER_REGION_INFO> vMaps;
-	BOOL bOutListCompleted;
-	BOOL b = rwDriver.VirtualQueryExFull(hProcess, TRUE, vMaps, bOutListCompleted);
+	BOOL b = rwDriver.VirtualQueryExFull(hProcess, TRUE, vMaps);
 	printf("调用驱动 VirtualQueryExFull(只显示在物理内存中的内存) 返回值:%d\n", b);
 	if (!vMaps.size()) {
 		printf("VirtualQueryExFull 失败\n");
@@ -263,5 +236,11 @@ int main(int argc, char *argv[]) {
 	printf("zip_closing...\n");
 	err = zip_close(z);
 	printf("zip_close done.\n");
+	
+	if(targetProcessNeedSuspend) {
+		kill(pid, SIGKILL);
+		printf("kill target process done.\n");
+	}
+
 	return 0;
 }

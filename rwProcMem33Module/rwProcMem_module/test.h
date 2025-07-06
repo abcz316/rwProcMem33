@@ -8,7 +8,7 @@
 #include "ver_control.h"
 
 //
-//MY_STATIC void test1(void) {
+//static void test1(void) {
 //	size_t phy_addr;
 //	struct file * pFile = open_pagemap(14861);
 //	printk(KERN_INFO "open_pagemap %d\n", pFile);
@@ -19,7 +19,7 @@
 //		char buf[4];
 //		size_t ret;
 //		memset(buf, 0, 4);
-//		read_ram_physical_addr(&ret, phy_addr, buf, true, 4);
+//		read_ram_physical_addr(true, &ret, phy_addr, buf, 4);
 //		if (ret) {
 //			int i;
 //			for (i = 0; i < 4; i++) {
@@ -31,7 +31,7 @@
 //}
 //
 ///*
-//MY_STATIC void test2(void)
+//static void test2(void)
 //{
 //	struct pid * proc_pid_struct = get_proc_pid_struct(14861);
 //	int map_count = get_proc_map_count(proc_pid_struct);
@@ -55,7 +55,7 @@
 //}
 //*/
 //
-//MY_STATIC void test3(void) {
+//static void test3(void) {
 //	struct pid * proc_pid_struct = get_proc_pid_struct(14861);
 //	printk(KERN_INFO "test3 get_proc_pid_struct:%ld\n", proc_pid_struct);
 //	if (proc_pid_struct) {
@@ -70,7 +70,7 @@
 //}
 //
 //
-//MY_STATIC void test4(void) {
+//static void test4(void) {
 //	struct pid * proc_pid_struct = get_proc_pid_struct(23948);
 //	printk(KERN_INFO "test4 get_proc_pid_struct:%ld\n", proc_pid_struct);
 //	if (proc_pid_struct) {
@@ -100,10 +100,10 @@
 //}
 //
 //
-//MY_STATIC void test5(void) {
-//	int *pid = __kmalloc(sizeof(int) * 100, GFP_KERNEL);
+//static void test5(void) {
+//	int *pid = x_kmalloc(sizeof(int) * 100, GFP_KERNEL);
 //	int i = 0;
-//	int count = get_proc_pid_list(false, (char*)pid, sizeof(int) * 100, true);
+//	int count = get_proc_pid_list(true, (char*)pid, sizeof(int) * 100);
 //	printk(KERN_INFO "test5 count:%d\n", count);
 //
 //	for (i = 0; i < 100; i++) {
@@ -117,13 +117,13 @@
 //
 //}
 //
-//MY_STATIC void test6(void) {
+//static void test6(void) {
 //	int ret = 0;
 //	struct pid * proc_pid_struct = get_proc_pid_struct(17597);
 //
 //	printk(KERN_INFO "test6 get_proc_pid_struct:%ld\n", proc_pid_struct);
 //
-//	ret = set_proc_root(proc_pid_struct);
+//	ret = set_process_root(proc_pid_struct);
 //
 //	printk(KERN_INFO "test6 ret:%d\n", ret);
 //
@@ -131,7 +131,7 @@
 //
 //}
 //
-//MY_STATIC void test7(void) {
+//static void test7(void) {
 //	struct pid * proc_pid_struct = get_proc_pid_struct(11533);
 //	size_t ret = read_proc_rss_size(proc_pid_struct);
 //
@@ -141,7 +141,7 @@
 //
 //}
 //
-//MY_STATIC void test8(void) {
+//static void test8(void) {
 //	struct pid * proc_pid_struct = get_proc_pid_struct(17597);
 //	printk(KERN_INFO "test8 get_proc_pid_struct:%ld\n", proc_pid_struct);
 //	if (proc_pid_struct) {
@@ -153,41 +153,12 @@
 //
 //}
 //
-//MY_STATIC void test9(void) {
+//static void test9(void) {
 //	struct pid * proc_pid_struct = get_proc_pid_struct(14861);
 //	printk(KERN_INFO "test9 get_proc_pid_struct:%ld\n", proc_pid_struct);
 //	if (proc_pid_struct) {
-//		size_t nOutUID = 0;
-//		size_t nOutSUID = 0;
-//		size_t nOutEUID = 0;
-//		size_t nOutFSUID = 0;
-//		size_t nOutGID = 0;
-//		size_t nOutSGID = 0;
-//		size_t nOutEGID = 0;
-//		size_t nOutFSGID = 0;
-//		int res = get_proc_group(
-//			proc_pid_struct,
-//			&nOutUID,
-//			&nOutSUID,
-//			&nOutEUID,
-//			&nOutFSUID,
-//			&nOutGID,
-//			&nOutSGID,
-//			&nOutEGID,
-//			&nOutFSGID);
 //
-//		printk(KERN_INFO "test9 get_proc_group nOutUID:%d,nOutSUID:%d,nOutEUID:%d,nOutFSUID:%d,nOutGID:%d,nOutSGID:%d,nOutEGID:%d,nOutFSGID:%d\n",
-//			nOutUID,
-//			nOutSUID,
-//			nOutEUID,
-//			nOutFSUID,
-//			nOutGID,
-//			nOutSGID,
-//			nOutEGID,
-//			nOutFSGID
-//		);
-//
-//		//set_proc_root(proc_pid_struct);
+//		//set_process_root(proc_pid_struct);
 //
 //		release_proc_pid_struct(proc_pid_struct);
 //	}
