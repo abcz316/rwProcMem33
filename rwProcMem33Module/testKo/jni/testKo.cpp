@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
 		"\t5.	驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、仅显示物理内存）\n"
 		"\t6.	驱动_获取进程PID列表: GetPidList\n"
 		"\t7.	驱动_提升进程权限到Root: SetProcessRoot\n"
-		"\t8.	驱动_获取进程占用物理内存大小: GetProcessRSS\n"
+		"\t8.	驱动_获取进程物理内存占用大小: GetProcessPhyMemSize\n"
 		"\t9.	驱动_获取进程命令行: GetProcessCmdline\n"
 		"\t10.	驱动_隐藏驱动: HideKernelModule\n"
 		"\t以上所有功能不注入、不附加进程，不打开进程任何文件，所有操作均为内核操作\n"

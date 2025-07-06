@@ -45,7 +45,7 @@ BOOL CApi::InitReadWriteDriver(const char* procNodeAuthKey, BOOL bUseBypassSELin
 //		pInfo.pid = pid;
 //		if (bGetPhyMemorySize) {
 //			uint64_t outRss = 0;
-//			pDriver->GetProcessRSS(hProcess, outRss);
+//			pDriver->GetProcessPhyMemSize(hProcess, outRss);
 //			pInfo.total_rss = outRss;
 //		}
 //		char cmdline[200] = { 0 };

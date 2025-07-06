@@ -671,7 +671,7 @@ private:
 		uint64_t out = 0;
 		ssize_t res = _rwProcMemDriver_MyIoctl(nFd, CMD_GET_PROCESS_RSS, hProcess, 0, 0, (char*)&out, sizeof(out));
 		if (res != 0) {
-			TRACE("GetProcessRSS ioctl():%s\n", strerror(errno));
+			TRACE("GetProcessPhyMemSize ioctl():%s\n", strerror(errno));
 			return FALSE;
 		}
 		*outRss = out;
