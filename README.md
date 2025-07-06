@@ -1,20 +1,17 @@
-# 驱动1名称：Linux ARM64内核硬件进程内存读写驱动37
+# 驱动1名称：Linux ARM64内核硬件进程内存读写驱动38
 本驱动支持所有能解锁BL的手机，无论小米、黑鲨、红魔、ROG、一加、三星、摩托罗拉等等，并且不需要手机厂商开放内核源码。只需要手动修改五六处地方，就可以跑在任意机型的内核上！具体修改过程不再本文章的论述中。本文章仅提供驱动源代码。
 
 ### 本驱动接口列表：
-1. 驱动_设置驱动设备接口文件允许同时被使用的最大值: SetMaxDevFileOpen
-2. 驱动_隐藏驱动（卸载驱动需重启机器）: HideKernelModule
-3. 驱动_打开进程: OpenProcess
-4. 驱动_读取进程内存: ReadProcessMemory
-5. 驱动_写入进程内存: WriteProcessMemory
-6. 驱动_关闭进程: CloseHandle
-7. 驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、只显示在物理内存中的内存）
-8. 驱动_获取进程PID列表: GetProcessPidList
-9. 驱动_获取进程权限等级: GetProcessGroup
-10. 驱动_提升进程权限到Root: SetProcessRoot
-11. 驱动_获取进程占用物理内存大小: GetProcessRSS
-12. 驱动_获取进程命令行: GetProcessCmdline
-
+1.  驱动_打开进程: OpenProcess
+2.  驱动_读取进程内存: ReadProcessMemory
+3.  驱动_写入进程内存: WriteProcessMemory
+4.  驱动_关闭进程: CloseHandle
+5.  驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、仅显示物理内存）
+6.  驱动_获取进程PID列表: GetPidList
+7.  驱动_提升进程权限到Root: SetProcessRoot
+8.  驱动_获取进程占用物理内存大小: GetProcessRSS
+9.  驱动_获取进程命令行: GetProcessCmdline
+10.  驱动_隐藏驱动: HideKernelModule
 
 # 驱动2名称: Linux ARM64内核硬件断点进程调试驱动3
 ### 本驱动接口列表：
@@ -45,10 +42,17 @@
 >>* **testHwBpClient**：（*应用层*）硬件断点工具之远程客户端
 >>* **testHwBpServer**：（*应用层*）硬件断点工具之远程服务端
 
-## 更新日志（2024-10）：
-1.支持Linux5.10、6.1
+## 更新日志：
+2025-7：
+  * **1.去除无用接口**
+  * **2.修复驱动进程列表获取缺陷**
+  * **3.修复android15兼容性问题**
+  * **4.新增一种驱动隐蔽通信的方法**
+  
+2025-5：
+  * **1.支持Linux6.6**
 
-2.修复硬件断点会卡死的bug
-
-3.修复搜索Kit的一些bug
-
+2024-10：
+  * **1.支持Linux5.10、6.1**
+  * **2.修复硬件断点会卡死的bug**
+  * **3.修复搜索Kit的一些bug**
