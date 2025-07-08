@@ -9,7 +9,7 @@
 5.  驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、仅显示物理内存）
 6.  驱动_获取进程PID列表: GetPidList
 7.  驱动_提升进程权限到Root: SetProcessRoot
-8.  驱动_获取进程占用物理内存大小: GetProcessRSS
+8.  驱动_获取进程占用物理内存大小: GetProcessPhyMemSize
 9.  驱动_获取进程命令行: GetProcessCmdline
 10.  驱动_隐藏驱动: HideKernelModule
 
