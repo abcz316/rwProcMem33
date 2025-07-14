@@ -328,10 +328,7 @@ static ssize_t rwProcMem_read(struct file* filp,
     return DispatchCommand(&hdr, buf + header_size);
 }
 
-#ifdef CONFIG_MODULE_GUIDE_ENTRY
-static
-#endif
-int __init rwProcMem_dev_init(void) {
+static int rwProcMem_dev_init(void) {
 	g_rwProcMem_devp = x_kmalloc(sizeof(struct rwProcMemDev), GFP_KERNEL);
 	memset(g_rwProcMem_devp, 0, sizeof(struct rwProcMemDev));
 
@@ -356,10 +353,7 @@ int __init rwProcMem_dev_init(void) {
 	return 0;
 }
 
-#ifdef CONFIG_MODULE_GUIDE_ENTRY
-static
-#endif
-void __exit rwProcMem_dev_exit(void) {
+static void rwProcMem_dev_exit(void) {
 #ifdef CONFIG_USE_PROC_FILE_NODE
 	if(g_rwProcMem_devp->proc_entry) {
 		proc_remove(g_rwProcMem_devp->proc_entry);
@@ -373,8 +367,15 @@ void __exit rwProcMem_dev_exit(void) {
 	stop_hide_procfs_dir();
 #endif
 	kfree(g_rwProcMem_devp);
-
 	printk(KERN_EMERG "Goodbye\n");
+}
+
+int __init init_module(void) {
+    return rwProcMem_dev_init();
+}
+
+void __exit cleanup_module(void) {
+    rwProcMem_dev_exit();
 }
 
 #ifndef CONFIG_MODULE_GUIDE_ENTRY
@@ -395,10 +396,6 @@ unsigned char * __check_fail_(unsigned char *result)
 
 unsigned long __stack_chk_guard;
 
-#ifdef CONFIG_MODULE_GUIDE_ENTRY
-module_init(rwProcMem_dev_init);
-module_exit(rwProcMem_dev_exit);
-#endif
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Linux");
 MODULE_DESCRIPTION("Linux default module");

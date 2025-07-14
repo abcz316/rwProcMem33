@@ -52,6 +52,7 @@ static inline size_t get_proc_map_count(struct pid* proc_pid_struct) {
 		goto _exit;
 	}
 
+	//精确偏移
 	accurate_offset = (ssize_t)((size_t)&mm->map_count - (size_t)mm + g_map_count_offset);
 	printk_debug(KERN_INFO "mm->map_count accurate_offset:%zd\n", accurate_offset);
 	if (accurate_offset >= sizeof(struct mm_struct) - sizeof(ssize_t)) {
@@ -76,6 +77,20 @@ static inline int check_proc_map_can_read(struct pid* proc_pid_struct, size_t pr
 	mm = get_task_mm(task);
 
 	if (!mm) { return res; }
+
+
+	//printk_debug(KERN_EMERG "mm:%p\n", &mm);
+	//printk_debug(KERN_EMERG "mm->map_count:%p:%lu\n", &mm->map_count, mm->map_count);
+	//printk_debug(KERN_EMERG "mm->mmap_lock:%p\n", &mm->mmap_lock);
+	//printk_debug(KERN_EMERG "mm->hiwater_vm:%p:%lu\n", &mm->hiwater_vm, mm->hiwater_vm);
+	//printk_debug(KERN_EMERG "mm->total_vm:%p:%lu\n", &mm->total_vm, mm->total_vm);
+	//printk_debug(KERN_EMERG "mm->locked_vm:%p:%lu\n", &mm->locked_vm, mm->locked_vm);
+	//printk_debug(KERN_EMERG "mm->pinned_vm:%p:%lu\n", &mm->pinned_vm, mm->pinned_vm);
+
+	//printk_debug(KERN_EMERG "mm->task_size:%p:%lu,%lu\n", &mm->task_size, mm->task_size, TASK_SIZE);
+	//printk_debug(KERN_EMERG "mm->highest_vm_end:%p:%lu\n", &mm->highest_vm_end, mm->highest_vm_end);
+	//printk_debug(KERN_EMERG "mm->pgd:%p:%p\n", &mm->pgd, mm->pgd);
+
 
 	if (down_read_mmap_lock(mm) != 0) {
 		goto _exit;
@@ -172,17 +187,23 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
-
+	int ret = 0;
+	size_t copy_pos;
+	size_t end_pos;
+	
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 
 
@@ -191,47 +212,59 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
+
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
 		/* We don't show the stack guard page in /proc/maps */
-		if (stack_guard_page_start(vma, entry.start))
-			entry.start += PAGE_SIZE;
-		if (stack_guard_page_end(vma, entry.end))
-			entry.end -= PAGE_SIZE;
+		if (stack_guard_page_start(vma, entry->start))
+			entry->start += PAGE_SIZE;
+		if (stack_guard_page_end(vma, entry->end))
+			entry->end -= PAGE_SIZE;
 
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				pid_t tid = my_vm_is_stack(task, vma, 1);
 				if (tid != 0) {
@@ -242,26 +275,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 
 					 /* Thread stack in /proc/PID/maps */
 
-					sprintf(entry.path, "[stack:%d]", tid);
+					sprintf(entry->path, "[stack:%d]", tid);
 				}
 			}
 
 		}
 
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 
 
@@ -316,18 +356,22 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 
 
@@ -336,47 +380,57 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
 
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
 		/* We don't show the stack guard page in /proc/maps */
-		if (stack_guard_page_start(vma, entry.start))
-			entry.start += PAGE_SIZE;
-		if (stack_guard_page_end(vma, entry.end))
-			entry.end -= PAGE_SIZE;
+		if (stack_guard_page_start(vma, entry->start))
+			entry->start += PAGE_SIZE;
+		if (stack_guard_page_end(vma, entry->end))
+			entry->end -= PAGE_SIZE;
 
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				pid_t tid = my_vm_is_stack(task, vma, 1);
 				if (tid != 0) {
@@ -387,7 +441,7 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 
 					 /* Thread stack in /proc/PID/maps */
 
-					sprintf(entry.path, "[stack:%d]", tid);
+					sprintf(entry->path, "[stack:%d]", tid);
 				}
 			}
 
@@ -395,19 +449,26 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 
 
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 
 #endif
@@ -464,19 +525,23 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 
 	if (is_kernel_buf) {
@@ -484,41 +549,51 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
 
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				pid_t tid = pid_of_stack(task, vma, 1);
 				if (tid != 0) {
@@ -530,9 +605,9 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 /* Thread stack in /proc/PID/maps */
 					if (vma->vm_start <= mm->start_stack &&
 						vma->vm_end >= mm->start_stack) {
-						snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+						snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 					} else {
-						snprintf(entry.path, sizeof(entry.path), "[stack:%d]", tid);
+						snprintf(entry->path, sizeof(entry->path), "[stack:%d]", tid);
 					}
 				}
 
@@ -540,19 +615,26 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 
 #endif
@@ -579,20 +661,24 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 
 	if (is_kernel_buf) {
@@ -600,63 +686,80 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
 
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				if (is_stack(vma)) {
-					snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+					snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 				}
 			}
 
 		}
 
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 
 
@@ -694,20 +797,24 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 
 	if (is_kernel_buf) {
@@ -715,41 +822,52 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
 
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				pid_t tid = is_stack(task, vma, 1);
 				if (tid != 0) {
@@ -759,26 +877,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					sprintf(entry.path, "[stack:%d]", tid);
+					sprintf(entry->path, "[stack:%d]", tid);
 				}
 
 			}
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 
 
@@ -818,20 +943,24 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 
 
@@ -840,41 +969,51 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
 
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				pid_t tid = is_stack(task, vma, 1);
 				if (tid != 0) {
@@ -884,26 +1023,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					sprintf(entry.path, "[stack:%d]", tid);
+					sprintf(entry->path, "[stack:%d]", tid);
 				}
 
 			}
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 
 
@@ -933,20 +1079,24 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 
 	if (is_kernel_buf) {
@@ -954,40 +1104,51 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				pid_t tid = is_stack(task, vma);
 				if (tid != 0) {
@@ -997,26 +1158,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+					snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 				}
 
 			}
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 
 #endif
@@ -1044,20 +1212,24 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 
 	if (is_kernel_buf) {
@@ -1065,42 +1237,53 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
 
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				pid_t tid = is_stack(task, vma);
 				if (tid != 0) {
@@ -1110,26 +1293,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+					snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 				}
 
 			}
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 
 
@@ -1158,60 +1348,75 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 
 	if (is_kernel_buf) {
 		memset(buf, 0, buf_size);
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
+	
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
 
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -1220,26 +1425,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+					snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 				}
 
 			}
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 
 #endif
@@ -1267,20 +1479,24 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 
 	if (is_kernel_buf) {
@@ -1288,41 +1504,51 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
 
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -1331,26 +1557,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+					snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 				}
 
 			}
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 
 
@@ -1382,60 +1615,75 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 	if (is_kernel_buf) {
 		memset(buf, 0, buf_size);
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -1444,26 +1692,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+					snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 				}
 
 			}
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 
 
@@ -1492,20 +1747,24 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 
 
@@ -1514,40 +1773,51 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -1556,7 +1826,7 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+					snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 				}
 
 			}
@@ -1564,19 +1834,26 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 		}
 
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 
 
@@ -1606,60 +1883,75 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 	if (is_kernel_buf) {
 		memset(buf, 0, buf_size);
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -1668,26 +1960,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+					snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 				}
 
 			}
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 
 
@@ -1718,62 +2017,77 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 	if (is_kernel_buf) {
 		memset(buf, 0, buf_size);
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
 
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -1782,26 +2096,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+					snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 				}
 
 			}
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 #endif
 
@@ -1830,60 +2151,75 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 	if (is_kernel_buf) {
 		memset(buf, 0, buf_size);
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -1892,26 +2228,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+					snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 				}
 
 			}
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 #endif
 
@@ -1935,60 +2278,75 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct *task;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 	if (is_kernel_buf) {
 		memset(buf, 0, buf_size);
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file * vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char *path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -1997,26 +2355,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+					snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 				}
 
 			}
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 #endif
 
@@ -2040,61 +2405,76 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct* task;
 	struct mm_struct* mm;
 	struct vm_area_struct* vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 	if (is_kernel_buf) {
 		memset(buf, 0, buf_size);
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file* vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char* path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -2103,26 +2483,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+					snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 				}
 
 			}
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 #endif
 
@@ -2146,60 +2533,75 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct* task;
 	struct mm_struct* mm;
 	struct vm_area_struct* vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 	if (is_kernel_buf) {
 		memset(buf, 0, buf_size);
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		struct map_entry entry;
 		struct file* vm_file;
-		if (copy_pos >= end_pos) {
+		if (copy_pos + sizeof(*entry) >= end_pos) {
 			break;
 		}
-		entry.start = vma->vm_start;
-		entry.end   = vma->vm_end;
-		entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-		entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-		entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-		entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-		memset(entry.path, 0, sizeof(entry.path));
+		memset(entry, 0, sizeof(*entry));
+		entry->start = vma->vm_start;
+		entry->end   = vma->vm_end;
+		entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+		entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+		entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+		entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+		memset(entry->path, 0, sizeof(entry->path));
 		vm_file = get_vm_file(vma);
 		if (vm_file) {
 			char* path;
-			memset(path_buf, 0, sizeof(path_buf));
-			path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+			memset(path_buf, 0, MY_PATH_MAX_LEN);
+			path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 			if (path > 0) {
-				strncat(entry.path, path, sizeof(entry.path) - 1);
+				strncat(entry->path, path, sizeof(entry->path) - 1);
 			}
 		} else if (vma->vm_mm && vma->vm_start == (long)vma->vm_mm->context.vdso) {
-			snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+			snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 		} else {
 			if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else {
 				if (is_stack(vma)) {
 					/*
@@ -2208,26 +2610,33 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 					 */
 
 					 /* Thread stack in /proc/PID/maps */
-					snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+					snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 				}
 
 			}
 
 		}
 		if (is_kernel_buf) {
-			memcpy((void *)copy_pos, &entry, sizeof(entry));
+			memcpy((void *)copy_pos, entry, sizeof(*entry));
 		} else {
-			if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+			if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 				break;
 			}
 		}
-		copy_pos += sizeof(entry);
+		copy_pos += sizeof(*entry);
 		success_cnt++;
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 #endif
 
@@ -2255,63 +2664,78 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct* task;
 	struct mm_struct* mm;
 	struct vm_area_struct* vma;
-	char path_buf[MY_PATH_MAX_LEN] = {0};
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 	if (is_kernel_buf) {
 		memset(buf, 0, buf_size);
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 
 	{
 		VMA_ITERATOR(iter, mm, 0);
 		for_each_vma(iter, vma) {
-			struct map_entry entry;
 			struct file* vm_file;
 			struct anon_vma_name *anon_name = NULL;
-			if (copy_pos >= end_pos) {
+			if (copy_pos + sizeof(*entry) >= end_pos) {
 				break;
 			}
-			entry.start = vma->vm_start;
-			entry.end   = vma->vm_end;
-			entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-			entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-			entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-			entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-			memset(entry.path, 0, sizeof(entry.path));
+			memset(entry, 0, sizeof(*entry));
+			entry->start = vma->vm_start;
+			entry->end   = vma->vm_end;
+			entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+			entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+			entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+			entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+			memset(entry->path, 0, sizeof(entry->path));
 			vm_file = get_vm_file(vma);
 			if (vm_file) {
 				char* path;
-				memset(path_buf, 0, sizeof(path_buf));
-				path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+				memset(path_buf, 0, MY_PATH_MAX_LEN);
+				path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 				if (path > 0) {
-					strncat(entry.path, path, sizeof(entry.path) - 1);
+					strncat(entry->path, path, sizeof(entry->path) - 1);
 				}
 			} else if (!vma->vm_mm) {
-				snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 			} else if (vma->vm_start <= mm->brk &&
 				vma->vm_end >= mm->start_brk) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else if (is_stack(vma)) {
 				/*
 				* Thread stack in /proc/PID/task/TID/maps or
@@ -2319,29 +2743,36 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 				*/
 
 				/* Thread stack in /proc/PID/maps */
-				snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 			} else {
 				anon_name = anon_vma_name(vma);
 				if(anon_name) {
-					snprintf(entry.path, sizeof(entry.path), "[anon:%s]", anon_name->name);
+					snprintf(entry->path, sizeof(entry->path), "[anon:%s]", anon_name->name);
 				}
 			}
 			
 			if (is_kernel_buf) {
-				memcpy((void *)copy_pos, &entry, sizeof(entry));
+				memcpy((void *)copy_pos, entry, sizeof(*entry));
 			} else {
-				if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+				if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 					break;
 				}
 			}
-			copy_pos += sizeof(entry);
+			copy_pos += sizeof(*entry);
 			success_cnt++;
 		}
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 #endif
 
@@ -2356,86 +2787,109 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	struct task_struct* task;
 	struct mm_struct* mm;
 	struct vm_area_struct* vma;
-	char path_buf[MY_PATH_MAX_LEN];
+	char *path_buf = NULL;
+    struct map_entry *entry = NULL;
 	int success_cnt = 0;
+	int ret = 0;
 	size_t copy_pos;
 	size_t end_pos;
 
 	task = pid_task(proc_pid_struct, PIDTYPE_PID);
 	if (!task) {
-		return -2;
+		ret = -ESRCH;
+		goto out;
 	}
 
 	mm = get_task_mm(task);
 
 	if (!mm) {
-		return -3;
+        ret = -EINVAL;
+        goto out;
 	}
 	if (is_kernel_buf) {
 		memset(buf, 0, buf_size);
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
+	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+    if (!path_buf) {
+        ret = -ENOMEM;
+        goto out_mm;
+    }
+    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    if (!entry) {
+        ret = -ENOMEM;
+        goto out_kpath;
+    }
+
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + buf_size);
 
 	if (down_read_mmap_lock(mm) != 0) {
-		mmput(mm);
-		return -4;
+        ret = -EBUSY;
+        goto out_kentry;
 	}
 
 	{
 		VMA_ITERATOR(iter, mm, 0);
 		for_each_vma(iter, vma) {
-			struct map_entry entry;
 			struct file* vm_file;
 			struct anon_vma_name *anon_name = NULL;
-			if (copy_pos >= end_pos) {
+			if (copy_pos + sizeof(*entry) >= end_pos) {
 				break;
 			}
-			entry.start = vma->vm_start;
-			entry.end   = vma->vm_end;
-			entry.flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
-			entry.flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
-			entry.flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
-			entry.flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
-			memset(entry.path, 0, sizeof(entry.path));
+			memset(entry, 0, sizeof(*entry));
+			entry->start = vma->vm_start;
+			entry->end   = vma->vm_end;
+			entry->flags[0] = (vma->vm_flags & VM_READ)     ? 1 : 0;
+			entry->flags[1] = (vma->vm_flags & VM_WRITE)    ? 1 : 0;
+			entry->flags[2] = (vma->vm_flags & VM_EXEC)     ? 1 : 0;
+			entry->flags[3] = (vma->vm_flags & VM_MAYSHARE) ? 1 : 0;
+			memset(entry->path, 0, sizeof(entry->path));
 			vm_file = get_vm_file(vma);
 			if (vm_file) {
 				char* path;
-				memset(path_buf, 0, sizeof(path_buf));
-				path = d_path(&vm_file->f_path, path_buf, sizeof(path_buf));
+				memset(path_buf, 0, MY_PATH_MAX_LEN);
+				path = d_path(&vm_file->f_path, path_buf, MY_PATH_MAX_LEN);
 				if (path > 0) {
-					strncat(entry.path, path, sizeof(entry.path) - 1);
+					strncat(entry->path, path, sizeof(entry->path) - 1);
 				}
 			} else if (!vma->vm_mm) {
-				snprintf(entry.path, sizeof(entry.path), "%s[vdso]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[vdso]", entry->path);
 			} else if (vma_is_initial_heap(vma)) {
-				snprintf(entry.path, sizeof(entry.path), "%s[heap]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[heap]", entry->path);
 			} else if (vma_is_initial_stack(vma)) {
-				snprintf(entry.path, sizeof(entry.path), "%s[stack]", entry.path);
+				snprintf(entry->path, sizeof(entry->path), "%s[stack]", entry->path);
 			} else {
 				anon_name = anon_vma_name(vma);
 				if(anon_name) {
-					snprintf(entry.path, sizeof(entry.path), "[anon:%s]", anon_name->name);
+					snprintf(entry->path, sizeof(entry->path), "[anon:%s]", anon_name->name);
 				}
 			}
 				
 			if (is_kernel_buf) {
-				memcpy((void *)copy_pos, &entry, sizeof(entry));
+				memcpy((void *)copy_pos, entry, sizeof(*entry));
 			} else {
-				if (x_copy_to_user((void *)copy_pos, &entry, sizeof(entry))) {
+				if (x_copy_to_user((void *)copy_pos, entry, sizeof(*entry))) {
 					break;
 				}
 			}
-			copy_pos += sizeof(entry);
+			copy_pos += sizeof(*entry);
 			success_cnt++;
 		}
 	}
-	up_read_mmap_lock(mm);
-	mmput(mm);
+    up_read_mmap_lock(mm);
+    ret = success_cnt;
 
-	return success_cnt;
+out_kentry:
+    kfree(entry);
+out_kpath:
+    kfree(path_buf);
+out_mm:
+    mmput(mm);
+out:
+    return ret;
 }
 #endif
+
 #endif /* PROC_MAPS_H_ */
