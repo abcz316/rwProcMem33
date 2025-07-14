@@ -69,36 +69,7 @@
 //
 //}
 //
-//
-//static void test4(void) {
-//	struct pid * proc_pid_struct = get_proc_pid_struct(23948);
-//	printk(KERN_INFO "test4 get_proc_pid_struct:%ld\n", proc_pid_struct);
-//	if (proc_pid_struct) {
-//		size_t arg_start = 0, arg_end = 0;
-//		int res = get_proc_cmdline_addr(proc_pid_struct, -8, &arg_start, &arg_end);
-//		printk(KERN_INFO "test4 get_proc_cmdline_addr arg_start:0x%llx arg_end:0x%llx\n", arg_start, arg_end);
-//
-//
-//		int i = -32;
-//		for (; i <= 32; i += 4) {
-//			size_t  accurate_offset = get_proc_cmdline_maybe_addr(proc_pid_struct, i, &arg_start);
-//
-//
-//			size_t phy_addr = get_proc_phy_addr(proc_pid_struct, arg_start);
-//			char name[100] = { 0 };
-//
-//			if (phy_addr) {
-//				read_ram_physical_addr_to_kernel(phy_addr, &name, sizeof(name));
-//			}
-//			printk(KERN_INFO "test4 get_proc_cmdline_maybe_addr arg_start:0x%llx 0x%llx %s\n", arg_start, phy_addr, name);
-//		}
-//
-//
-//		release_proc_pid_struct(proc_pid_struct);
-//	}
-//
-//}
-//
+//static void test4(void) { //TODO cmdline offset. }
 //
 //static void test5(void) {
 //	int *pid = x_kmalloc(sizeof(int) * 100, GFP_KERNEL);

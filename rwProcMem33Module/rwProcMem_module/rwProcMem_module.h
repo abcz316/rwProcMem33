@@ -45,12 +45,14 @@ enum {
 	CMD_HIDE_KERNEL_MODULE,			// 隐藏驱动
 };
 
+//////////////////////////////////////////////////////////////////
+//rwProcMemDev设备结构体
 struct rwProcMemDev {
 #ifdef CONFIG_USE_PROC_FILE_NODE
 	struct proc_dir_entry *proc_parent;
 	struct proc_dir_entry *proc_entry;
 #endif
-	bool is_hidden_module;
+	bool is_hidden_module; //是否已经隐藏过驱动列表了
 };
 static struct rwProcMemDev *g_rwProcMem_devp;
 

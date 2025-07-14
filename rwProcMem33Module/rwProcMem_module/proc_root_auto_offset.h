@@ -9,7 +9,9 @@ static bool g_init_real_cred_offset_success = false;
 static inline int init_proc_root_offset(const char* my_name) {
 	const ssize_t offset_lookup_min = -100;
 	const ssize_t offset_lookup_max = 300;
+
 	const ssize_t min_real_cred_offset_limit = offset_lookup_min + sizeof(void*) * 3;
+
 	if(g_init_real_cred_offset_success) {
 		return 0;
 	}

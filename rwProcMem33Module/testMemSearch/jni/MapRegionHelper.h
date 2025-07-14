@@ -4,7 +4,7 @@
 
 #ifndef MEMSEARCHER_MAPREGIONHELPER_H
 #define MEMSEARCHER_MAPREGIONHELPER_H
-#include "../../testKo/jni/MemoryReaderWriter38.h"
+#include "../../testKo/jni/MemoryReaderWriter39.h"
 #include "MemSearchKit/MemSearchKitUmbrella.h"
 #include "ProcMapsFileReader.h"
 

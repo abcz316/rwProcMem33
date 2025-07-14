@@ -18,7 +18,7 @@
 
 #define my_get_fs()	(current_thread_info()->addr_limit)
 
-static size_t g_phy_total_memory_size = 0; // 物理内存总大小
+static size_t g_phy_total_memory_size = 0;
 static int init_phy_total_memory_size(void) {
 	struct sysinfo si;
 	unsigned long mem_total, sav_total;
@@ -98,6 +98,7 @@ static int init_pgd_offset(struct mm_struct *mm) {
 		printk_debug(KERN_EMERG "init_pgd_offset %zd:%zd:%p:%ld\n", g_pgd_offset_mm_struct, accurate_offset, rp, val);
 
 		if (val == TASK_SIZE) {
+			//找到了
 			g_pgd_offset_mm_struct += sizeof(unsigned long);
 			g_pgd_offset_mm_struct += sizeof(unsigned long);
 			printk_debug(KERN_EMERG "found g_init_pgd_offset_success:%zd\n", g_pgd_offset_mm_struct);

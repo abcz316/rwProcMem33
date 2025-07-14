@@ -16,8 +16,7 @@ static inline int change_pte_read_status(pte_t* pte, bool can_read);
 static inline int change_pte_write_status(pte_t* pte, bool can_write);
 static inline int change_pte_exec_status(pte_t* pte, bool can_exec);
 
-static inline size_t get_task_proc_phy_addr(struct task_struct* task, size_t virt_addr, pte_t* out_pte);
-static inline size_t get_proc_phy_addr(struct pid* proc_pid_struct, size_t virt_addr, pte_t* out_pte);
+static inline size_t get_proc_phy_addr(struct pid* proc_pid_struct, size_t virt_addr, pte_t** out_pte);
 static inline size_t read_ram_physical_addr(bool is_kernel_buf, size_t phy_addr, char* lpBuf, size_t read_size);
 static inline size_t write_ram_physical_addr(size_t phy_addr, char* lpBuf, bool is_kernel_buf, size_t write_size);
 
@@ -37,8 +36,10 @@ static inline size_t write_ram_physical_addr(size_t phy_addr, char* lpBuf, bool 
 
 #include <asm/pgtable.h>
 
-static inline size_t get_task_proc_phy_addr(struct task_struct* task, size_t virt_addr, pte_t *out_pte) {
-	struct mm_struct *mm;
+static inline size_t get_proc_phy_addr(struct pid* proc_pid_struct, size_t virt_addr, pte_t** out_pte) {
+	struct task_struct* task = pid_task(proc_pid_struct, PIDTYPE_PID);
+	struct mm_struct *mm = NULL;
+	//////////////////////////////////////////////////////////////////////////
 	pgd_t *pgd;
 	p4d_t *p4d;
 	pud_t *pud;
@@ -47,15 +48,13 @@ static inline size_t get_task_proc_phy_addr(struct task_struct* task, size_t vir
 	unsigned long paddr = 0;
 	unsigned long page_addr = 0;
 	unsigned long page_offset = 0;
-	*(size_t*)out_pte = 0;
 
-	if (!task) {
-		return 0;
-	}
+	if (!task) { return 0; }
+
 	mm = get_task_mm(task);
-	if (!mm) {
-		return 0;
-	}
+	if (!mm) { return 0; }
+
+	*out_pte = 0;
 	pgd = x_pgd_offset(mm, virt_addr);
 	if (pgd == NULL) {
 		printk_debug("pgd is null\n");
@@ -116,18 +115,10 @@ static inline size_t get_task_proc_phy_addr(struct task_struct* task, size_t vir
 	printk_debug("page_addr = %lx, page_offset = %lx\n", page_addr, page_offset);
 	printk_debug("vaddr = %zx, paddr = %lx\n", virt_addr, paddr);
 
-	*(size_t*)out_pte = (size_t)pte;
-
+	*out_pte = pte;
 out:
 	mmput(mm);
 	return paddr;
-}
-
-
-static inline size_t get_proc_phy_addr(struct pid* proc_pid_struct, size_t virt_addr, pte_t* out_pte) {
-		struct task_struct* task = pid_task(proc_pid_struct, PIDTYPE_PID);
-		if (!task) { return 0; }
-		return get_task_proc_phy_addr(task, virt_addr, out_pte);
 }
 
 
@@ -254,6 +245,7 @@ static inline size_t write_ram_physical_addr(size_t phy_addr, char* lpBuf, bool 
 		printk_debug(KERN_INFO "Error in check_phys_addr_valid_range:0x%zx,size:%zu\n", phy_addr, write_size);
 		return 0;
 	}
+
 
 	while (write_size > 0) {
 		size_t sz = size_inside_page(phy_addr, write_size);

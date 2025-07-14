@@ -3,7 +3,6 @@
 
 #include <vector>
 #include <mutex>
-#include <fstream>
 
 #include "IMemReaderWriterProxy.h"
 #ifdef __linux__
@@ -19,6 +18,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/prctl.h>
+#include <elf.h>
 #include <errno.h>
 #include <malloc.h>
 #include <random>
@@ -366,7 +366,8 @@ private:
 		int pid = 0;
 		int tid = 0;
 		char myName[MY_TASK_COMM_LEN + 1] = {0};
-		char myCmdline[1024] = {0};
+		char myAuxv[1024] = {0};
+		int myAuxvSize = 0;
 	};
 	struct map_entry {
 		uint64_t      start = 0;
@@ -448,7 +449,13 @@ private:
 		init_device_info oDevInfo = { 0 };
 		oDevInfo.pid = getpid();
 		oDevInfo.tid = gettid();
-
+		std::vector<unsigned long> myAuxv = _GetAuxvSignature();
+		int myAuxvByteCount = myAuxv.size() * sizeof(unsigned long);
+		if(myAuxvByteCount == 0 || myAuxvByteCount >= sizeof(oDevInfo.myAuxv)) {
+			return FALSE;
+		}
+		memcpy(&oDevInfo.myAuxv, reinterpret_cast<const uint8_t*>(myAuxv.data()), myAuxvByteCount);
+		oDevInfo.myAuxvSize = myAuxvByteCount;
 		char old_name[MY_TASK_COMM_LEN + 1] = {0};
 		if (prctl(PR_GET_NAME, old_name, 0, 0, 0)) {
 			return FALSE;
@@ -458,11 +465,7 @@ private:
 		if (prctl(PR_SET_NAME, random_name.data(), 0, 0, 0)) {
 			return FALSE;
 		}
-
-		std::string myCmdline = _GetFileContent("/proc/self/cmdline");
 		strncpy(oDevInfo.myName, (char*)random_name.data(),  sizeof(oDevInfo.myName)  - 1);
-		strncpy(oDevInfo.myCmdline, myCmdline.c_str(), sizeof(oDevInfo.myCmdline) - 1);
-
 		ssize_t ret = _rwProcMemDriver_MyIoctl(nFd,
 									CMD_INIT_DEVICE_INFO, 0, 0, 0,
 									(char*)&oDevInfo,
@@ -629,13 +632,11 @@ private:
 	BOOL _rwProcMemDriver_GetPidList(int nFd, std::vector<int>& vOutput) {
 		if (nFd < 0) return FALSE;
 
-		// 第一次：只用来取 count1
 		ssize_t count1 = _rwProcMemDriver_MyIoctl(nFd, CMD_GET_PID_LIST, 0, 0, 0, NULL, 0);
 		if (count1 <= 0) {
 			return FALSE;
 		}
 
-		// 第二次：根据 count1 分配足够空间
 		static thread_local IoctlBufferPool pool;
 		uint64_t len  = (uint64_t)count1 * sizeof(int);
 		char*    buf     = pool.getBuffer(len);
@@ -648,7 +649,6 @@ private:
 			return FALSE;
 		}
 
-		// 读取数据前，再做一次边界检查
 		for (int i = 0; i < count1; i++) {
 			int pid = *(int*)(buf + i * sizeof(int));
 			vOutput.push_back(pid);
@@ -700,25 +700,33 @@ private:
 		return _rwProcMemDriver_ReadProcessMemory(nFd, hProcess, aginfo.arg_start, lpOutCmdlineBuf, len, NULL, FALSE);
 	}
 #endif /*__linux__*/
+	std::vector<unsigned long> _GetAuxvSignature() {
+		std::vector<unsigned long> sig;
+		int fd = open("/proc/self/auxv", O_RDONLY);
+		if (fd < 0) {
+			return sig;
+		}
 
-	std::string _GetFileContent(const char* lpszFilePath) {
-		std::ifstream inFile(lpszFilePath);
-		if (!inFile.is_open()) {
-			return {};
+		while (true) {
+			unsigned long a_type, a_val;
+			ssize_t nr;
+			nr = read(fd, &a_type, sizeof(a_type));
+			if (nr != sizeof(a_type)) {
+				break;
+			}
+			nr = read(fd, &a_val, sizeof(a_val));
+			if (nr != sizeof(a_val)) {
+				break;
+			}
+			sig.push_back(a_type);
+			sig.push_back(a_val);
+			if (a_type == AT_NULL) {
+				break;
+			}
 		}
-		const int size = 4096;
-		char szBuf[size] = { 0 };
-		std::shared_ptr<unsigned char> spBuf(new (std::nothrow) unsigned char[size], std::default_delete<unsigned char[]>());
-		if (!spBuf) {
-			inFile.close();
-			return {};
-		}
-		inFile.read((char*)spBuf.get(), size);
-		inFile.close();
-		std::string strFileContent = (char*)spBuf.get();
-		return strFileContent;
+		close(fd);
+		return sig;
 	}
-
 private:
 	int m_nFd = -1;
 };

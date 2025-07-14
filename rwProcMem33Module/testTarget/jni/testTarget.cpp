@@ -6,8 +6,9 @@
 #include <memory>
 #include <dirent.h>
 #include <cinttypes>
-#include "../../testKo/jni/MemoryReaderWriter38.h"
+#include "../../testKo/jni/MemoryReaderWriter39.h"
 #include "../../testMemSearch/jni/MapRegionType.h"
+
 
 int findPID(CMemoryReaderWriter *pDriver, const char *lpszCmdline) {
 	int nTargetPid = 0;
@@ -42,7 +43,7 @@ int findPID(CMemoryReaderWriter *pDriver, const char *lpszCmdline) {
 int main(int argc, char *argv[]) {
 	printf(
 		"======================================================\n"
-		"本驱动名称: Linux ARM64 硬件读写进程内存驱动38\n"
+		"本驱动名称: Linux ARM64 硬件读写进程内存驱动39\n"
 		"本驱动接口列表：\n"
 		"\t1.	驱动_打开进程: OpenProcess\n"
 		"\t2.	驱动_读取进程内存: ReadProcessMemory\n"

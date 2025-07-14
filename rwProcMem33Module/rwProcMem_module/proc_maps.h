@@ -2438,8 +2438,4 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	return success_cnt;
 }
 #endif
-
-//Update: vm_is_stack\vm_is_stack_for_task: /mm/util.c
-//Update: get_proc_maps_list: fs\proc\task_mmu.c
-
 #endif /* PROC_MAPS_H_ */

@@ -14,7 +14,8 @@ struct init_device_info {
 	int pid;
 	int tgid;
 	char my_name[MY_TASK_COMM_LEN + 1];
-	char my_cmdline[1024];
+	char my_auxv[1024];
+	int my_auxv_size;
 };
 struct arg_info {
 	uint64_t arg_start;
@@ -31,15 +32,16 @@ static ssize_t OnCmdInitDeviceInfo(struct ioctl_request *hdr, char __user* buf) 
 	printk_debug(KERN_INFO "CMD_INIT_DEVICE_INFO\n");
 	memset(pinit_device_info, 0, sizeof(struct init_device_info));
 	if (x_copy_from_user((void*)pinit_device_info, (void*)buf, sizeof(struct init_device_info)) == 0) {
-		printk_debug(KERN_INFO "my_cmdline:%s\n", pinit_device_info->my_cmdline);
 		printk_debug(KERN_INFO "my_name:%s\n", pinit_device_info->my_name);
 		printk_debug(KERN_INFO "pid:%d, tgid:%d\n", pinit_device_info->pid, pinit_device_info->tgid);
+		printk_debug(KERN_INFO "my_auxv_size:%d\n", pinit_device_info->my_auxv_size);
+		
 		do {
 			err = init_mmap_lock_offset();
 			if(err) { break; }
 			err = init_map_count_offset();
 			if(err) { break; }
-			err = init_proc_cmdline_offset(pinit_device_info->my_cmdline, get_task_proc_cmdline_addr);
+			err = init_proc_cmdline_offset(&pinit_device_info->my_auxv[0], pinit_device_info->my_auxv_size);
 			if(err) { break; }
 			err = init_proc_root_offset(pinit_device_info->my_name);
 			if(err) { break; }
@@ -60,6 +62,7 @@ static ssize_t OnCmdOpenProcess(struct ioctl_request *hdr, char __user* buf) {
 	printk_debug(KERN_INFO "CMD_OPEN_PROCESS\n");
 
 	printk_debug(KERN_INFO "pid:%llu,size:%ld\n", pid, sizeof(pid));
+
 	proc_pid_struct = get_proc_pid_struct(pid);
 	printk_debug(KERN_INFO "proc_pid_struct *:0x%p\n", (void*)proc_pid_struct);
 	if (!proc_pid_struct) {
@@ -90,11 +93,15 @@ static ssize_t OnCmdReadProcessMemory(struct ioctl_request *hdr, char __user* bu
 	size_t read_size = 0;
 
 	printk_debug(KERN_INFO "CMD_READ_PROCESS_MEMORY\n");
+
 	printk_debug(KERN_INFO "READ proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
+
 	printk_debug(KERN_INFO "READ proc_virt_addr:0x%zx,size:%ld\n", proc_virt_addr, sizeof(proc_virt_addr));
+
 	if (is_force_read == false && !check_proc_map_can_read(proc_pid_struct, proc_virt_addr, size)) {
 		return -EFAULT;
 	}
+
 	while (read_size < size) {
 		size_t phy_addr = 0;
 		size_t pfn_sz = 0;
@@ -102,7 +109,7 @@ static ssize_t OnCmdReadProcessMemory(struct ioctl_request *hdr, char __user* bu
 		pte_t *pte;
 
 		bool old_pte_can_read;
-		phy_addr = get_proc_phy_addr(proc_pid_struct, proc_virt_addr + read_size, (pte_t*)&pte);
+		phy_addr = get_proc_phy_addr(proc_pid_struct, proc_virt_addr + read_size, &pte);
 		printk_debug(KERN_INFO "calc phy_addr:0x%zx\n", phy_addr);
 
 		if (phy_addr == 0) {
@@ -143,6 +150,7 @@ static ssize_t OnCmdWriteProcessMemory(struct ioctl_request *hdr, char __user* b
 	printk_debug(KERN_INFO "CMD_WRITE_PROCESS_MEMORY\n");
 	printk_debug(KERN_INFO "WRITE proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
 	printk_debug(KERN_INFO "WRITE proc_virt_addr:0x%zx,size:%ld\n", proc_virt_addr, sizeof(proc_virt_addr));
+
 	if (is_force_write == false && !check_proc_map_can_write(proc_pid_struct, proc_virt_addr, size)) {
 		return -EFAULT;
 	}
@@ -154,7 +162,7 @@ static ssize_t OnCmdWriteProcessMemory(struct ioctl_request *hdr, char __user* b
 
 		pte_t *pte;
 		bool old_pte_can_write;
-		phy_addr = get_proc_phy_addr(proc_pid_struct, proc_virt_addr + write_size, (pte_t*)&pte);
+		phy_addr = get_proc_phy_addr(proc_pid_struct, proc_virt_addr + write_size, &pte);
 		printk_debug(KERN_INFO "phy_addr:0x%zx\n", phy_addr);
 		if (phy_addr == 0) {
 			break;
@@ -174,7 +182,6 @@ static ssize_t OnCmdWriteProcessMemory(struct ioctl_request *hdr, char __user* b
 
 		input_buf = (char*)(((size_t)buf + write_size));
 		write_ram_physical_addr(phy_addr, input_buf, false, pfn_sz);
-
 		if (is_force_write && old_pte_can_write == false) {
 			change_pte_write_status(pte, false);
 		}
@@ -188,6 +195,7 @@ static ssize_t OnCmdGetProcessMapsCount(struct ioctl_request *hdr, char __user* 
 	struct pid * proc_pid_struct = (struct pid *)hdr->param1;
 	printk_debug(KERN_INFO "CMD_GET_PROCESS_MAPS_COUNT\n");
 	printk_debug(KERN_INFO "proc_pid_struct*:0x%p, size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
+
 	return get_proc_map_count(proc_pid_struct);
 }
 
@@ -206,11 +214,10 @@ static ssize_t OnCmdCheckProcessPhyAddr(struct ioctl_request *hdr, char __user* 
 	printk_debug(KERN_INFO "CMD_CHECK_PROCESS_ADDR_PHY\n");
 	printk_debug(KERN_INFO "proc_pid_struct *:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
 	printk_debug(KERN_INFO "proc_virt_addr :0x%zx\n", proc_virt_addr);
-	if (get_proc_phy_addr(proc_pid_struct, proc_virt_addr, (pte_t*)&pte)) {
+	if (get_proc_phy_addr(proc_pid_struct, proc_virt_addr, &pte)) {
 		return 1;
 	}
 	return 0;
-
 }
 
 static ssize_t OnCmdGetPidList(struct ioctl_request *hdr, char __user* buf) {
@@ -256,6 +263,7 @@ static ssize_t OnCmdGetProcessCmdlineAddr(struct ioctl_request *hdr, char __user
 
 static ssize_t OnCmdHideKernelModule(struct ioctl_request *hdr, char __user* buf) {
 	printk_debug(KERN_INFO "CMD_HIDE_KERNEL_MODULE\n");
+
 	if (g_rwProcMem_devp->is_hidden_module == false) {
 		g_rwProcMem_devp->is_hidden_module = true; 
 		list_del_init(&__this_module.list);
@@ -304,15 +312,19 @@ static ssize_t rwProcMem_read(struct file* filp,
                               loff_t* ppos) {
     struct ioctl_request hdr = {0};
     size_t header_size = sizeof(hdr);
+
     if (size < header_size) {
         return -EINVAL;
     }
+
     if (x_copy_from_user(&hdr, buf, header_size)) {
         return -EFAULT;
     }
+
     if (size < header_size + hdr.buf_size) {
         return -EINVAL;
     }
+
     return DispatchCommand(&hdr, buf + header_size);
 }
 
@@ -320,8 +332,6 @@ static ssize_t rwProcMem_read(struct file* filp,
 static
 #endif
 int __init rwProcMem_dev_init(void) {
-	printk(KERN_EMERG "Start init.\n");
-	
 	g_rwProcMem_devp = x_kmalloc(sizeof(struct rwProcMemDev), GFP_KERNEL);
 	memset(g_rwProcMem_devp, 0, sizeof(struct rwProcMemDev));
 
@@ -350,9 +360,6 @@ int __init rwProcMem_dev_init(void) {
 static
 #endif
 void __exit rwProcMem_dev_exit(void) {
-
-	printk(KERN_EMERG "Start exit.\n");
-
 #ifdef CONFIG_USE_PROC_FILE_NODE
 	if(g_rwProcMem_devp->proc_entry) {
 		proc_remove(g_rwProcMem_devp->proc_entry);
@@ -366,6 +373,7 @@ void __exit rwProcMem_dev_exit(void) {
 	stop_hide_procfs_dir();
 #endif
 	kfree(g_rwProcMem_devp);
+
 	printk(KERN_EMERG "Goodbye\n");
 }
 

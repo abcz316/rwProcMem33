@@ -4,7 +4,8 @@
 
 #ifndef PROC_MAPS_FILE_READER_H
 #define PROC_MAPS_FILE_READER_H
-#include "../../testKo/jni/MemoryReaderWriter38.h"
+#include "../../testKo/jni/MemoryReaderWriter39.h"
+#include <fstream>
 #ifndef __linux__
 #include <windows.h>
 #endif

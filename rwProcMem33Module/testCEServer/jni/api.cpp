@@ -8,10 +8,9 @@
 #include <inttypes.h>
 #include <cinttypes>
 #include "ceserver.h"
-#include "../../testKo/jni/MemoryReaderWriter38.h"
+#include "../../testKo/jni/MemoryReaderWriter39.h"
 
 CMemoryReaderWriter g_driver;
-
 
 BOOL CApi::InitReadWriteDriver(const char* procNodeAuthKey, BOOL bUseBypassSELinuxMode) {
 	printf("Connecting rwDriver:%s\n", procNodeAuthKey);
@@ -23,6 +22,7 @@ BOOL CApi::InitReadWriteDriver(const char* procNodeAuthKey, BOOL bUseBypassSELin
 		return FALSE;
 	}
 	return TRUE;
+
 }
 
 

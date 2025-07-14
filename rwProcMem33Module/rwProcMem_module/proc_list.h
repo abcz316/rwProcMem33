@@ -38,6 +38,7 @@ static ssize_t get_proc_pid_list(bool is_kernel_buf,
         
         count++;
 
+        // copy pid
         {
             pid_t pid_v = *(pid_t *)((char *)next + g_task_pid_offset);
             int pid_n = pid_v;
