@@ -212,12 +212,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -380,12 +380,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -549,12 +549,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -686,12 +686,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -822,12 +822,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -969,12 +969,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -1104,12 +1104,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -1237,12 +1237,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -1372,12 +1372,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 	
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -1504,12 +1504,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -1639,12 +1639,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -1773,12 +1773,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -1907,12 +1907,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -2042,12 +2042,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -2175,12 +2175,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -2302,12 +2302,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -2430,12 +2430,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -2557,12 +2557,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -2688,12 +2688,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
@@ -2811,12 +2811,12 @@ static int get_proc_maps_list(bool is_kernel_buf, struct pid* proc_pid_struct, c
 	}
 	//else if (clear_user(buf, buf_size)) { return -4; } //清空用户的缓冲区
 
-	path_buf = kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
+	path_buf = x_kmalloc(MY_PATH_MAX_LEN, GFP_KERNEL);
     if (!path_buf) {
         ret = -ENOMEM;
         goto out_mm;
     }
-    entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+    entry = x_kmalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) {
         ret = -ENOMEM;
         goto out_kpath;
