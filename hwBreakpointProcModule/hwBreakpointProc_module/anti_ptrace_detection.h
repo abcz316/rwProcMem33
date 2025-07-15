@@ -6,7 +6,6 @@
 #include <linux/version.h>
 #include <linux/hw_breakpoint.h>
 #include <linux/kprobes.h>
-#include "hwbp_proc.h"
 
 #define PTRACE_GETREGSET   0x4204
 #define NT_ARM_HW_BREAK	0x402		/* ARM hardware breakpoint registers */
@@ -50,7 +49,7 @@ static int entry_ptrace_handler(struct kretprobe_instance *ri, struct pt_regs *r
         if(!iov_user_ptr) {
             return 0;
         }
-        if (copy_from_user(&data->iov, (struct iovec __user *)iov_user_ptr, sizeof(struct iovec)) != 0) {
+        if (x_copy_from_user(&data->iov, (struct iovec __user *)iov_user_ptr, sizeof(struct iovec)) != 0) {
             printk_debug(KERN_INFO "Failed to copy iovec from user space\n");
             return 0;
         }
@@ -76,11 +75,11 @@ static int ret_ptrace_handler(struct kretprobe_instance *ri, struct pt_regs *reg
         return 0;
     }
     copy_size = min(data->iov.iov_len, sizeof(struct user_hwdebug_state));
-    if (copy_from_user(&old_hw_state, (void __user *)data->iov.iov_base, copy_size) != 0) {
+    if (x_copy_from_user(&old_hw_state, (void __user *)data->iov.iov_base, copy_size) != 0) {
         printk_debug(KERN_INFO "Failed to copy old_hw_state from user buffer\n");
         return 0;
     }
-    // After copy_from_user
+    // After x_copy_from_user
     printk_debug(KERN_INFO "Original old_hw_state.dbg_info: %u, size %ld\n", old_hw_state.dbg_info, copy_size);
     for (i = 0; i < 16; i++) {
         printk_debug(KERN_INFO "Reg %d: addr=%llu, ctrl=%u\n", i, old_hw_state.dbg_regs[i].addr, old_hw_state.dbg_regs[i].ctrl);
@@ -102,7 +101,7 @@ static int ret_ptrace_handler(struct kretprobe_instance *ri, struct pt_regs *reg
     }
 
     // Copy the modified hw_ste back to the buffer in user space
-    if (copy_to_user((void __user *)data->iov.iov_base, &new_hw_state, copy_size) != 0) {
+    if (x_copy_to_user((void __user *)data->iov.iov_base, &new_hw_state, copy_size) != 0) {
         printk_debug(KERN_INFO "Failed to copy modified new_hw_state back to user buffer\n");
     } else {
         printk_debug(KERN_INFO "Successfully cleared dbg_regs in user_hwdebug_state\n");

@@ -19,7 +19,7 @@ static int (*modify_user_hw_breakpoint_sym)(struct perf_event *bp, struct perf_e
 #endif
 
 static int _kallsyms_lookup_kprobe(struct kprobe *p, struct pt_regs *regs) { return 0; }
-unsigned long get_kallsyms_func(void) {
+static unsigned long get_kallsyms_func(void) {
 	int ret;
 	unsigned long addr = 0;
 	struct kprobe probe = {0};
