@@ -9,7 +9,7 @@
 5.  驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、仅显示物理内存）
 6.  驱动_获取进程PID列表: GetPidList
 7.  驱动_提升进程权限到Root: SetProcessRoot
-8.  驱动_获取进程占用物理内存大小: GetProcessRSS
+8.  驱动_获取进程占用物理内存大小: GetProcessPhyMemSize
 9.  驱动_获取进程命令行: GetProcessCmdline
 10.  驱动_隐藏驱动: HideKernelModule
 
@@ -43,7 +43,7 @@
 >>* **testHwBpServer**：（*应用层*）硬件断点工具之远程服务端
 
 ## 更新日志：
-2025-7（读写驱动更新38版本）：
+2025-7（读写驱动）：
   * **1.去除无用接口**
   * **2.修复驱动进程列表获取缺陷**
   * **3.修复驱动maps列表获取的一些bug**
