@@ -51,7 +51,7 @@ bool CNetworkMgr::Reconnect() {
 	return ConnectHwBpServer(m_ip, m_port);
 }
 
-bool CNetworkMgr::AddProcessHwBp(const AddProcessHwBpInfo & input, AddProcessHwBpResult & output) {
+bool CNetworkMgr::InstProcessHwBp(const InstProcessHwBpInfo & input, InstProcessHwBpResult & output) {
 	output.allTaskCount = 0;
 	output.hwbpInstalledCount = 0;
 	output.vThreadHit.clear();
@@ -86,7 +86,7 @@ bool CNetworkMgr::AddProcessHwBp(const AddProcessHwBpInfo & input, AddProcessHwB
 				} threadInfoBuf = { 0 };
 #pragma pack()
 				if (recvall(m_skServer, &threadInfoBuf, sizeof(threadInfoBuf), MSG_WAITALL) > 0) {
-					AddProcessHwBpResultChild child;
+					InstProcessHwBpResultChild child;
 					child.taskId = threadInfoBuf.taskId;
 					child.address = threadInfoBuf.address;
 					child.hitTotalCount = threadInfoBuf.hitTotalCount;

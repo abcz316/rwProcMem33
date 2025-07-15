@@ -41,7 +41,7 @@ BOOL GetProcessTask(int pid, std::vector<int>& vOutput) {
 }
 
 
-void ProcessAddProcessHwBp(const struct AddProcessHwBpInfo& input, struct AddProcessHwBpResult & output) {
+void ProcessInstProcessHwBp(const struct InstProcessHwBpInfo& input, struct InstProcessHwBpResult & output) {
 	output.allTaskCount = 0;
 	output.hwbpInstalledCount = 0;
 	//储存需要下断的线程列表
@@ -77,8 +77,8 @@ void ProcessAddProcessHwBp(const struct AddProcessHwBpInfo& input, struct AddPro
 			continue;
 		}
 		//设置读写硬件断点
-		uint64_t hwBpHandle = g_driver.AddProcessHwBp(hProcess, input.address, input.hwBpAddrLen, input.hwBpAddrType);
-		printf("Call AddProcessHwBp(%d, %p) return:%p\n", taskId, (void*)input.address, (void*)hwBpHandle);
+		uint64_t hwBpHandle = g_driver.InstProcessHwBp(hProcess, input.address, input.hwBpAddrLen, input.hwBpAddrType);
+		printf("Call InstProcessHwBp(%d, %p) return:%p\n", taskId, (void*)input.address, (void*)hwBpHandle);
 		if (hwBpHandle) {
 			vHwBpHandle.push_back(hwBpHandle);
 		}
@@ -97,7 +97,7 @@ void ProcessAddProcessHwBp(const struct AddProcessHwBpInfo& input, struct AddPro
 		}
 		//读取硬件断点命中信息
 		for (uint64_t hwbpHandle : vHwBpHandle) {
-			AddProcessHwBpResultChild threadHitInfo;
+			InstProcessHwBpResultChild threadHitInfo;
 			BOOL b = g_driver.ReadHwBpInfo(hwbpHandle, threadHitInfo.hitTotalCount, threadHitInfo.vHitItem);
 			printf("Call ReadProcessHwBp(%p) return:%d, hit_total_count:%lu, save_hit_item_count:%lu\n", (void*)hwbpHandle, b, threadHitInfo.hitTotalCount, threadHitInfo.vHitItem.size());
 			if(!b || !threadHitInfo.vHitItem.size()) {
@@ -110,8 +110,8 @@ void ProcessAddProcessHwBp(const struct AddProcessHwBpInfo& input, struct AddPro
 
 		//删除进程硬件断点
 		for (uint64_t hwbpHandle : vHwBpHandle) {
-			g_driver.DelProcessHwBp(hwbpHandle);
-			printf("Call DelProcessHwBp(%p)\n", (void*)hwbpHandle);
+			g_driver.UninstProcessHwBp(hwbpHandle);
+			printf("Call UninstProcessHwBp(%p)\n", (void*)hwbpHandle);
 		}
 	}
 }

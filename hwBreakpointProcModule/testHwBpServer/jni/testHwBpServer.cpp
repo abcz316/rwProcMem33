@@ -123,11 +123,11 @@ int DispatchCommand(int currentsocket, unsigned char command) {
 	}
 	case CMD_ADDPROCESSHWBP:
 	{
-		AddProcessHwBpInfo input;
-		AddProcessHwBpResult output;
+		InstProcessHwBpInfo input;
+		InstProcessHwBpResult output;
 
 		printf("CMD_ADDPROCESSHWBP\n");
-		if (recvall(currentsocket, &input, sizeof(AddProcessHwBpInfo), MSG_WAITALL) > 0) {
+		if (recvall(currentsocket, &input, sizeof(InstProcessHwBpInfo), MSG_WAITALL) > 0) {
 			printf("pid:%zu,addr:%p,len:%d,type:%d,thread:%d,time:%d\n",
 				input.pid,
 				(void*)input.address,
@@ -136,7 +136,7 @@ int DispatchCommand(int currentsocket, unsigned char command) {
 				input.hwBpThreadType,
 				input.hwBpKeepTimeMs);
 
-			ProcessAddProcessHwBp(input, output);
+			ProcessInstProcessHwBp(input, output);
 			fflush(stdout);
 
 #pragma pack(1)
@@ -151,7 +151,7 @@ int DispatchCommand(int currentsocket, unsigned char command) {
 			buf.hitThreadCount = output.vThreadHit.size();
 			sendall(currentsocket, &buf, sizeof(buf), 0);
 
-			for (const struct AddProcessHwBpResultChild &resultThreadItem : output.vThreadHit) {
+			for (const struct InstProcessHwBpResultChild &resultThreadItem : output.vThreadHit) {
 #pragma pack(1)
 				struct {
 					uint64_t taskId = 0;
@@ -289,14 +289,17 @@ void IdentifierThread() {
 int main(int argc, char *argv[]) {
 	printf("Connecting driver.\n");
 
-	std::string devFileName = HWBP_FILE_NODE;
+	//驱动默认隐蔽通信密匙
+	std::string procNodeAuthKey = "dce3771681d4c7a143d5d06b7d32548e";
 	if (argc > 1) {
-		devFileName = argv[1];
+		//用户自定义输入驱动隐蔽通信密匙
+		procNodeAuthKey = argv[1];
 	}
-	printf("Connecting HWBP driver:%s\n", devFileName.c_str());
+	printf("Connecting HWBP auth key:%s\n", procNodeAuthKey.c_str());
 
-	int err = 0;
-	if (!g_driver.ConnectDriver(devFileName.c_str(), err)) {
+	//连接驱动
+	int err = g_driver.ConnectDriver(procNodeAuthKey.c_str());
+	if (err < 0) {
 		printf("Connect HWBP driver failed. error:%d\n", err);
 		fflush(stdout);
 		return 0;

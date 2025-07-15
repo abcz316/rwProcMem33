@@ -13,7 +13,7 @@ public:
 	void Disconnect();
 	bool Reconnect();
 
-	bool AddProcessHwBp(const AddProcessHwBpInfo& input, AddProcessHwBpResult& output);
+	bool InstProcessHwBp(const InstProcessHwBpInfo& input, InstProcessHwBpResult& output);
 private:
 	std::string m_ip;
 	int m_port;

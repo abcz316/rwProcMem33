@@ -30,7 +30,7 @@
 
 
 BOOL GetProcessTask(int pid, std::vector<int> & vOutput);
-void ProcessAddProcessHwBp(const struct AddProcessHwBpInfo& input, struct AddProcessHwBpResult & output);
+void ProcessInstProcessHwBp(const struct InstProcessHwBpInfo& input, struct InstProcessHwBpResult & output);
 #ifdef __ANDROID__
 #define LOG_TAG "HWSERVER"
 #define LOGD(fmt, args...) __android_log_vprint(ANDROID_LOG_DEBUG, LOG_TAG, fmt, ##args)

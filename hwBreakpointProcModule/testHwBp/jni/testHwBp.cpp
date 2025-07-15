@@ -8,7 +8,7 @@
 #include <thread>
 #include <sstream>
 #include <cinttypes>
-#include "HwBreakpointMgr3.h"
+#include "HwBreakpointMgr4.h"
 
 int g_value = 0;
 
@@ -20,9 +20,7 @@ BOOL GetProcessTask(int pid, std::vector<int> & vOutput) {
 
 	dir = opendir(szTaskPath);
 	if (NULL != dir) {
-		while ((ptr = readdir(dir)) != NULL)   // 循环读取路径下的每一个文件/文件夹
-		{
-			// 如果读取到的是"."或者".."则跳过, 读取到的不是文件夹名字也跳过
+		while ((ptr = readdir(dir)) != NULL) {
 			if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0)) {
 				continue;
 			} else if (ptr->d_type != DT_DIR) {
@@ -84,18 +82,19 @@ void PrintHwHitItem(const std::vector<HW_HIT_ITEM> &vHit) {
 int main(int argc, char *argv[]) {
 	printf(
 		"======================================================\n"
-		"本驱动名称: Linux ARM64 硬件断点进程调试驱动3\n"
+		"本驱动名称: Linux ARM64 硬件断点进程调试驱动4\n"
 		"本驱动接口列表：\n"
 		"\t1.  驱动_打开进程: OpenProcess\n"
 		"\t2.  驱动_关闭进程: CloseHandle\n"
-		"\t3.  驱动_获取CPU支持硬件执行断点的数量: GetNumBRPS\n"
-		"\t4.  驱动_获取CPU支持硬件访问断点的数量: GetNumWRPS\n"
-		"\t5.  驱动_设置进程硬件断点: AddProcessHwBp\n"
-		"\t6.  驱动_删除进程硬件断点: DelProcessHwBp\n"
+		"\t3.  驱动_获取CPU硬件执行断点支持数量: GetNumBRPS\n"
+		"\t4.  驱动_获取CPU硬件访问断点支持数量: GetNumWRPS\n"
+		"\t5.  驱动_安装进程硬件断点: InstProcessHwBp\n"
+		"\t6.  驱动_鞋子啊进程硬件断点: UninstProcessHwBp\n"
 		"\t7.  驱动_暂停硬件断点: SuspendProcessHwBp\n"
 		"\t8.  驱动_恢复硬件断点: ResumeProcessHwBp\n"
 		"\t9.  驱动_读取硬件断点命中信息: ReadHwBpInfo\n"
 		"\t10. 驱动_设置无条件Hook跳转: SetHookPC\n"
+		"\t11. 驱动_隐藏驱动: HideKernelModule\n"
 		"\t以上所有功能不注入、不附加进程, 不打开进程任何文件, 所有操作均为内核操作\n"
 		"======================================================\n"
 	);
@@ -108,27 +107,25 @@ int main(int argc, char *argv[]) {
 	usleep(1000*250);
 
 	CHwBreakpointMgr driver;
-	std::string devFileName = HWBP_FILE_NODE;
+	//驱动默认隐蔽通信密匙
+	std::string procNodeAuthKey = "dce3771681d4c7a143d5d06b7d32548e";
 	if (argc > 1) {
-		//如果用户自定义输入驱动名
-		devFileName = argv[1];
+		//用户自定义输入驱动隐蔽通信密匙
+		procNodeAuthKey = argv[1];
 	}
-	printf("Connecting HWBP driver:%s\n", devFileName.c_str());
+	printf("Connecting HWBP auth key:%s\n", procNodeAuthKey.c_str());
 
 	//连接驱动
-	int err = 0;
-	if (!driver.ConnectDriver(devFileName.c_str(), TRUE, err)) {
+	int err = driver.ConnectDriver(procNodeAuthKey.c_str());
+	if (err < 0) {
 		printf("Connect HWBP driver failed. error:%d\n", err);
 		fflush(stdout);
 		return 0;
 	}
 
 	//获取CPU支持硬件执行和访问断点的数量
-	int brpsCount = driver.GetNumBRPS();
-	int wrpsCount = driver.GetNumWRPS();
-	printf("Call GetNumBRPS() return:%d\n", brpsCount);
-	printf("Call GetNumWRPS() return:%d\n", wrpsCount);
-
+	printf("Call GetNumBRPS() return:%d\n", driver.GetNumBRPS());
+	printf("Call GetNumWRPS() return:%d\n", driver.GetNumWRPS());
 
 	//获取当前进程所有的task
 	std::vector<int> vTask;
@@ -155,8 +152,8 @@ int main(int argc, char *argv[]) {
 		}
 
 		//设置读写硬件断点
-		uint64_t hwBpHandle = driver.AddProcessHwBp(hProcess, (uint64_t)&g_value, HW_BREAKPOINT_LEN_4, HW_BREAKPOINT_W);
-		printf("Call AddProcessHwBp(%d, %p) return:%p\n", taskId, &g_value, (void*)hwBpHandle);
+		uint64_t hwBpHandle = driver.InstProcessHwBp(hProcess, (uint64_t)&g_value, HW_BREAKPOINT_LEN_4, HW_BREAKPOINT_W);
+		printf("Call InstProcessHwBp(%d, %p) return:%p\n", taskId, &g_value, (void*)hwBpHandle);
 
 		if (hwBpHandle) {
 			vHwBpHandle.push_back(hwBpHandle);
@@ -185,8 +182,8 @@ int main(int argc, char *argv[]) {
 	}
 	//删除进程硬件断点
 	for (uint64_t hwbpHandle : vHwBpHandle) {
-		driver.DelProcessHwBp(hwbpHandle);
-		printf("Call DelProcessHwBp(%p)\n", (void*)hwbpHandle);
+		driver.UninstProcessHwBp(hwbpHandle);
+		printf("Call UninstProcessHwBp(%p)\n", (void*)hwbpHandle);
 	}
 	return 0;
 }

@@ -273,8 +273,8 @@ void CtestHwBpClientDlg::OnBnClickedButtonAddHwbp() {
 	}
 
 	//硬件断点类型
-	AddProcessHwBpInfo input;
-	AddProcessHwBpResult output;
+	InstProcessHwBpInfo input;
+	InstProcessHwBpResult output;
 
 	input.pid = GetInputPid();
 	input.address = GetInputAddress();
@@ -284,11 +284,11 @@ void CtestHwBpClientDlg::OnBnClickedButtonAddHwbp() {
 	input.hwBpKeepTimeMs = GetInputHwBpKeepTimeMs();
 
 	//开始安装硬件断点
-	g_NetworkMgr.AddProcessHwBp(input, output);
+	g_NetworkMgr.InstProcessHwBp(input, output);
 
 	//将命中结果显示到列表框
 	int nIndex = m_list_result.GetItemCount();
-	for (const AddProcessHwBpResultChild & threadInfo : output.vThreadHit) {
+	for (const InstProcessHwBpResultChild & threadInfo : output.vThreadHit) {
 		for (const HW_HIT_ITEM& hitItem : threadInfo.vHitItem) {
 			m_list_result.InsertItem(nIndex, m_edit_pid);
 

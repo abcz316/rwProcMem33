@@ -22,7 +22,7 @@ struct HwBpVersion {
 	unsigned char stringsize = 0;
 	//append the versionstring
 };
-struct AddProcessHwBpInfo {
+struct InstProcessHwBpInfo {
 	uint64_t pid = 0;
 	uint64_t address = 0;
 	uint32_t hwBpAddrLen = 0;
@@ -31,17 +31,17 @@ struct AddProcessHwBpInfo {
 	uint32_t hwBpKeepTimeMs = 0;
 };
 
-struct AddProcessHwBpResultChild {
+struct InstProcessHwBpResultChild {
 	uint64_t taskId = 0;
 	uint64_t address = 0;
 	uint64_t hitTotalCount = 0;
 	std::vector<struct HW_HIT_ITEM> vHitItem;
 };
 
-struct AddProcessHwBpResult {
+struct InstProcessHwBpResult {
 	uint32_t allTaskCount = 0;
 	uint32_t hwbpInstalledCount = 0;
-	std::vector<struct AddProcessHwBpResultChild> vThreadHit;
+	std::vector<struct InstProcessHwBpResultChild> vThreadHit;
 };
 #pragma pack()
 
