@@ -39,6 +39,7 @@ static int get_mytask_maps_cnt(void) {
 		}
 	}
 	#endif
+	mmput(mm);
 	return cnt;
 }
 
@@ -49,10 +50,10 @@ static int init_mmap_lock_offset(void) {
 	struct mm_struct * mm = get_task_mm(mytask);
 	int maps_cnt = get_mytask_maps_cnt();
 	if(g_init_mmap_lock_offset_success) {
+		mmput(mm);
 		return 0;
 	}
 	printk_debug(KERN_EMERG "init_mmap_lock_offset maps_cnt:%d, mm->map_count:%p:%d\n", maps_cnt, &mm->map_count, (int)mm->map_count);
-
 	g_init_mmap_lock_offset_success = true;
 	for (g_mmap_lock_offset = -80; g_mmap_lock_offset <= 80; g_mmap_lock_offset += 1) {
 		char *rp;
@@ -128,6 +129,7 @@ static int init_map_count_offset(void) {
 	struct mm_struct * mm = get_task_mm(mytask);
 	int maps_cnt = get_mytask_maps_cnt();
 	if(g_init_map_count_offset_success) {
+		mmput(mm);
 		return 0;
 	}
 	printk_debug(KERN_EMERG "init_map_count_offset maps_cnt:%d, mm->map_count:%p:%d\n", maps_cnt, &mm->map_count, (int)mm->map_count);
@@ -172,6 +174,7 @@ static int init_vm_file_offset(void) {
 	struct task_struct * mytask = x_get_current();
 	struct mm_struct *mm = get_task_mm(mytask);
 	if(g_init_vm_file_offset_success) {
+		mmput(mm);
 		return 0;
 	}
 	if (down_read_mmap_lock(mm) != 0) {
@@ -262,6 +265,7 @@ static int init_vm_file_offset(void) {
 	struct task_struct * mytask = x_get_current();
 	struct mm_struct *mm = get_task_mm(mytask);
 	if(g_init_vm_file_offset_success) {
+		mmput(mm);
 		return 0;
 	}
 	if (down_read_mmap_lock(mm) != 0) {
@@ -272,6 +276,7 @@ static int init_vm_file_offset(void) {
 	g_init_vm_file_offset_success = false;
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (is_found_vm_file_offset == 1) {
+			//已经找到了
 			break;
 		}
 		for (g_vm_file_offset = -80; g_vm_file_offset <= 80; g_vm_file_offset += 1) {

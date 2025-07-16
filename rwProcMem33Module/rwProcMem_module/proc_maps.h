@@ -45,6 +45,7 @@ static inline size_t get_proc_map_count(struct pid* proc_pid_struct) {
 	struct mm_struct *mm = get_task_mm(task);
 	size_t count = 0;
 	if (g_init_map_count_offset_success == false) {
+		mmput(mm);
 		return 0;
 	}
 
@@ -56,6 +57,7 @@ static inline size_t get_proc_map_count(struct pid* proc_pid_struct) {
 	accurate_offset = (ssize_t)((size_t)&mm->map_count - (size_t)mm + g_map_count_offset);
 	printk_debug(KERN_INFO "mm->map_count accurate_offset:%zd\n", accurate_offset);
 	if (accurate_offset >= sizeof(struct mm_struct) - sizeof(ssize_t)) {
+		mmput(mm);
 		return 0;
 	}
 	count = *(int *)((size_t)mm + (size_t)accurate_offset);
@@ -2891,5 +2893,4 @@ out:
     return ret;
 }
 #endif
-
 #endif /* PROC_MAPS_H_ */
