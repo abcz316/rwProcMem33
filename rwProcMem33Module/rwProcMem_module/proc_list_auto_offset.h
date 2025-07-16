@@ -14,7 +14,8 @@ static inline int init_task_next_offset(void) {
     struct mm_struct  *mm    = get_task_mm(mytask);
     size_t              off_mm = 0;
     size_t              off    = 0;
-
+    uintptr_t           addr_mytask;
+    uintptr_t           addr_mm;
     if (!mm)
         return -ESRCH;
     if (g_init_task_next_offset_success) {
@@ -22,8 +23,8 @@ static inline int init_task_next_offset(void) {
         return 0;
     }
 
-    uintptr_t addr_mytask = (uintptr_t)mytask;
-    uintptr_t addr_mm     = (uintptr_t)mm;
+    addr_mytask = (uintptr_t)mytask;
+    addr_mm     = (uintptr_t)mm;
 
     /* 寻找 mm_struct 在 task_struct 中的偏移 */
     for (off = 0; off <= sizeof(*mytask) - sizeof(void*); off += 4) {
