@@ -97,9 +97,8 @@ static BOOL GetMemRegions(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProc
 	return TRUE;
 }
 
-//获取进程模块执行区域内存范围列表
+// 获取内存模块第一个起始地址
 static BOOL GetModuleFirstAddr(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName, uint64_t & firstAddr) {
-	//驱动_获取进程内存块地址列表
 	std::vector<DRIVER_REGION_INFO> vMapsList;
 	IReadWriteProxy->VirtualQueryExFull(hProcess, FALSE, vMapsList);
 	if (vMapsList.size() == 0) {
@@ -116,14 +115,11 @@ static BOOL GetModuleFirstAddr(IMemReaderWriterProxy *IReadWriteProxy, uint64_t 
 	return FALSE;
 }
 
-//获取进程模块执行区域内存范围列表
-static BOOL GetModuleExecAreaSection(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName,
-	std::vector<DRIVER_REGION_INFO> & vOut) {
-	//驱动_获取进程内存块地址列表
+// 获取内存模块执行区域内存范围列表
+static BOOL GetModuleExecAreaSection(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName, std::vector<DRIVER_REGION_INFO> & vOut) {
 	std::vector<DRIVER_REGION_INFO> vMapsList;
 	IReadWriteProxy->VirtualQueryExFull(hProcess, FALSE, vMapsList);
 	if (vMapsList.size() == 0) {
-		//无内存
 		return FALSE;
 	}
 	const char* targetModuleName = moduleName.c_str();
@@ -137,14 +133,11 @@ static BOOL GetModuleExecAreaSection(IMemReaderWriterProxy *IReadWriteProxy, uin
 	return TRUE;
 }
 
-//获取进程模块数据区域内存范围列表
-static BOOL GetModuleDataAreaSection(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName,
-	std::vector<DRIVER_REGION_INFO> & vOut) {
-	//1.获取进程内存块地址列表
+// 获取内存模块数据区域内存范围列表
+static BOOL GetModuleDataAreaSection(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName, std::vector<DRIVER_REGION_INFO> & vOut) {
 	std::vector<DRIVER_REGION_INFO> vMapsList;
 	IReadWriteProxy->VirtualQueryExFull(hProcess, FALSE, vMapsList);
 	if (vMapsList.size() == 0) {
-		//无内存
 		return FALSE;
 	}
 
@@ -181,7 +174,7 @@ static BOOL GetModuleDataAreaSection(IMemReaderWriterProxy *IReadWriteProxy, uin
 }
 
 
-//获取进程模块的内存地址范围
+// 获取内存模块的内存地址范围
 static BOOL GetModuleRangeAddr(IMemReaderWriterProxy *IReadWriteProxy, uint64_t hProcess, const std::string & moduleName,
 	uint64_t & outModuleStartAddr, uint64_t & outModuleEndAddr) {
 
