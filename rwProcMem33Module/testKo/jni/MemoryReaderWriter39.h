@@ -407,7 +407,9 @@ private:
 			std::memcpy(pBuf + headerSize, buf, bufSize);
 		}
 		auto outRead = ::read(fd, pBuf, totalSize);
-		std::memcpy(buf, pBuf + headerSize, bufSize);
+		if (bufSize > 0) {
+			std::memcpy(buf, pBuf + headerSize, bufSize);
+		}
 		return outRead;
 	}
 
