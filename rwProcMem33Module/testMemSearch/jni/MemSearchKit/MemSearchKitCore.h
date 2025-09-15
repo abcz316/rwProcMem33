@@ -8,6 +8,7 @@
 #include <sstream>
 #include <functional>
 #include <assert.h>
+#include <type_traits>
 #ifdef __linux__
 #include <unistd.h>
 #endif
@@ -165,7 +166,7 @@ namespace MemorySearchKit {
 
 					std::vector<ADDR_RESULT_INFO> vThreadOutput; //存放当前线程的搜索结果
 
-					bool isFloatVal = typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0));
+					constexpr bool isFloatVal = std::is_same_v<T, float> || std::is_same_v<T, double>;
 					while (!pForceStopSignal || !*pForceStopSignal) {
 						uint64_t curMemBlockStartAddr = 0;
 						uint64_t curMemBlockSize = 0;
@@ -189,7 +190,7 @@ namespace MemorySearchKit {
 						switch (scanType) {
 						case SCAN_TYPE::ACCURATE_VAL:
 							//精确数值
-							if (isFloatVal) {
+							if constexpr (isFloatVal) {
 								FindBetween<T>((size_t)(pReadBuf),
 									nRealReadSize, value1 - errorRange, value1 + errorRange, nScanAlignBytesCount, vFindAddr);
 							} else {
@@ -282,7 +283,7 @@ namespace MemorySearchKit {
 			MemSearchSafeMap<uint64_t, ADDR_RESULT_INFO> sortResultMap;
 			MemSearchSafeMap<uint64_t, ADDR_RESULT_INFO> sortErrorMap;
 
-			bool isFloatVal = typeid(T) == typeid(static_cast<float>(0)) || typeid(T) == typeid(static_cast<double>(0));
+			constexpr bool isFloatVal = std::is_same_v<T, float> || std::is_same_v<T, double>;
 
 			//内存搜索线程
 			MultiThreadOnCpu(nThreadCount,
@@ -316,7 +317,7 @@ namespace MemorySearchKit {
 						//寻找数值
 						switch (scanType) {
 						case SCAN_TYPE::ACCURATE_VAL:
-							if (isFloatVal) {
+							if constexpr (isFloatVal) {
 								//当是float、double数值的情况
 								if ((value1 - errorRange) > temp || temp > (value1 + errorRange)) { continue; }
 							} else {
@@ -345,7 +346,7 @@ namespace MemorySearchKit {
 							if (temp <= *(T*)(memAddrJob.spSaveData.get())) { continue; }
 							break;
 						case SCAN_TYPE::ADD_ACCURATE_VAL:
-							if (isFloatVal) {
+							if constexpr (isFloatVal) {
 								//float、double数值增加了的结果保留
 								T* pOldData = (T*)memAddrJob.spSaveData.get();
 								T cOldData = *pOldData;
@@ -364,7 +365,7 @@ namespace MemorySearchKit {
 							if (temp >= *(T*)(memAddrJob.spSaveData.get())) { continue; }
 							break;
 						case SCAN_TYPE::SUB_ACCURATE_VAL:
-							if (isFloatVal) {
+							if constexpr (isFloatVal) {
 								//float、double数值减少了的结果保留
 								T* pOldData = (T*)memAddrJob.spSaveData.get();
 								T cOldData = *pOldData;
@@ -379,7 +380,7 @@ namespace MemorySearchKit {
 							}
 							break;
 						case SCAN_TYPE::CHANGED_VAL:
-							if (isFloatVal) {
+							if constexpr (isFloatVal) {
 								//float、double变动的数值的结果保留
 								T* pOldData = (T*)memAddrJob.spSaveData.get();
 								if (temp > (*pOldData)) {
@@ -395,7 +396,7 @@ namespace MemorySearchKit {
 							}
 							break;
 						case SCAN_TYPE::UNCHANGED_VAL:
-							if (isFloatVal) {
+							if constexpr (isFloatVal) {
 								//float、double未变动的数值的结果保留
 								T* pOldData = (T*)memAddrJob.spSaveData.get();
 
