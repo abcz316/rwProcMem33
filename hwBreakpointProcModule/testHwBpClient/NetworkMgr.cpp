@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "NetworkMgr.h"
 #include "Global.h"
-#include "../testHwBp/jni/HwBreakpointMgr.h"
+#include "../testHwBp/jni/HwBreakpointMgr4.h"
 
 CNetworkMgr::CNetworkMgr() {
 	WSADATA wsadata;

@@ -11,7 +11,7 @@
 #include <sstream>
 #include <algorithm>
 #include <thread>
-#include "../testHwBp/jni/HwBreakpointMgr.h"
+#include "../testHwBp/jni/HwBreakpointMgr4.h"
 #include "../testHwBpServer/jni/hwbpserver.h"
 #include "ScaleHelper.h"
 #ifdef _DEBUG
