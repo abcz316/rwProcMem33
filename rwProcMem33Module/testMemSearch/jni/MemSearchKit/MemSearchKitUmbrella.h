@@ -101,6 +101,65 @@ namespace MemorySearchKit {
 			nThreadCount, vResultList, nScanAlignBytesCount, pForceStopSignal); 
 	}
 
+	/*
+	内存搜索文本特征码
+	pReadWriteProxy：读取进程内存数据的接口
+	hProcess：被搜索的进程句柄
+	spvWaitScanMemBlockList: 被搜索的进程内存区域
+	strFeaturesByte: 十六进制的文本字节特征码，搜索规则与OD相同，如“68 00 00 00 40 ?3 7? ?? ?? ?? ?? ?? ?? 50 E8”
+	nThreadCount: 用于搜索内存的线程数，推荐设置为CPU数量
+	vResultList：存放搜索完成的结果地址
+	nScanAlignBytesCount：扫描的对齐字节数，默认为1
+	pForceStopSignal: 强制中止所有任务的信号
+	)
+	*/
+	static MEM_SEARCH_STATUS SearchFeaturesByteString(
+		IMemReaderWriterProxy* pReadWriteProxy,
+		uint64_t hProcess,
+		std::shared_ptr<MemSearchSafeWorkBlockWrapper> spvWaitScanMemBlockList,
+		std::string strFeaturesByte,
+		size_t nThreadCount,
+		std::vector<ADDR_RESULT_INFO> & vResultList,
+		size_t nScanAlignBytesCount = 1,
+		std::atomic<bool> * pForceStopSignal = nullptr) {
+		
+
+		return Core::SearchFeaturesByteString(
+			pReadWriteProxy, hProcess, spvWaitScanMemBlockList, strFeaturesByte,
+			nThreadCount, vResultList, nScanAlignBytesCount, pForceStopSignal); 
+	}
+
+
+	/*
+	再次搜索内存文本特征码
+	pReadWriteProxy：读取进程内存数据的接口
+	hProcess：被搜索的进程句柄
+	vWaitScanMemAddr: 需要再次搜索的内存地址列表
+	strFeaturesByte: 十六进制的文本字节特征码，搜索规则与OD相同，如“68 00 00 00 40 ?3 7? ?? ?? ?? ?? ?? ?? 50 E8”
+	nThreadCount: 用于搜索内存的线程数，推荐设置为CPU数量
+	vResultList：存放搜索完成的结果地址
+	vErrorList：存放实时搜索失败的结果地址
+	nScanAlignBytesCount：扫描的对齐字节数，默认为1
+	pForceStopSignal: 强制中止所有任务的信号
+	)
+	*/
+	static MEM_SEARCH_STATUS SearchAddrNextFeaturesByteString(
+		IMemReaderWriterProxy* pReadWriteProxy,
+		uint64_t hProcess,
+		const std::vector<ADDR_RESULT_INFO> & vWaitScanMemAddr,
+		std::string strFeaturesByte,
+		size_t nThreadCount,
+		std::vector<ADDR_RESULT_INFO> & vResultList,
+		std::vector<ADDR_RESULT_INFO> & vErrorList,
+		size_t nScanAlignBytesCount = 1,
+		std::atomic<bool> * pForceStopSignal = nullptr) {
+		
+		
+		return Core::SearchAddrNextFeaturesByteString(
+			pReadWriteProxy, hProcess, vWaitScanMemAddr, strFeaturesByte,
+			nThreadCount, vResultList, vErrorList, nScanAlignBytesCount, pForceStopSignal); 
+	}
+
 
 	/*
 	内存搜索字节特征码
@@ -169,66 +228,6 @@ namespace MemorySearchKit {
 			vFeaturesByte, nFeaturesByteLen, vFuzzyBytes, nThreadCount,
 			vResultList, vErrorList, nScanAlignBytesCount, pForceStopSignal); 
 	}
-
-	/*
-	内存搜索文本特征码
-	pReadWriteProxy：读取进程内存数据的接口
-	hProcess：被搜索的进程句柄
-	spvWaitScanMemBlockList: 被搜索的进程内存区域
-	strFeaturesByte: 十六进制的文本字节特征码，搜索规则与OD相同，如“68 00 00 00 40 ?3 7? ?? ?? ?? ?? ?? ?? 50 E8”
-	nThreadCount: 用于搜索内存的线程数，推荐设置为CPU数量
-	vResultList：存放搜索完成的结果地址
-	nScanAlignBytesCount：扫描的对齐字节数，默认为1
-	pForceStopSignal: 强制中止所有任务的信号
-	)
-	*/
-	static MEM_SEARCH_STATUS SearchFeaturesByteString(
-		IMemReaderWriterProxy* pReadWriteProxy,
-		uint64_t hProcess,
-		std::shared_ptr<MemSearchSafeWorkBlockWrapper> spvWaitScanMemBlockList,
-		std::string strFeaturesByte,
-		size_t nThreadCount,
-		std::vector<ADDR_RESULT_INFO> & vResultList,
-		size_t nScanAlignBytesCount = 1,
-		std::atomic<bool> * pForceStopSignal = nullptr) {
-		
-
-		return Core::SearchFeaturesByteString(
-			pReadWriteProxy, hProcess, spvWaitScanMemBlockList, strFeaturesByte,
-			nThreadCount, vResultList, nScanAlignBytesCount, pForceStopSignal); 
-	}
-
-
-	/*
-	再次搜索内存文本特征码
-	pReadWriteProxy：读取进程内存数据的接口
-	hProcess：被搜索的进程句柄
-	vWaitScanMemAddr: 需要再次搜索的内存地址列表
-	strFeaturesByte: 十六进制的文本字节特征码，搜索规则与OD相同，如“68 00 00 00 40 ?3 7? ?? ?? ?? ?? ?? ?? 50 E8”
-	nThreadCount: 用于搜索内存的线程数，推荐设置为CPU数量
-	vResultList：存放搜索完成的结果地址
-	vErrorList：存放实时搜索失败的结果地址
-	nScanAlignBytesCount：扫描的对齐字节数，默认为1
-	pForceStopSignal: 强制中止所有任务的信号
-	)
-	*/
-	static MEM_SEARCH_STATUS SearchAddrNextFeaturesByteString(
-		IMemReaderWriterProxy* pReadWriteProxy,
-		uint64_t hProcess,
-		const std::vector<ADDR_RESULT_INFO> & vWaitScanMemAddr,
-		std::string strFeaturesByte,
-		size_t nThreadCount,
-		std::vector<ADDR_RESULT_INFO> & vResultList,
-		std::vector<ADDR_RESULT_INFO> & vErrorList,
-		size_t nScanAlignBytesCount = 1,
-		std::atomic<bool> * pForceStopSignal = nullptr) {
-		
-		
-		return Core::SearchAddrNextFeaturesByteString(
-			pReadWriteProxy, hProcess, vWaitScanMemAddr, strFeaturesByte,
-			nThreadCount, vResultList, vErrorList, nScanAlignBytesCount, pForceStopSignal); 
-	}
-
 
 
 	/*

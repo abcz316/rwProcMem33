@@ -30,7 +30,7 @@
 > **rwProcMem33Module**：进程内存读写驱动
 >>* **rwProcMem_module**：（*内核层*）驱动源码
 >>* **testKo**：（*应用层*）调用驱动demo
->>* **testTarge**t：（*应用层*）读取第三方进程demo
+>>* **testTarget**：（*应用层*）读取第三方进程demo
 >>* **testMemSearch**：（*应用层*）搜索第三方进程内存demo
 >>* **testDumpMem**：（*应用层*）保存第三方进程内存demo
 >>* **testCEServer**：（*应用层*）CheatEngine远程服务器，可配合CheatEngine7.1远程连接使用
